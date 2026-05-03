@@ -1,0 +1,68 @@
+{
+  "id": "yaoyao-memory",
+  "name": "Yaoyao Memory",
+  "description": "四层记忆系统 (FTS5 + sqlite-vec 向量搜索 + 可选 LLM 管线) — 自动捕获对话, 混合搜索, 情感分析心情环, 记忆时间线, 场景管理, 用户画像生成。搭载「摇摇·记忆」引擎，让你的 AI 拥有长时记忆。",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "capture": {
+        "type": "object",
+        "description": "对话自动捕获设置 (L0)",
+        "properties": {
+          "enabled": { "type": "boolean", "default": true, "description": "是否启用自动对话捕获" }
+        }
+      },
+      "recall": {
+        "type": "object",
+        "description": "记忆自动召回设置",
+        "properties": {
+          "enabled": { "type": "boolean", "default": true, "description": "是否启用自动记忆召回" },
+          "maxResults": { "type": "number", "default": 3, "description": "召回最大结果数" }
+        }
+      },
+      "memoryDir": {
+        "type": "string",
+        "default": "",
+        "description": "自定义记忆目录路径（默认：~/.openclaw/workspace/memory/）"
+      },
+      "embedding": {
+        "type": "object",
+        "description": "向量嵌入配置（可选，开启后支持向量+混合搜索）",
+        "properties": {
+          "enabled": { "type": "boolean", "default": false, "description": "是否启用向量嵌入" },
+          "provider": { "type": "string", "default": "openai", "description": "嵌入 API provider" },
+          "baseUrl": { "type": "string", "default": "", "description": "嵌入 API base URL" },
+          "apiKey": { "type": "string", "default": "", "description": "嵌入 API key" },
+          "model": { "type": "string", "default": "", "description": "嵌入模型名称" },
+          "dimensions": { "type": "number", "default": 1024, "description": "向量维度" }
+        }
+      },
+      "llm": {
+        "type": "object",
+        "description": "LLM 配置（可选，开启后支持 L1/L2/L3 管线）",
+        "properties": {
+          "enabled": { "type": "boolean", "default": false, "description": "是否启用 LLM 管线" },
+          "apiKey": { "type": "string", "default": "", "description": "LLM API key" },
+          "baseUrl": { "type": "string", "default": "https://api.deepseek.com", "description": "LLM API base URL" },
+          "model": { "type": "string", "default": "deepseek-chat", "description": "LLM 模型名称" }
+        }
+      },
+      "cleanup": {
+        "type": "object",
+        "description": "记忆清理配置（可选）",
+        "properties": {
+          "enabled": { "type": "boolean", "default": true, "description": "是否启用每日清理" },
+          "l0l1RetentionDays": { "type": "number", "default": 30, "description": "每日日志保留天数（0=不清理，默认30天）" },
+          "allowAggressiveCleanup": { "type": "boolean", "default": false, "description": "是否允许激进清理（retentionDays=1或2）" }
+        }
+      },
+      "blockLabels": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": [],
+        "description": "排除的 session label 列表，匹配的 session 不会被捕获/召回"
+      }
+    }
+  }
+}

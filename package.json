@@ -1,0 +1,30 @@
+{
+  "name": "@yaoyao/yaoyao-memory-plugin",
+  "version": "1.0.0",
+  "description": "Yaoyao Memory plugin for OpenClaw — four-layer memory system: auto-capture, structured extraction, scene blocks, persona profiling",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "src/",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "memory",
+    "yaoyao-memory",
+    "long-term-memory"
+  ],
+  "author": "Yaoyao",
+  "license": "MIT",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

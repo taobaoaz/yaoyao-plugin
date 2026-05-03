@@ -1,0 +1,369 @@
+/**
+ * SQLite database layer — FTS5 + sqlite-vec vector search.
+ *
+ * Uses native Node 22 node:sqlite for zero-dependency SQLite access,
+ * plus sqlite-vec extension (from openclaw workspace) for vector search.
+ *
+ * Stores both FTS5 index and vector embeddings in a single .yaoyao.db file.
+ */
+
+import { createRequire } from "node:module";
+import type { DatabaseSync } from "node:sqlite";
+import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
+import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { YaoyaoMemoryConfig } from "./memory-store.js";
+
+const _require = createRequire(import.meta.url);
+
+// ──────────────────────────── Types ────────────────────────────
+
+export interface SearchResult {
+  filename: string;
+  snippet: string;
+  score: number;
+  date: string;
+}
+
+export interface EmbeddedSearchResult extends SearchResult {
+  /** Cosine similarity score from vector search (0-1) */
+  vectorScore: number;
+  /** Hybrid score combining FTS5 rank + vector similarity */
+  hybridScore: number;
+}
+
+export interface DBStats {
+  totalMemories: number;
+  datesSummary: Array<{ date: string; count: number }>;
+  ftsEnabled: boolean;
+  vecEnabled: boolean;
+  totalVectors: number;
+  dimensions: number;
+}
+
+// ──────────────────────────── Helpers ────────────────────────────
+
+/** Compute a normalized score from FTS5 rank (negative = better) */
+function computeScore(rank: number): number {
+  if (rank < 0) {
+    return Math.min(1, Math.max(0.1, -rank / 15));
+  }
+  return 0.3;
+}
+
+// ──────────────────────────── DB Bridge ────────────────────────────
+
+export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
+  const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+  const dbPath = path.join(baseDir, ".yaoyao.db");
+
+  const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
+  let db: DatabaseSync | null = null;
+
+  /** Initialize database — create tables if not exist */
+  function init(): boolean {
+    try {
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+
+      const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite");
+      db = new DatabaseSync(dbPath, { allowExtension: true });
+
+      // Handle stale WAL/shm files from previous crash
+      try {
+        db.exec("PRAGMA journal_mode = WAL");
+      } catch (e: any) {
+        // disk I/O error → stale WAL files, clean up and retry
+        if (e.message?.includes("disk I/O")) {
+          log("Stale WAL files detected, cleaning up");
+          try { db.close(); } catch { /* ignore */ }
+          db = null;
+          // Remove only WAL journal files that may be corrupt (not the main db)
+          for (const ext of ["-wal", "-shm"]) {
+            try { fs.unlinkSync(dbPath + ext); } catch { /* ignore */ }
+          }
+          db = new DatabaseSync(dbPath, { allowExtension: true });
+          db.exec("PRAGMA journal_mode = WAL");
+        } else {
+          throw e;
+        }
+      }
+      db.exec("PRAGMA busy_timeout = 5000");
+      db.exec("PRAGMA cache_size = -65536");
+
+      // FTS5 table for full-text search
+      db.exec(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+          "date, user_text, asst_text, " +
+          "tokenize='unicode61'" +
+        ")"
+      );
+
+      // Metadata table for L1 memories
+      db.exec(
+        "CREATE TABLE IF NOT EXISTS memory_meta (" +
+          "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+          "date TEXT NOT NULL, " +
+          "user_text TEXT, " +
+          "asst_text TEXT, " +
+          "created_at TEXT DEFAULT (datetime('now'))" +
+        ")"
+      );
+
+      // Vector search table (sqlite-vec)
+      let vecEnabled = false;
+      try {
+        const sqliteVec = _require("sqlite-vec") as any;
+        db.enableLoadExtension(true);
+        sqliteVec.load(db);
+        vecEnabled = true;
+
+        db.exec(
+          "CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
+            "embedding float[1024]" +
+          ")"
+        );
+
+        db.exec(
+          "CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
+            "id INTEGER PRIMARY KEY, " +
+            "meta_id INTEGER, " +
+            "model TEXT, " +
+            "dimensions INTEGER DEFAULT 1024, " +
+            "created_at TEXT DEFAULT (datetime('now'))" +
+          ")"
+        );
+
+        log("sqlite-vec loaded successfully");
+      } catch (e: any) {
+        log(`sqlite-vec not available: ${e.message}`);
+        vecEnabled = false;
+      }
+
+      log(`DB initialized: ${dbPath} (vec=${vecEnabled})`);
+      return true;
+    } catch (err: any) {
+      logger?.error?.(`[yaoyao-memory:db] Init failed: ${err.message}`);
+      return false;
+    }
+  }
+
+  /** Ensure DB is initialized */
+  function ensureDB(): DatabaseSync {
+    if (!db) {
+      init();
+    }
+    if (!db) {
+      throw new Error("Database failed to initialize");
+    }
+    return db;
+  }
+
+  /** Index a conversation turn in FTS5 */
+  function indexTurn(userText: string, asstText: string, date: string): boolean {
+    try {
+      const d = ensureDB();
+      const stmt = d.prepare(
+        "INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)"
+      );
+      const result = stmt.run(date, userText.slice(0, 500), asstText.slice(0, 500));
+      const rowId = Number(result.lastInsertRowid);
+
+      const stmt2 = d.prepare(
+        "INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)"
+      );
+      stmt2.run(rowId, date, userText.slice(0, 500), asstText.slice(0, 500));
+
+      return true;
+    } catch (err: any) {
+      log(`indexTurn error: ${err.message}`);
+      return false;
+    }
+  }
+
+  /** Sanitize query string for FTS5 MATCH syntax.
+   * Removes characters that can cause FTS5 syntax errors while keeping search terms readable.
+   */
+  function sanitizeFTSQuery(query: string): string {
+    // FTS5 special chars that cause syntax errors if unescaped:
+    //   "  - unmatched quote → syntax error
+    //   *  - prefix operator in wrong position → syntax error
+    //   ^  - anchor operator → syntax error on partial match
+    //   `  - escape char → syntax error
+    //   () - grouping → syntax error when unbalanced
+    //   ~  - NEAR operator → requires number param, causes error
+    // Remove all of them; keep + (AND sign) and - (exclusion) as they're safe standalone.
+    const s = query
+      .replace(/["*^`()~]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200);
+    if (!s) return query.slice(0, 50).replace(/[^\w\u4e00-\u9fff]/g, " ").replace(/\s+/g, " ").trim() || "memory";
+    return s;
+  }
+
+  /** FTS5 full-text search */
+  function search(query: string, limit: number = 10): SearchResult[] {
+    try {
+      const d = ensureDB();
+      const safeQuery = sanitizeFTSQuery(query);
+
+      const stmt = d.prepare(
+        "SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
+        "FROM memory_fts WHERE memory_fts MATCH ? " +
+        "ORDER BY rank LIMIT ?"
+      );
+      const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), 100));
+
+      return (rows as Array<{ date: string; snippet: string; rank: number }>).map(row => ({
+        filename: row.date ? `${row.date}.md` : "memory.db",
+        snippet: (row.snippet || "").slice(0, 500),
+        score: computeScore(row.rank),
+        date: row.date || "",
+      }));
+    } catch (err: any) {
+      log(`search error: ${err.message}`);
+      return [];
+    }
+  }
+
+  /** Vector similarity search via sqlite-vec */
+  function vectorSearch(embedding: Float32Array, limit: number = 10): EmbeddedSearchResult[] {
+    try {
+      const d = ensureDB();
+      const jsonArr = "[" + Array.from(embedding).join(",") + "]";
+
+      const stmt = d.prepare(
+        "SELECT v.rowid, m.date, m.user_text, m.asst_text, v.distance " +
+        "FROM memory_vec v " +
+        "JOIN memory_meta m ON v.rowid = m.id " +
+        "WHERE v.embedding MATCH ? AND k = ?"
+      );
+      const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), 100));
+
+      return (rows as Array<{ rowid: number; date: string; user_text: string; asst_text: string; distance: number }>).map(row => {
+        const cosineSim = 1 - (row.distance || 1);
+        const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
+        return {
+          filename: row.date ? `${row.date}.md` : "memory.db",
+          snippet: snippet.slice(0, 500),
+          score: Math.max(0, cosineSim),
+          date: row.date || "",
+          vectorScore: Math.max(0, cosineSim),
+          hybridScore: Math.max(0, cosineSim),
+        };
+      });
+    } catch (err: any) {
+      log(`vectorSearch error: ${err.message}`);
+      return [];
+    }
+  }
+
+  /** Hybrid search: FTS5 + vector weighted combination */
+  function hybridSearch(query: string, embedding: Float32Array | null, limit: number = 10): EmbeddedSearchResult[] {
+    const ftsResults = search(query, limit);
+
+    if (!embedding || ftsResults.length === 0) {
+      return ftsResults.map(r => ({
+        ...r,
+        vectorScore: 0,
+        hybridScore: r.score * 0.6,
+      }));
+    }
+
+    const vecResults = vectorSearch(embedding, limit);
+
+    const merged = new Map<string, EmbeddedSearchResult>();
+
+    for (const r of ftsResults) {
+      merged.set(`${r.date}|${r.snippet}`, {
+        ...r,
+        vectorScore: 0,
+        hybridScore: r.score * 0.6,
+      });
+    }
+
+    for (const r of vecResults) {
+      const key = `${r.date}|${r.snippet}`;
+      if (merged.has(key)) {
+        const existing = merged.get(key)!;
+        existing.vectorScore = r.vectorScore;
+        existing.hybridScore = (existing.score * 0.6) + (r.vectorScore * 0.4);
+      } else {
+        merged.set(key, {
+          ...r,
+          score: r.vectorScore * 0.4,
+          hybridScore: r.vectorScore * 0.4,
+        });
+      }
+    }
+
+    return [...merged.values()]
+      .sort((a, b) => b.hybridScore - a.hybridScore)
+      .slice(0, limit);
+  }
+
+  /** Store a vector embedding for a memory */
+  function storeVector(metaId: number, embedding: Float32Array): boolean {
+    try {
+      const d = ensureDB();
+      const jsonArr = "[" + Array.from(embedding).join(",") + "]";
+
+      d.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
+      d.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+
+      return true;
+    } catch (err: any) {
+      log(`storeVector error: ${err.message}`);
+      return false;
+    }
+  }
+
+  /** Get database stats */
+  function getStats(): DBStats {
+    try {
+      const d = ensureDB();
+
+      const totalCount = d.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as { c: number } | undefined;
+      const total = totalCount?.c ?? 0;
+
+      const datesRaw = d.prepare(
+        "SELECT date, COUNT(*) as c FROM memory_meta GROUP BY date ORDER BY date DESC LIMIT 10"
+      ).all() as Array<{ date: string; c: number }>;
+
+      let vecCount = 0;
+      let dimensions = 0;
+      try {
+        const vecRow = d.prepare("SELECT COUNT(*) as c FROM memory_vec").get() as { c: number } | undefined;
+        vecCount = vecRow?.c ?? 0;
+        dimensions = 1024;
+      } catch {
+        // vec table may not exist
+      }
+
+      return {
+        totalMemories: total,
+        datesSummary: datesRaw.map(r => ({ date: r.date, count: r.c })),
+        ftsEnabled: true,
+        vecEnabled: true,
+        totalVectors: vecCount,
+        dimensions,
+      };
+    } catch (err: any) {
+      log(`getStats error: ${err.message}`);
+      return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
+    }
+  }
+
+  /** Close database connection */
+  function close(): void {
+    if (db) {
+      try { db.close(); } catch { /* ignore */ }
+      db = null;
+    }
+  }
+
+  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, getStats, close, dbPath };
+}
+
+export type DBBridge = ReturnType<typeof createDB>;
