@@ -78,7 +78,7 @@ export default definePluginEntry({
 
     // L1→L2→L3 pipeline (LLM extraction, scene grouping, persona)
     if (config.llm?.enabled !== false && llm) {
-      registerPipelineManager(api, store, db, llm, config);
+      registerPipelineManager(api, store, db, llm, config, embedding);
     }
 
     // ── Backup Manager (optional, no-op unless create/restore called) ──

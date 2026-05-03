@@ -50,7 +50,9 @@ export function createEmbeddingService(config: EmbeddingConfig) {
    * Returns a Float32Array of `dimensions` floats.
    */
   async function embed(text: string): Promise<Float32Array> {
-    const url = `${baseUrl}/embeddings`;
+    // Handle baseUrl that already contains /v1 prefix (e.g. https://ai.gitee.com/v1)
+    const path = baseUrl.endsWith("/v1") ? "" : "/v1";
+    const url = `${baseUrl}${path}/embeddings`;
     const res = await fetchWithRetry(url, {
       method: "POST",
       headers: {
@@ -81,7 +83,8 @@ export function createEmbeddingService(config: EmbeddingConfig) {
    * Generate embeddings for multiple texts in a batch.
    */
   async function embedBatch(texts: string[]): Promise<Float32Array[]> {
-    const url = `${baseUrl}/embeddings`;
+    const path = baseUrl.endsWith("/v1") ? "" : "/v1";
+    const url = `${baseUrl}${path}/embeddings`;
     const inputs = texts.map(t => t.slice(0, 8000));
     const res = await fetchWithRetry(url, {
       method: "POST",
