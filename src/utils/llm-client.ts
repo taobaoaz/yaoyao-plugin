@@ -19,22 +19,67 @@ export interface LLMResponse {
   usage: { prompt: number; completion: number; total: number };
 }
 
-/** Create an LLM client from plugin config (llm section) */
-export function createLLMClient(config: Record<string, unknown> | undefined): LLMClient | null {
-  if (!config || typeof config !== "object") return null;
-  // Look for llm section first, then fallback to top-level fields
+/**
+ * Auto-detect LLM model name based on provider base URL.
+ * Returns a reasonable chat model if we know the provider.
+ */
+function detectModel(baseUrl: string): string {
+  const url = baseUrl.toLowerCase();
+  if (url.includes("gitee")) return "Qwen3-8B";
+  if (url.includes("deepseek")) return "deepseek-chat";
+  if (url.includes("openai")) return "gpt-4o-mini";
+  if (url.includes("siliconflow")) return "Qwen/Qwen2.5-7B-Instruct";
+  if (url.includes("azure")) return "gpt-4o-mini";
+  return "deepseek-chat"; // generic fallback
+}
+
+export interface CreateLLMClientResult {
+  client: LLMClient | null;
+  /** Where the LLM config was sourced from */
+  source: "explicit" | "embedding-auto" | null;
+}
+
+/** Create an LLM client from plugin config.
+ * 
+ * Priority:
+ * 1. Explicit `llm.apiKey` → use `llm` section directly
+ * 2. Embedding fallback (if `embedding` section has apiKey) → auto-detect
+ * 3. Nothing → return null
+ */
+export function createLLMClient(
+  config: Record<string, unknown> | undefined,
+  embeddingConfig?: Record<string, unknown> | null
+): CreateLLMClientResult {
+  const result: CreateLLMClientResult = { client: null, source: null };
+
+  if (!config || typeof config !== "object") return result;
+
+  // Priority 1: explicit llm config
   const llmSection = (config.llm || {}) as Record<string, unknown>;
-  const apiKey = String(llmSection.apiKey || "");
-  const baseUrl = String(llmSection.baseUrl || "");
-  const model = String(llmSection.model || "");
+  const llmApiKey = String(llmSection.apiKey || "");
+  if (llmApiKey) {
+    const baseUrl = String(llmSection.baseUrl || "https://api.deepseek.com");
+    const model = String(llmSection.model || detectModel(baseUrl));
+    result.client = new LLMClient({ apiKey: llmApiKey, baseUrl, model });
+    result.source = "explicit";
+    return result;
+  }
 
-  if (!apiKey) return null;
+  // Priority 2: auto-detect from embedding config
+  if (embeddingConfig && typeof embeddingConfig === "object") {
+    const embeddingApiKey = String(embeddingConfig.apiKey || "");
+    const embeddingEnabled = embeddingConfig.enabled !== false;
+    if (embeddingApiKey && embeddingEnabled) {
+      const baseUrl = String(embeddingConfig.baseUrl || "https://api.deepseek.com");
+      const model = detectModel(baseUrl);
+      result.client = new LLMClient({ apiKey: embeddingApiKey, baseUrl, model });
+      result.source = "embedding-auto";
+      return result;
+    }
+  }
 
-  return new LLMClient({
-    apiKey,
-    baseUrl: baseUrl || "https://api.deepseek.com",
-    model: model || "deepseek-chat",
-  });
+  // Priority 3: no LLM available
+  return result;
 }
 
 export class LLMClient {

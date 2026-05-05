@@ -56,7 +56,7 @@ const SMOOTH_FACTOR = 0.15;
 export class PersonaStateMachine {
   private baseDir: string;
   private cache: PersonaState | null = null;
-  private lastUpdateTime: number = 01;
+  private lastUpdateTime: number = 0;
   private moodHistory: number[] = [];
   private stateHistory: PersonaState[] = [];
   private maxHistory: number = 10;

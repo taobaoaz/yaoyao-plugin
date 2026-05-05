@@ -4,8 +4,6 @@
  * Filters out system/internal sessions (e.g., cron tasks, admin operations,
  * tool-only sessions) and only captures meaningful user conversations.
  */
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-
 export interface SessionFilterConfig {
   /** Block internal/system sessions (default: true) */
   blockInternal?: boolean;

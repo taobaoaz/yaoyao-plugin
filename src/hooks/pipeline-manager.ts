@@ -23,14 +23,13 @@ import type { EmbeddingService } from "../utils/embedding.js";
 import { extractL1Memories } from "../extraction/l1-extractor.js";
 import { runSceneExtraction } from "../scenes/scene-extractor.js";
 import { generateOrUpdatePersona } from "../persona/persona-generator.js";
-import type { Persona } from "../persona/persona-generator.js";
 import path from "node:path";
 import fs from "node:fs";
 
 const TAG = "[yaoyao-memory:pipeline]";
 
 /**
- * Persistent checkpoint — stored in SQLite so restarts don't lose progress.
+ * Persistent checkpoint — persisted to file so restarts don't lose progress.
  */
 interface PipelineCheckpoint {
   sessionKey: string;
@@ -42,10 +41,18 @@ interface PipelineCheckpoint {
 
 // ── In-memory throttle: prevent same-session cascade ──
 const throttleMap = new Map<string, number>();
+const THROTTLE_CLEANUP_INTERVAL = 60_000; // cleanup stale entries every 60s
+let lastThrottleCleanup = Date.now();
 
-setInterval(() => {
-  if (throttleMap.size > 200) throttleMap.clear();
-}, 600_000).unref();
+function cleanupThrottleMap(): void {
+  const now = Date.now();
+  if (now - lastThrottleCleanup < THROTTLE_CLEANUP_INTERVAL) return;
+  lastThrottleCleanup = now;
+  const cutoff = now - 5000; // keep entries from the last 5 seconds
+  for (const [key, ts] of throttleMap) {
+    if (ts < cutoff) throttleMap.delete(key);
+  }
+}
 
 export function registerPipelineManager(
   api: OpenClawPluginApi,
@@ -104,6 +111,7 @@ export function registerPipelineManager(
 
       // ── Throttle: skip if this session was processed < 1s ago ──
       const now = Date.now();
+      cleanupThrottleMap();
       const lastRun = throttleMap.get(sessionKey) || 0;
       if (now - lastRun < 1000) return;
       throttleMap.set(sessionKey, now);
@@ -119,32 +127,22 @@ export function registerPipelineManager(
         db,
         config,
         llm,
+        embedding,
         logger: api.logger,
       });
 
       if (l1Result.success && l1Result.storedCount > 0) {
         api.logger.info(`${TAG} L1 extraction: ${l1Result.storedCount} memories stored`);
+        // Vector storage is handled inside extractL1Memories (fire-and-forget via embedding param)
 
-        // ── If embedding available, store vectors for extracted memories ──
-        if (embedding && l1Result.sceneNames.length > 0) {
-          try {
-            const vectors = await embedding.embedBatch(l1Result.sceneNames);
-            for (const v of vectors) {
-              db.storeVector(0, v); // meta_id=0 means L1 extracted memory
-            }
-          } catch (vecErr: any) {
-            api.logger.debug?.(`${TAG} Vector storage skipped: ${vecErr.message}`);
-          }
-        }
+        // ── Cumulative counter: grows monotonically across sessions ──
+        const prevCount = cp?.extractionCount || 0;
+        const nextCount = prevCount + l1Result.storedCount;
 
-        // Count from persisted checkpoint
-        let extractionCount = l1Result.storedCount;
-        if (cp && cp.extractionCount > 0) {
-          extractionCount = cp.extractionCount + l1Result.storedCount;
-        }
-
-        // === L2: Extract scene blocks (every 10 L1 memories) ===
-        if (extractionCount >= 10) {
+        // Check if we crossed a 10-boundary (10, 20, 30…) → run L2
+        const prevL2Block = Math.floor(prevCount / 10);
+        const nextL2Block = Math.floor(nextCount / 10);
+        if (nextL2Block > prevL2Block) {
           const memoriesForScene = l1Result.sceneNames.map(name => ({
             content: name,
             date: new Date().toISOString().slice(0, 10),
@@ -160,18 +158,13 @@ export function registerPipelineManager(
           if (l2Result.success) {
             api.logger.info(`${TAG} L2 scene extraction: ${l2Result.sceneCount} scenes`);
 
-            // === L3: Update persona (every 20 L1 memories) ===
-            if (extractionCount >= 20) {
-              const personaFile = path.join(store.baseDir, "persona.md");
-              let existingPersona: Persona | null = null;
-              try {
-                const personaContent = fs.readFileSync(personaFile, "utf-8");
-                existingPersona = null
-              } catch { /* no existing persona */ }
-
+            // Check if we crossed a 20-boundary → run L3
+            const prevL3Block = Math.floor(prevCount / 20);
+            const nextL3Block = Math.floor(nextCount / 20);
+            if (nextL3Block > prevL3Block) {
               const l3Result = await generateOrUpdatePersona({
                 memories: l1Result.sceneNames,
-                existingPersona,
+                existingPersona: null, // persona.md is markdown, not JSON — re-generate each time
                 llm,
                 memoryDir: store.baseDir,
                 logger: api.logger,
@@ -180,19 +173,18 @@ export function registerPipelineManager(
               if (l3Result.success) {
                 api.logger.info(`${TAG} L3 persona: updated`);
               }
-
-              // Reset extraction counter after L3 complete
-              extractionCount = 0;
             }
           }
+        } else {
+          api.logger.debug?.(`${TAG} Next L2 at count ${(prevL2Block + 1) * 10} (current: ${nextCount})`);
         }
 
-        // Save persistent checkpoint
+        // Save persistent checkpoint (cumulative, never resets)
         saveCheckpoint({
           sessionKey,
           messageCount: messages.length,
-          extractionCount,
-          l3Complete: extractionCount === 0,
+          extractionCount: nextCount,
+          l3Complete: false,
           updatedAt: new Date().toISOString(),
         });
       }

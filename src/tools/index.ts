@@ -17,8 +17,10 @@ import { createSearchTimelineTool } from "./search-timeline.js";
 import { createBackupTool } from "./backup.js";
 import { createForgetTool } from "./forget.js";
 import { createNoteTool } from "./note.js";
+import { createOptimizeTool } from "./memory-optimize.js";
+import type { FeedbackTracker } from "../learning/feedback-tracker.js";
 
-export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge) {
+export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge, feedbackTracker?: FeedbackTracker | null) {
   const tools = [
     createSearchTool(db),
     createGetTool(store, db),
@@ -32,6 +34,13 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
     createForgetTool(store, db),
     createNoteTool(store, db),
   ];
+
+  // FeedbackTracker-powered tool (L4 learning)
+  if (feedbackTracker) {
+    try {
+      tools.push(createOptimizeTool(feedbackTracker));
+    } catch { /* best effort */ }
+  }
 
   for (const tool of tools) {
     api.registerTool(tool);

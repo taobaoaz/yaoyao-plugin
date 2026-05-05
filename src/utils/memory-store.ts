@@ -8,10 +8,40 @@ import fs from "node:fs";
 import os from "node:os";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 
+/**
+ * Full configuration type that matches plugin's actual consumption.
+ * Fields are consumed by: index.ts, auto-capture, auto-recall, pipeline-manager,
+ * memory-cleaner, embedding, LLM client.
+ */
 export interface YaoyaoMemoryConfig {
-  capture?: { enabled?: boolean };
-  recall?: { enabled?: boolean; maxResults?: number };
+  capture?: {
+    enabled?: boolean;
+  };
+  recall?: {
+    enabled?: boolean;
+    maxResults?: number;
+  };
   memoryDir?: string;
+  embedding?: {
+    enabled?: boolean;
+    apiKey?: string;
+    baseUrl?: string;
+    model?: string;
+    dimensions?: number;
+  };
+  llm?: {
+    enabled?: boolean;
+    apiKey?: string;
+    baseUrl?: string;
+    model?: string;
+  };
+  cleanup?: {
+    enabled?: boolean;
+    l0l1RetentionDays?: number;
+    allowAggressiveCleanup?: boolean;
+  };
+  blockLabels?: string[];
+  [key: string]: unknown; // allow additional fields
 }
 
 export interface MemoryEntry {

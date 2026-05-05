@@ -8,6 +8,7 @@
 import type { DBBridge } from "../utils/db-bridge.js";
 import type { LLMClient } from "../utils/llm-client.js";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
+import { parseJSONResponse } from "../utils/llm-parse.js";
 import { EXTRACT_MEMORIES_SYSTEM_PROMPT, formatExtractionPrompt } from "./prompts.js";
 
 const TAG = "[yaoyao-memory:l1-extractor]";
@@ -22,6 +23,7 @@ export interface L1ExtractionResult {
   success: boolean;
   extractedCount: number;
   storedCount: number;
+  metaRowIds: number[];
   sceneNames: string[];
   lastSceneName?: string;
 }
@@ -38,19 +40,20 @@ export async function extractL1Memories(params: {
   db: DBBridge | null;
   config: ExtractionConfig;
   llm: LLMClient | null;
+  embedding?: { embed(text: string): Promise<Float32Array> } | null;
   logger?: { info: (s: string) => void; debug?: (s: string) => void; error: (s: string) => void };
 }): Promise<L1ExtractionResult> {
-  const { messages, db, llm, logger } = params;
+  const { messages, db, llm, embedding, logger } = params;
   const log = logger || console;
 
   if (!llm) {
     log.debug?.(`${TAG} No LLM configured, skipping L1 extraction`);
-    return { success: false, extractedCount: 0, storedCount: 0, sceneNames: [] };
+    return { success: false, extractedCount: 0, storedCount: 0, metaRowIds: [], sceneNames: [] };
   }
 
   if (messages.length < 2) {
     log.debug?.(`${TAG} Not enough messages for extraction`);
-    return { success: false, extractedCount: 0, storedCount: 0, sceneNames: [] };
+    return { success: false, extractedCount: 0, storedCount: 0, metaRowIds: [], sceneNames: [] };
   }
 
   const formattedMessages = messages
@@ -63,15 +66,19 @@ export async function extractL1Memories(params: {
   try {
     const response = await llm.extract(EXTRACT_MEMORIES_SYSTEM_PROMPT, prompt);
 
-    const scenes = parseLLMResponse(response);
-    if (!scenes || scenes.length === 0) {
+    const scenes = parseJSONResponse<Array<{
+    scene_name?: string;
+    memories?: Array<{ content: string; type: string; priority: number }>;
+  }>>(response);
+  if (!scenes || scenes.length === 0) {
       log.debug?.(`${TAG} No valid memories extracted`);
-      return { success: true, extractedCount: 0, storedCount: 0, sceneNames: [] };
+      return { success: true, extractedCount: 0, storedCount: 0, metaRowIds: [], sceneNames: [] };
     }
 
     const sceneNames: string[] = [];
     let totalExtracted = 0;
     let totalStored = 0;
+    const metaRowIds: number[] = [];
 
     for (const scene of scenes) {
       if (scene.scene_name) {
@@ -89,7 +96,17 @@ export async function extractL1Memories(params: {
 
         if (db) {
           const date = new Date().toISOString().slice(0, 10);
-          if (db.indexTurn(taggedContent, "", date)) totalStored++;
+          const rowId = db.indexTurn(taggedContent, "", date);
+          if (rowId > 0) {
+            totalStored++;
+            metaRowIds.push(rowId);
+            // Best-effort vector storage (fire-and-forget)
+            if (embedding && mem.content.length >= 10) {
+              embedding.embed(mem.content).then(vec => {
+                try { db.storeVector(rowId, vec); } catch { /* best effort */ }
+              }).catch(() => { /* best effort */ });
+            }
+          }
         }
       }
     }
@@ -101,31 +118,12 @@ export async function extractL1Memories(params: {
       success: true,
       extractedCount: totalExtracted,
       storedCount: totalStored,
+      metaRowIds,
       sceneNames,
       lastSceneName: lastScene,
     };
   } catch (err: any) {
     log.error?.(`${TAG} Extraction failed: ${err.message}`);
-    return { success: false, extractedCount: 0, storedCount: 0, sceneNames: [] };
-  }
-}
-
-function parseLLMResponse(response: string): Array<{
-  scene_name?: string;
-  memories?: Array<{ content: string; type: string; priority: number }>;
-}> {
-  try {
-    let clean = response.trim();
-    if (clean.startsWith("```")) {
-      clean = clean.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/g, "");
-    }
-    const parsed = JSON.parse(clean);
-    return Array.isArray(parsed) ? parsed : (parsed.scenes || []);
-  } catch {
-    const match = response.match(/\[[\s\S]*\]/);
-    if (match) {
-      try { return JSON.parse(match[0]); } catch { return []; }
-    }
-    return [];
+    return { success: false, extractedCount: 0, storedCount: 0, metaRowIds: [], sceneNames: [] };
   }
 }

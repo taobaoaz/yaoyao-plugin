@@ -1,21 +1,26 @@
 /**
- * Yaoyao Memory plugin — Four-layer memory system for OpenClaw.
+ * Yaoyao Memory plugin — 搭载摇摇记忆引擎的四层记忆系统。
  *
- * v2 Architecture:
- *   L0 — Daily Markdown logs (memory/YYYY-MM-DD.md) — backward compatible
- *   L1 — Structured memories + FTS5 index + sqlite-vec vector search (.yaoyao.db)
- *   L2 — Scene blocks (contextual groupings)
- *   L3 — Long-term persona (MEMORY.md)
+ * 架构:
+ *   L0 — 每日对话日志 (memory/YYYY-MM-DD.md)
+ *   L1 — 结构化记忆 + FTS5 + sqlite-vec 混合搜索
+ *   L2 — 场景分组 (scene_blocks/)
+ *   L3 — 用户画像 (persona.md)
  *
- * Key improvements:
- *   - Native Node.js SQLite (node:sqlite) + sqlite-vec vector search
- *   - FTS5 full-text search
- *   - Optional remote Embedding API (OpenAI-compatible) for semantic search
- *   - Optional LLM pipeline for memory extraction, scene grouping, persona
- *   - Zero extra npm deps, zero Python
+ * 技术栈:
+ *   - Node 22 原生 node:sqlite + sqlite-vec
+ *   - FTS5 全文搜索 + CJK LIKE 降级
+ *   - 可选 Embedding API (OpenAI 兼容) 向量搜索
+ *   - 可选 LLM 管线 (L1→L2→L3)
+ *   - 情感分析 · 时间线 · 一键备份
  *
- * Tools: yaoyao_memory_search(FTS5/vector/hybrid), yaoyao_memory_get, memory_list, memory_save, memory_stats
- * Hooks: agent_end (auto-capture), before_prompt_build (auto-recall), gateway_stop
+ * 11 个工具 / 3 个 hook / 零额外 npm 依赖
+ *
+ * 入口: index.ts
+ * 工具: yaoyao_memory_search, yaoyao_memory_get, memory_list, memory_save,
+ *       memory_stats, memory_mood, memory_timeline, memory_search_timeline,
+ *       memory_backup, memory_forget, memory_note
+ * Hook: agent_end (capture), before_prompt_build (recall), gateway_stop
  */
 
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
@@ -29,9 +34,9 @@ import { registerMemoryTools } from "./src/tools/index.js";
 import { registerCaptureHook } from "./src/hooks/auto-capture.js";
 import { registerRecallHook } from "./src/hooks/auto-recall.js";
 import { registerPipelineManager } from "./src/hooks/pipeline-manager.js";
-import { createBackupManager } from "./src/utils/backup.js";
-import { createSessionFilter } from "./src/utils/session-filter.js";
 import { createMemoryCleaner } from "./src/utils/memory-cleaner.js";
+import { PersonaStateMachine } from "./src/utils/persona-state.js";
+import { FeedbackTracker } from "./src/learning/feedback-tracker.js";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
@@ -42,8 +47,7 @@ export default definePluginEntry({
     const config = (api.pluginConfig || {}) as YaoyaoMemoryConfig & Record<string, unknown>;
     const store = createMemoryStore(config, api.logger);
     const db = createDB(config, api.logger);
-    const llm = createLLMClient(config);
-    
+
     // Initialize embedding service from config
     const embedCfg = config.embedding as EmbeddingConfig | undefined;
     const embedding = embedCfg?.enabled && embedCfg?.apiKey
@@ -53,8 +57,21 @@ export default definePluginEntry({
     if (embedding) {
       api.logger.info(`[yaoyao-memory] Embedding service initialized: ${embedding.config.model}`);
     }
+
+    // LLM client: explicit llm config first, then auto-detect from embedding config
+    const llmResult = createLLMClient(config, embedCfg as Record<string, unknown> | undefined);
+    const { client: llm } = llmResult;
+
     if (llm) {
-      api.logger.info("[yaoyao-memory] LLM client initialized for extraction pipeline");
+      const sourceLabel = llmResult.source === "explicit" ? "explicit llm config" : "auto-detected from embedding config";
+      api.logger.info(`[yaoyao-memory] LLM client initialized (${sourceLabel}): ${llm.config.model}`);
+      if (llmResult.source === "embedding-auto") {
+        api.logger.info(`[yaoyao-memory] LLM pipeline is now active using your embedding API key.`);
+        api.logger.info(`[yaoyao-memory] To disable, set llm: { enabled: false } in plugin config.`);
+        api.logger.info(`[yaoyao-memory] To customize, add explicit llm.apiKey / llm.baseUrl / llm.model in plugin config.`);
+      }
+    } else {
+      api.logger.info("[yaoyao-memory] No LLM available — L1/L2/L3 extraction pipeline disabled (configure embedding or llm API to enable)");
     }
 
     // Initialize SQLite database (FTS5 + vec0 tables)
@@ -63,35 +80,47 @@ export default definePluginEntry({
       api.logger.error?.("[yaoyao-memory] DB init failed, operating without persistent index");
     }
 
-    // Register 5 tools: yaoyao_memory_search, yaoyao_memory_get, memory_list, memory_save, memory_stats
-    registerMemoryTools(api, store, db);
-
-    // Auto-capture: after each agent turn, write to daily log + FTS5 index
-    if (config.capture?.enabled !== false) {
-      registerCaptureHook(api, store, db, config);
+    // ── PersonaStateMachine (optional state tracking, best-effort) ──
+    let psm: PersonaStateMachine | null = null;
+    try {
+      psm = new PersonaStateMachine(store.baseDir);
+      psm.getState(); // load existing state (creates default if none)
+      api.logger.info("[yaoyao-memory] PersonaStateMachine initialized");
+    } catch (err: any) {
+      api.logger.warn?.(`[yaoyao-memory] PersonaStateMachine skipped: ${err.message}`);
     }
 
-    // Auto-recall: before building prompt, search FTS5 + optional vectors
+    // ── FeedbackTracker (L4 feedback learning, best-effort) ──
+    let feedbackTracker: FeedbackTracker | null = null;
+    try {
+      feedbackTracker = new FeedbackTracker(store.baseDir);
+      api.logger.info("[yaoyao-memory] FeedbackTracker initialized (L4)");
+    } catch (err: any) {
+      api.logger.warn?.(`[yaoyao-memory] FeedbackTracker skipped: ${err.message}`);
+    }
+
+    // Register tools — search, get, list, save, stats, mood, timeline, search_timeline, memory_optimize
+    registerMemoryTools(api, store, db, feedbackTracker);
+
+    // Auto-capture: after each agent turn, write to daily log + FTS5 index + update state
+    if (config.capture?.enabled !== false) {
+      registerCaptureHook(api, store, db, config, psm);
+    }
+
+    // Auto-recall: before building prompt, search FTS5 + optional vectors + persona guidance
     if (config.recall?.enabled !== false) {
-      registerRecallHook(api, db, config, embedding);
+      registerRecallHook(api, db, config, embedding, psm, feedbackTracker);
     }
 
     // L1→L2→L3 pipeline (LLM extraction, scene grouping, persona)
+    // Registered on same agent_end as capture, but throttled internally
     if (config.llm?.enabled !== false && llm) {
       registerPipelineManager(api, store, db, llm, config, embedding);
     }
 
-    // ── Backup Manager (optional, no-op unless create/restore called) ──
-    const backup = createBackupManager(store.baseDir, api.logger);
-
-    // ── Session Filter (filters system sessions from capture/recall) ──
-    const sessionFilter = createSessionFilter({
-      blockInternal: true,
-      blockLabels: config.blockLabels as string[] | undefined,
-      minMessages: 2,
-    });
-
     // ── Memory Cleaner (scheduled cleanup of old daily logs) ──
+    let cleanerTimer: ReturnType<typeof setInterval> | null = null;
+
     if (config.cleanup?.enabled !== false) {
       const cleaner = createMemoryCleaner(store.baseDir, db, {
         l0l1RetentionDays: (config.cleanup?.l0l1RetentionDays as number) || 30,
@@ -102,20 +131,20 @@ export default definePluginEntry({
       if (warn) {
         api.logger.warn?.(`[yaoyao-memory] Cleanup config: ${warn}`);
       } else {
-        // Run cleanup on plugin start, then once daily
         cleaner.cleanup();
         const dailyCleanMs = 24 * 60 * 60 * 1000;
-        setInterval(() => cleaner.cleanup(), dailyCleanMs).unref();
+        cleanerTimer = setInterval(() => cleaner.cleanup(), dailyCleanMs).unref();
         api.logger.info("[yaoyao-memory] Memory cleaner scheduled (daily)");
       }
     }
 
-    // Expose backup/sessionFilter for external use via api
-    (api as any).__yaoyaoMemoryUtils = { backup, sessionFilter };
-
     // Cleanup on gateway stop
     api.on("gateway_stop", async () => {
       db.close();
+      if (cleanerTimer) {
+        clearInterval(cleanerTimer);
+        cleanerTimer = null;
+      }
     });
 
     api.logger.debug?.("[yaoyao-memory] Plugin registered (FTS5 + sqlite-vec + optional embedding/LLM)");

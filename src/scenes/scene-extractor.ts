@@ -8,6 +8,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { LLMClient } from "../utils/llm-client.js";
+import { parseJSONResponse } from "../utils/llm-parse.js";
 
 const TAG = "[yaoyao-memory:l2-scenes]";
 
@@ -56,7 +57,7 @@ export async function runSceneExtraction(params: {
 
   try {
     const response = await llm.extract(SCENE_SYSTEM_PROMPT, prompt);
-    const scenes = parseSceneResponse(response);
+    const scenes = parseJSONResponse<Array<{ scene_name: string; memories: string[] }>>(response);
 
     if (!scenes || scenes.length === 0) {
       log.debug?.(`${TAG} No scenes extracted`);
@@ -97,22 +98,5 @@ export async function runSceneExtraction(params: {
   } catch (err: any) {
     log.error?.(`${TAG} Scene extraction failed: ${err.message}`);
     return { success: false, sceneCount: 0, sceneNames: [] };
-  }
-}
-
-function parseSceneResponse(response: string): Array<{ scene_name: string; memories: string[] }> {
-  try {
-    let clean = response.trim();
-    if (clean.startsWith("```")) {
-      clean = clean.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/g, "");
-    }
-    const parsed = JSON.parse(clean);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    const match = response.match(/\[[\s\S]*\]/);
-    if (match) {
-      try { return JSON.parse(match[0]); } catch { return []; }
-    }
-    return [];
   }
 }

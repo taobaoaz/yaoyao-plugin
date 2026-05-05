@@ -7,6 +7,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { LLMClient } from "../utils/llm-client.js";
+import { parseJSONResponse } from "../utils/llm-parse.js";
 
 const TAG = "[yaoyao-memory:l3-persona]";
 
@@ -83,7 +84,7 @@ export async function generateOrUpdatePersona(params: {
 
   try {
     const response = await llm.extract(PERSONA_SYSTEM_PROMPT, prompt);
-    const persona = parsePersonaResponse(response);
+    const persona = parseJSONResponse<Persona>(response);
 
     if (!persona || !persona.summary) {
       log.debug?.(`${TAG} Invalid persona response`);
@@ -102,22 +103,6 @@ export async function generateOrUpdatePersona(params: {
   } catch (err: any) {
     log.error?.(`${TAG} Persona generation failed: ${err.message}`);
     return { success: false, persona: null };
-  }
-}
-
-function parsePersonaResponse(response: string): Persona | null {
-  try {
-    let clean = response.trim();
-    if (clean.startsWith("```")) {
-      clean = clean.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/g, "");
-    }
-    const parsed = JSON.parse(clean);
-    if (parsed.summary) {
-      return parsed as Persona;
-    }
-    return null;
-  } catch {
-    return null;
   }
 }
 

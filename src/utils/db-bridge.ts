@@ -60,6 +60,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
   const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
   let db: DatabaseSync | null = null;
+  let initFailed = false; // fail-fast guard: once init fails, skip retries
 
   /** Initialize database — create tables if not exist */
   function init(): boolean {
@@ -144,13 +145,14 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       return true;
     } catch (err: any) {
       logger?.error?.(`[yaoyao-memory:db] Init failed: ${err.message}`);
+      initFailed = true;
       return false;
     }
   }
 
   /** Ensure DB is initialized */
   function ensureDB(): DatabaseSync {
-    if (!db) {
+    if (!db && !initFailed) {
       init();
     }
     if (!db) {
@@ -159,8 +161,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     return db;
   }
 
-  /** Index a conversation turn in FTS5 */
-  function indexTurn(userText: string, asstText: string, date: string): boolean {
+  /** Index a conversation turn in FTS5. Returns the row id (>0) or -1 on failure. */
+  function indexTurn(userText: string, asstText: string, date: string): number {
     try {
       const d = ensureDB();
       const stmt = d.prepare(
@@ -174,10 +176,10 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       );
       stmt2.run(rowId, date, userText.slice(0, 500), asstText.slice(0, 500));
 
-      return true;
+      return rowId;
     } catch (err: any) {
       log(`indexTurn error: ${err.message}`);
-      return false;
+      return -1;
     }
   }
 
@@ -202,12 +204,13 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     return s;
   }
 
-  /** FTS5 full-text search */
+  /** FTS5 full-text search + LIKE fallback for Chinese (FTS5 unicode61 tokenizer doesn't segment CJK) */
   function search(query: string, limit: number = 10): SearchResult[] {
     try {
       const d = ensureDB();
       const safeQuery = sanitizeFTSQuery(query);
 
+      // Try FTS5 first
       const stmt = d.prepare(
         "SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
         "FROM memory_fts WHERE memory_fts MATCH ? " +
@@ -215,12 +218,40 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       );
       const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), 100));
 
-      return (rows as Array<{ date: string; snippet: string; rank: number }>).map(row => ({
-        filename: row.date ? `${row.date}.md` : "memory.db",
-        snippet: (row.snippet || "").slice(0, 500),
-        score: computeScore(row.rank),
-        date: row.date || "",
-      }));
+      // FTS5 returns results, use them
+      if (rows.length > 0) {
+        return (rows as Array<{ date: string; snippet: string; rank: number }>).map(row => ({
+          filename: row.date ? `${row.date}.md` : "memory.db",
+          snippet: (row.snippet || "").slice(0, 500),
+          score: computeScore(row.rank),
+          date: row.date || "",
+        }));
+      }
+
+      // ── FTS5 returned nothing → try LIKE fallback for CJK text ──
+      // FTS5 unicode61 tokenizer treats each Chinese character as a separate token,
+      // so multi-character words like "天气" or "今天" fail to match.
+      // LIKE is character-based and handles CJK correctly.
+      const likeQuery = `%${query.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+      const likeStmt = d.prepare(
+        "SELECT id, date, user_text, asst_text FROM memory_meta " +
+        "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
+        "ORDER BY id DESC LIMIT ?"
+      );
+      const likeRows = likeStmt.all(likeQuery, likeQuery, Math.min(Math.max(limit, 1), 100));
+
+      if (likeRows.length > 0) {
+        log(`FTS5 miss → LIKE fallback found ${likeRows.length} results for "${query.slice(0, 30)}"`);
+        return (likeRows as Array<{ id: number; date: string; user_text: string; asst_text: string }>).map(row => ({
+          filename: row.date ? `${row.date}.md` : "memory.db",
+          snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, 500),
+          score: 0.5,
+          date: row.date || "",
+        }));
+      }
+
+      // Empty across the board
+      return [];
     } catch (err: any) {
       log(`search error: ${err.message}`);
       return [];
@@ -303,8 +334,9 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       .slice(0, limit);
   }
 
-  /** Store a vector embedding for a memory */
+  /** Store a vector embedding for a memory record */
   function storeVector(metaId: number, embedding: Float32Array): boolean {
+    if (metaId <= 0) return false; // reject orphan vectors
     try {
       const d = ensureDB();
       const jsonArr = "[" + Array.from(embedding).join(",") + "]";
@@ -316,6 +348,43 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     } catch (err: any) {
       log(`storeVector error: ${err.message}`);
       return false;
+    }
+  }
+
+  /** Delete memory entries from FTS5 and meta tables by date */
+  function deleteByDate(date: string): number {
+    try {
+      const d = ensureDB();
+      // Delete from FTS5 (via content sync table)
+      const metaResult = d.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
+      const deleted = metaResult.changes ?? 0;
+      // Rebuild FTS5 index to reflect content table changes
+      d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+      log(`deleteByDate: ${deleted} entries removed for ${date}`);
+      return deleted;
+    } catch (err: any) {
+      log(`deleteByDate error: ${err.message}`);
+      return 0;
+    }
+  }
+
+  /** Delete memory entries matching a like pattern from user_text or asst_text */
+  function deleteByKeyword(keyword: string): number {
+    try {
+      const d = ensureDB();
+      const pattern = `%${keyword.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+      const result = d.prepare(
+        "DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
+      ).run(pattern, pattern);
+      const deleted = result.changes ?? 0;
+      if (deleted > 0) {
+        d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+      }
+      log(`deleteByKeyword: ${deleted} entries removed for "${keyword}"`);
+      return deleted;
+    } catch (err: any) {
+      log(`deleteByKeyword error: ${err.message}`);
+      return 0;
     }
   }
 
@@ -363,7 +432,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
   }
 
-  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, getStats, close, dbPath };
+  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getStats, close, dbPath };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;
