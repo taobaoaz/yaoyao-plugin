@@ -114,7 +114,6 @@ export function summarizeMood(texts: string[]): string {
   const results = texts.map(t => detectSentiment(t));
   const posCount = results.filter(r => r.label === 'positive').length;
   const negCount = results.filter(r => r.label === 'negative').length;
-  const neuCount = results.filter(r => r.label === 'neutral').length;
   const total = results.length;
 
   const posRatio = posCount / total;

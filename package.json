@@ -1,7 +1,7 @@
 {
   "name": "@yaoyao/yaoyao-memory-plugin",
-  "version": "1.0.0",
-  "description": "Yaoyao Memory plugin for OpenClaw — four-layer memory system: auto-capture, structured extraction, scene blocks, persona profiling",
+  "version": "1.2.0",
+  "description": "Yaoyao Memory — 搭载摇摇记忆引擎的四层记忆系统。FTS5 + sqlite-vec 混合搜索、情感分析、时间线、一键备份。让 AI 拥有长时记忆。",
   "type": "module",
   "main": "index.ts",
   "exports": {
@@ -17,11 +17,26 @@
     "openclaw",
     "openclaw-plugin",
     "memory",
-    "yaoyao-memory",
-    "long-term-memory"
+    "yaoyao",
+    "memory-system",
+    "fts5",
+    "vector-search",
+    "semantic-search"
   ],
+  "homepage": "https://github.com/taobaoaz/yaoyao-plugin#readme",
   "author": "Yaoyao",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taobaoaz/yaoyao-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/taobaoaz/yaoyao-plugin/issues"
+  },
+  "engines": {
+    "node": "^22.0.0"
+  },
+  "private": false,
   "openclaw": {
     "extensions": [
       "./index.ts"
