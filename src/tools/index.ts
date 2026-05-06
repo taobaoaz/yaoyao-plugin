@@ -18,9 +18,17 @@ import { createBackupTool } from "./backup.js";
 import { createForgetTool } from "./forget.js";
 import { createNoteTool } from "./note.js";
 import { createOptimizeTool } from "./memory-optimize.js";
+import { createGraphTool } from "./memory-graph.js";
+import { createEnhancedSearchTool } from "./memory-search-enhanced.js";
+import { createExportTool } from "./memory-export.js";
+import { createImportTool } from "./memory-import.js";
+import { createTagTool } from "./memory-tag.js";
+import { createRemindTool } from "./memory-remind.js";
+import { createRecommendTool } from "./memory-recommend.js";
 import type { FeedbackTracker } from "../learning/feedback-tracker.js";
+import type { EmbeddingService } from "../utils/embedding.js";
 
-export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge, feedbackTracker?: FeedbackTracker | null) {
+export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge, feedbackTracker?: FeedbackTracker | null, embedding?: EmbeddingService | null) {
   const tools = [
     createSearchTool(db),
     createGetTool(store, db),
@@ -33,6 +41,11 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
     createBackupTool(store),
     createForgetTool(store, db),
     createNoteTool(store, db),
+    createExportTool(store),
+    createImportTool(store),
+    createTagTool(store),
+    createRemindTool(),
+    createRecommendTool(db, store.baseDir),
   ];
 
   // FeedbackTracker-powered tool (L4 learning)
@@ -42,8 +55,21 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
     } catch { /* best effort */ }
   }
 
-  for (const tool of tools) {
-    api.registerTool(tool);
+  // Graph tool (knowledge graph)
+  try {
+    tools.push(createGraphTool(db, store.baseDir));
+  } catch { /* best effort */ }
+
+  // Enhanced search tool (vector rerank + keyword highlight)
+  if (embedding) {
+    try {
+      tools.push(createEnhancedSearchTool(db, embedding));
+    } catch { /* best effort */ }
+  } else {
+    // FTS5-only enhanced search (no rerank, but still highlight)
+    try {
+      tools.push(createEnhancedSearchTool(db));
+    } catch { /* best effort */ }
   }
 
   api.logger.info(`[yaoyao-memory] ${tools.length} tools registered (FTS5 + mood + timeline + backup)`);

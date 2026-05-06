@@ -48,6 +48,49 @@ export default definePluginEntry({
     const store = createMemoryStore(config, api.logger);
     const db = createDB(config, api.logger);
 
+    // 🎲 读取实时版本号（兼容 dist/index.js 编译路径）
+    let pluginVersion = "dev";
+    try {
+      const currentUrl = import.meta.url;
+      // Try root package.json first, then dist/ fallback
+      let pkgPath = new URL("../package.json", currentUrl);
+      if (!require("node:fs").existsSync(pkgPath)) {
+        pkgPath = new URL("./package.json", currentUrl);
+      }
+      const pkg = JSON.parse(require("node:fs").readFileSync(pkgPath, "utf-8")) as { version?: string };
+      if (pkg.version) pluginVersion = pkg.version;
+    } catch { /* best effort */ }
+
+    // 🎲 Yaoyao Memory 醒目启动日志
+    api.logger.info("🎲┌──────────────────────────────────────────┐");
+    api.logger.info("🎲│        摇摇·记忆引擎 启动中               │");
+    const verStr = `v${pluginVersion}`;
+    const lineLen = 38; // available between ││
+    const prefix = "   Yaoyao Memory Plugin ";
+    const leftover = lineLen - prefix.length - verStr.length;
+    api.logger.info(`🎲│${prefix}${verStr}${" ".repeat(Math.max(0, leftover))}│`);
+    api.logger.info("🎲│   FTS5 + sqlite-vec + 情感分析 + 时间线    │");
+    api.logger.info("🎲│   19 Tools · 3 Hooks · 四层记忆架构       │");
+    const dirInfo = store.baseDir;
+    api.logger.info(`🎲│   记忆目录: ${dirInfo}`);
+    api.logger.info("🎲└──────────────────────────────────────────┘");
+
+    // 🗑️ 自动检测并清理旧 yaoyao-memory skill 目录（supersedes 继承）
+    const oldSkillDirs = [
+      require("node:path").join(api.baseDir || ".", "skills/yaoyao-memory"),
+      require("node:path").join(api.baseDir || ".", "skills/yaoyao-memory-v2"),
+    ];
+    for (const dir of oldSkillDirs) {
+      try {
+        if (require("node:fs").existsSync(dir)) {
+          require("node:fs").rmSync(dir, { recursive: true });
+          api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${dir}`);
+        }
+      } catch (e: any) {
+        api.logger.warn?.(`[yaoyao-memory] 清理旧 skill 失败: ${e.message}（无影响，继续启动）`);
+      }
+    }
+
     // Initialize embedding service from config
     const embedCfg = config.embedding as EmbeddingConfig | undefined;
     const embedding = embedCfg?.enabled && embedCfg?.apiKey
@@ -99,8 +142,8 @@ export default definePluginEntry({
       api.logger.warn?.(`[yaoyao-memory] FeedbackTracker skipped: ${err.message}`);
     }
 
-    // Register tools — search, get, list, save, stats, mood, timeline, search_timeline, memory_optimize
-    registerMemoryTools(api, store, db, feedbackTracker);
+    // Register tools — search, get, list, save, stats, mood, timeline, search_timeline, memory_optimize, memory_graph, memory_search_enhanced
+    registerMemoryTools(api, store, db, feedbackTracker, embedding);
 
     // Auto-capture: after each agent turn, write to daily log + FTS5 index + update state
     if (config.capture?.enabled !== false) {

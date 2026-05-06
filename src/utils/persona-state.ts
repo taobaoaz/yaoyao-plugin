@@ -14,7 +14,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { detectSentiment } from "./sentiment.js";
+import { detectSentiment } from "./sentiment.ts";
 
 // ──────────────────────────── Types ────────────────────────────
 
@@ -64,6 +64,9 @@ export class PersonaStateMachine {
   private totalFailure: number = 0;
   private messageLengths: number[] = [];
   private interactionTimestamps: number[] = [];
+  /** L3-persona derived hints */
+  private userPrefersConcision: boolean | null = null;
+  private userDepthLevel: "shallow" | "medium" | "deep" | null = null;
 
   constructor(baseDir: string) {
     this.baseDir = baseDir;
@@ -190,7 +193,56 @@ export class PersonaStateMachine {
       parts.push("置信度较低，优先确认而非推断");
     }
 
+    // Persona hints
+    if (this.userPrefersConcision === true) {
+      parts.push("用户习惯简洁，优先提供结论");
+    }
+    if (this.userDepthLevel === "deep") {
+      parts.push("用户偏好深度内容，可展开技术细节");
+    } else if (this.userDepthLevel === "shallow") {
+      parts.push("用户偏好轻量回复，避免冗余信息");
+    }
+
+    // Mood prediction
+    const prediction = this.predictMood();
+    if (prediction && prediction.confidence > 0.6) {
+      const predLabel = prediction.score > 0.1 ? "偏积极"
+        : prediction.score < -0.1 ? "偏消极"
+        : "平稳";
+      parts.push(`预测下一轮情绪${predLabel}，可提前适配语气`);
+    }
+
     return parts.length > 0 ? parts.join("；") : "";
+  }
+
+  /** Apply L3 persona hints to state */
+  applyPersonaHints(hints: { prefersConcision?: boolean; depthLevel?: "shallow" | "medium" | "deep" }): void {
+    if (hints.prefersConcision !== undefined) this.userPrefersConcision = hints.prefersConcision;
+    if (hints.depthLevel !== undefined) this.userDepthLevel = hints.depthLevel;
+  }
+
+  /** Predict next mood score based on recent history (simple linear extrapolation) */
+  predictMood(): { score: number; confidence: number } | null {
+    if (this.stateHistory.length < 3) return null;
+    const recent = this.stateHistory.slice(-5);
+    if (recent.length < 2) return null;
+
+    const scores = recent.map(s => s.moodScore);
+    let totalDelta = 0;
+    for (let i = 1; i < scores.length; i++) {
+      totalDelta += scores[i] - scores[i - 1];
+    }
+    const avgDelta = totalDelta / (scores.length - 1);
+    const dampedDelta = avgDelta * 0.3;
+    const predictedScore = Math.max(-1, Math.min(1, scores[scores.length - 1] + dampedDelta));
+
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const variance = scores.reduce((sum, s) => sum + (s - mean) ** 2, 0) / scores.length;
+    const stabilityConfidence = Math.max(0, 1 - variance * 2);
+    const dataConfidence = Math.min(1, recent.length / 10);
+    const confidence = Math.min(0.8, stabilityConfidence * 0.6 + dataConfidence * 0.4 + 0.2);
+
+    return { score: predictedScore, confidence };
   }
 
   // ── Private: mood computation ──

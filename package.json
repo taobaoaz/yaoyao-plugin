@@ -1,6 +1,6 @@
 {
-  "name": "@yaoyao/yaoyao-memory-plugin",
-  "version": "1.2.0",
+  "name": "yaoyao-memory-plugin",
+  "version": "1.2.4",
   "description": "Yaoyao Memory — 搭载摇摇记忆引擎的四层记忆系统。FTS5 + sqlite-vec 混合搜索、情感分析、时间线、一键备份。让 AI 拥有长时记忆。",
   "type": "module",
   "main": "index.ts",
@@ -8,10 +8,10 @@
     ".": "./index.ts"
   },
   "files": [
-    "index.ts",
-    "src/",
+    "dist/",
     "openclaw.plugin.json",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "keywords": [
     "openclaw",
@@ -48,7 +48,19 @@
   },
   "openclaw": {
     "extensions": [
-      "./index.ts"
-    ]
+      "./dist/index.js"
+    ],
+    "compat": {
+      "pluginApi": "^2026.3.0"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24",
+      "entry": [
+        "./dist/index.js"
+      ]
+    }
+  },
+  "dependencies": {
+    "typescript": "^6.0.3"
   }
 }

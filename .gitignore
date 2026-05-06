@@ -25,3 +25,6 @@ Thumbs.db
 # 基准测试数据
 .yaoyoa.db
 *.db
+
+# L4 反馈学习文件
+.feedback.jsonl

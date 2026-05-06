@@ -10,15 +10,27 @@
         "type": "object",
         "description": "对话自动捕获设置 (L0)",
         "properties": {
-          "enabled": { "type": "boolean", "default": true, "description": "是否启用自动对话捕获" }
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用自动对话捕获"
+          }
         }
       },
       "recall": {
         "type": "object",
         "description": "记忆自动召回设置",
         "properties": {
-          "enabled": { "type": "boolean", "default": true, "description": "是否启用自动记忆召回" },
-          "maxResults": { "type": "number", "default": 3, "description": "召回最大结果数" }
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用自动记忆召回"
+          },
+          "maxResults": {
+            "type": "number",
+            "default": 3,
+            "description": "召回最大结果数"
+          }
         }
       },
       "memoryDir": {
@@ -30,39 +42,107 @@
         "type": "object",
         "description": "向量嵌入配置（可选，开启后支持向量+混合搜索）",
         "properties": {
-          "enabled": { "type": "boolean", "default": false, "description": "是否启用向量嵌入" },
-          "provider": { "type": "string", "default": "openai", "description": "嵌入 API provider" },
-          "baseUrl": { "type": "string", "default": "", "description": "嵌入 API base URL" },
-          "apiKey": { "type": "string", "default": "", "description": "嵌入 API key" },
-          "model": { "type": "string", "default": "", "description": "嵌入模型名称" },
-          "dimensions": { "type": "number", "default": 1024, "description": "向量维度" }
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否启用向量嵌入"
+          },
+          "provider": {
+            "type": "string",
+            "default": "openai",
+            "description": "嵌入 API provider"
+          },
+          "baseUrl": {
+            "type": "string",
+            "default": "",
+            "description": "嵌入 API base URL"
+          },
+          "apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "嵌入 API key"
+          },
+          "model": {
+            "type": "string",
+            "default": "",
+            "description": "嵌入模型名称"
+          },
+          "dimensions": {
+            "type": "number",
+            "default": 1024,
+            "description": "向量维度"
+          }
         }
       },
       "llm": {
         "type": "object",
         "description": "LLM 配置（可选，开启后支持 L1/L2/L3 管线）。如未配置但已启用 embedding，将自动复用 embedding 的 apiKey/baseUrl。设置 enabled: false 可强制关闭",
         "properties": {
-          "enabled": { "type": "boolean", "default": true, "description": "是否启用 LLM 管线（设为 false 可强行关闭）" },
-          "apiKey": { "type": "string", "default": "", "description": "LLM API key（留空则自动检测 embedding 配置）" },
-          "baseUrl": { "type": "string", "default": "https://api.deepseek.com", "description": "LLM API base URL（留空则自动检测 embedding 配置）" },
-          "model": { "type": "string", "default": "deepseek-chat", "description": "LLM 模型名称（留空则根据 baseUrl 自动选择：Gitee→Qwen3-8B，DeepSeek→deepseek-chat，OpenAI→gpt-4o-mini）" }
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用 LLM 管线（设为 false 可强行关闭）"
+          },
+          "apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "LLM API key（留空则自动检测 embedding 配置）"
+          },
+          "baseUrl": {
+            "type": "string",
+            "default": "https://api.deepseek.com",
+            "description": "LLM API base URL（留空则自动检测 embedding 配置）"
+          },
+          "model": {
+            "type": "string",
+            "default": "deepseek-chat",
+            "description": "LLM 模型名称（留空则根据 baseUrl 自动选择：Gitee→Qwen3-8B，DeepSeek→deepseek-chat，OpenAI→gpt-4o-mini）"
+          }
         }
       },
       "cleanup": {
         "type": "object",
         "description": "记忆清理配置（可选）",
         "properties": {
-          "enabled": { "type": "boolean", "default": true, "description": "是否启用每日清理" },
-          "l0l1RetentionDays": { "type": "number", "default": 30, "description": "每日日志保留天数（0=不清理，默认30天）" },
-          "allowAggressiveCleanup": { "type": "boolean", "default": false, "description": "是否允许激进清理（retentionDays=1或2）" }
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用每日清理"
+          },
+          "l0l1RetentionDays": {
+            "type": "number",
+            "default": 30,
+            "description": "每日日志保留天数（0=不清理，默认30天）"
+          },
+          "allowAggressiveCleanup": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否允许激进清理（retentionDays=1或2）"
+          }
         }
       },
       "blockLabels": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "default": [],
         "description": "排除的 session label 列表，匹配的 session 不会被捕获/召回"
+      },
+      "autoSaveImage": {
+        "type": "boolean",
+        "default": false,
+        "description": "启用后，AI 在收到图片并理解其内容后会自动调用 memory_save 将图片描述存入记忆"
       }
     }
+  },
+  "supersedes": [
+    "yaoyao-memory",
+    "yaoyao-memory-v2"
+  ],
+  "migration": {
+    "from": "yaoyao-memory",
+    "version": "1.x",
+    "instructions": "自动迁移：插件启动时将清理旧 skill 目录，所有功能由插件接管。无需手动操作。"
   }
 }

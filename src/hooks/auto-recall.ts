@@ -1,5 +1,5 @@
 /**
- * auto-recall hook — injects relevant memories into the prompt context.
+ * auto-recall hook - injects relevant memories into the prompt context.
  *
  * Uses api.on("before_prompt_build", ...) to search memory via FTS5
  * and optionally sqlite-vec for semantic similarity search.
@@ -47,18 +47,48 @@ function formatRecallText(results: SearchResult[]): string {
 function buildRecallContext(results: SearchResult[], guidance?: string): { appendSystemContext: string } | undefined {
   if (results.length === 0 && !guidance) return undefined;
   const parts: string[] = [];
-  
+
   if (results.length > 0) {
     const recallText = formatRecallText(results);
     parts.push(`## 相关记忆\n\n以下内容来自你的对话历史记录，可能与当前对话相关：\n\n${recallText}\n`);
   }
-  
+
   if (guidance) {
     parts.push(`## 交互引导\n\n${guidance}\n`);
   }
-  
+
   if (parts.length === 0) return undefined;
   return { appendSystemContext: parts.join("\n") };
+}
+
+/** Build prependSystemContext for static system prompt rules (cached by provider) */
+function buildPrependRules(config: YaoyaoMemoryConfig): string | undefined {
+  const rules: string[] = [];
+
+  // 多模态记忆指令：开启 autoSaveImage 后，AI 自动将图片理解结果存入记忆
+  const autoSaveImage = (config as Record<string, unknown>).autoSaveImage === true;
+  if (autoSaveImage) {
+    rules.push("## 行为规则\n\n当用户发送图片或你通过任何方式获取到图片内容后，在回复用户之前，请调用 memory_save 工具，以 `[图片] 图片描述` 的格式将图片描述保存到记忆中。图片描述应为简洁的中文完整句子。");
+  }
+
+  return rules.length > 0 ? rules.join("\n\n") : undefined;
+}
+
+/** Merge append + prepend context into a single return value */
+function buildHookResult(
+  appendCtx: { appendSystemContext: string } | undefined,
+  config: YaoyaoMemoryConfig,
+): { prependSystemContext: string; appendSystemContext: string } | { appendSystemContext: string } | undefined {
+  if (!appendCtx && !config) return undefined;
+
+  const prependSystemContext = buildPrependRules(config);
+  
+  if (!prependSystemContext) return appendCtx;
+
+  return {
+    prependSystemContext,
+    appendSystemContext: appendCtx?.appendSystemContext || "",
+  };
 }
 
 export function registerRecallHook(
@@ -128,7 +158,7 @@ export function registerRecallHook(
         } catch { /* best effort */ }
       }
 
-      // Extract keywords for FTS5 query
+          // Extract keywords for FTS5 query
       const keywords = extractKeywords(userMessage);
       if (keywords.length === 0) return;
 
@@ -145,7 +175,7 @@ export function registerRecallHook(
         if (personaState && personaState.getState().confidence > 0.3) {
           try { guidance = personaState.getGuidanceText(); } catch { /* best effort */ }
         }
-        return buildRecallContext(cached, guidance);
+        return buildHookResult(buildRecallContext(cached, guidance), config);
       }
 
       // Build guidance text from persona state (best-effort, never blocks)
@@ -162,7 +192,7 @@ export function registerRecallHook(
           if (results.length > 0) {
             setCachedResults(cacheKey, results);
             api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms`);
-            return buildRecallContext(results, guidance);
+            return buildHookResult(buildRecallContext(results, guidance), config);
           }
         } catch (vecErr: any) {
           api.logger.debug?.(`[yaoyao-memory:recall] Vector search failed: ${vecErr.message}, falling back to FTS5`);
@@ -178,7 +208,7 @@ export function registerRecallHook(
 
       setCachedResults(cacheKey, results);
       api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms`);
-      return buildRecallContext(results, guidance);
+      return buildHookResult(buildRecallContext(results, guidance), config);
     } catch (err) {
       api.logger.error(`[yaoyao-memory:recall] Error: ${err instanceof Error ? err.message : String(err)}`);
     }

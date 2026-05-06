@@ -27,32 +27,85 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
   }
 
   /** Create a timestamped backup of all memory data. Returns backup name or null. */
-  function createBackup(): string | null {
+  function createBackup(mode: "full" | "incremental" = "full"): string | null {
     try {
       ensureDir(backupDir);
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const backupName = `memory-backup-${timestamp}`;
+      const backupName = `memory-backup-${mode}-${timestamp}`;
       const backupPath = path.join(backupDir, backupName);
       ensureDir(backupPath);
 
       let fileCount = 0;
+      const lastBackupFile = path.join(backupDir, ".last-backup.json");
 
-      // Backup .md files
+      // 增量模式：只备份自上次备份以来的新/修改文件
+      let lastBackupMs = 0;
+      if (mode === "incremental") {
+        try {
+          if (fs.existsSync(lastBackupFile)) {
+            const meta: { timestamp: string } = JSON.parse(fs.readFileSync(lastBackupFile, "utf-8"));
+            lastBackupMs = new Date(meta.timestamp).getTime();
+            log(`Incremental backup, last backup at ${meta.timestamp}`);
+          }
+        } catch { /* no previous backup, fallback to full */ }
+      }
+
+      // Backup .md files (daily logs)
       if (fs.existsSync(baseDir)) {
         for (const f of fs.readdirSync(baseDir).filter(f => f.endsWith(".md"))) {
-          fs.copyFileSync(path.join(baseDir, f), path.join(backupPath, f));
+          const filePath = path.join(baseDir, f);
+          if (lastBackupMs > 0 && fs.statSync(filePath).mtimeMs <= lastBackupMs) continue;
+          fs.copyFileSync(filePath, path.join(backupPath, f));
+          fileCount++;
+        }
+
+        // Also backup scene_blocks/ if exists
+        const sceneDir = path.join(baseDir, "scene_blocks");
+        if (fs.existsSync(sceneDir)) {
+          const sceneBackupDir = path.join(backupPath, "scene_blocks");
+          fs.mkdirSync(sceneBackupDir, { recursive: true });
+          for (const f of fs.readdirSync(sceneDir).filter(f => f.endsWith(".md"))) {
+            const filePath = path.join(sceneDir, f);
+            if (lastBackupMs > 0 && fs.statSync(filePath).mtimeMs <= lastBackupMs) continue;
+            fs.copyFileSync(filePath, path.join(sceneBackupDir, f));
+            fileCount++;
+          }
+        }
+      }
+
+      // Backup SQLite DB (always for full, for incremental check mtime)
+      const dbPath = path.join(baseDir, ".yaoyao.db");
+      if (fs.existsSync(dbPath)) {
+        const backupDb = lastBackupMs === 0 || fs.statSync(dbPath).mtimeMs > lastBackupMs;
+        if (backupDb || fileCount > 0) {
+          fs.copyFileSync(dbPath, path.join(backupPath, ".yaoyao.db"));
           fileCount++;
         }
       }
 
-      // Backup SQLite DB
-      const dbPath = path.join(baseDir, ".yaoyao.db");
-      if (fs.existsSync(dbPath)) {
-        fs.copyFileSync(dbPath, path.join(backupPath, ".yaoyao.db"));
-        fileCount++;
+      // Also backup .feedback.jsonl (L4 feedback)
+      const feedbackPath = path.join(baseDir, ".feedback.jsonl");
+      if (fs.existsSync(feedbackPath)) {
+        if (lastBackupMs === 0 || fs.statSync(feedbackPath).mtimeMs > lastBackupMs) {
+          fs.copyFileSync(feedbackPath, path.join(backupPath, ".feedback.jsonl"));
+          fileCount++;
+        }
       }
 
-      log(`Backup created: ${backupName} (${fileCount} files)`);
+      // Save backup metadata
+      const meta = { timestamp, mode, fileCount };
+      fs.writeFileSync(path.join(backupPath, ".meta.json"), JSON.stringify(meta, null, 2));
+
+      // Update last backup timestamp
+      fs.writeFileSync(lastBackupFile, JSON.stringify({ timestamp }));
+
+      if (fileCount === 0 && mode === "incremental") {
+        fs.rmSync(backupPath, { recursive: true, force: true });
+        log(`No changes since last backup, incremental backup skipped`);
+        return null;
+      }
+
+      log(`Backup created: ${backupName} (${fileCount} files, ${mode})`);
       return backupName;
     } catch (err: any) {
       logger?.error?.(`[yaoyao-memory:backup] Create failed: ${err.message}`);
