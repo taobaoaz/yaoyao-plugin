@@ -1,16 +1,18 @@
-# Yaoyao Memory Plugin
+# Yaoyao Memory Plugin v1.2.4
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**19 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · L4 反馈学习 · 90 单元测试**
+**22 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · L4 反馈学习 · 90+ 单元测试**
+
+> 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
 ---
 
 ## 架构
 
 ```
-L0 — 每日对话日志        (memory/YYYY-MM-DD.md)     ← 自动捕获
-L1 — 结构化记忆索引      (.yaoyao.db FTS5 + vec)    ← 混合搜索
+L0 — 每日对话日志        (memory/YYYY-MM-DD.md)     ← 自动捕获 (agent_end)
+L1 — 结构化记忆索引      (.yaoyao.db FTS5 + vec)    ← 混合搜索 (before_prompt_build)
 L2 — 场景分组            (scene_blocks/)             ← LLM 管线
 L3 — 用户画像            (persona.md)                ← LLM 提炼
      ├─ PersonaStateMachine — mood/energy/trust 计算
@@ -19,12 +21,12 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
      └─ L4 反馈学习层 (FeedbackTracker)
 ```
 
-## 工具 (19 个)
+## 工具 (22 个)
 
 | 工具 | 用途 |
 |------|------|
-| `yaoyao_memory_search` | 🔍 FTS5 全文搜索 + CJK 模糊降级 |
-| `yaoyao_memory_get` | 📖 读取指定记忆文件 |
+| `memory_search` | 🔍 FTS5 全文搜索 + CJK 模糊降级 |
+| `memory_get` | 📖 读取指定记忆文件 |
 | `memory_list` | 📋 列出所有记忆文件 |
 | `memory_save` | 💾 手动记录一条记忆 |
 | `memory_stats` | 📊 记忆统计（总量、日期分布、场景、反馈、标签） |
@@ -42,6 +44,16 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 | `memory_tag` | 🏷️ **记忆标签** — 打标签、按标签搜索、热门标签 |
 | `memory_remind` | ⏰ **记忆定时提醒** — 生成 cron 任务推送记忆 |
 | `memory_recommend` | 🎯 **记忆推荐** — 基于上下文 + 场景多样化的智能推荐 |
+| `memory_trends` | 📈 **趋势分析** — 分析话题频率变化趋势（7d/30d/90d/all） |
+| `memory_cloud_sync` | ☁️ **云备份同步** — WebDAV/S3/SFTP/Samba |
+
+## Hook (3 个)
+
+| Hook | 触发时机 | 作用 |
+|------|----------|------|
+| `agent_end` | 每次对话结束 | 自动捕获对话内容写入 L0 每日日志 |
+| `before_prompt_build` | 每次对话开始 | 自动从 L1 索引召回相关记忆注入上下文 |
+| `gateway_stop` | 插件/网关关闭 | 清理资源、持久化未写入的缓存 |
 
 ## 心理学模型
 
@@ -69,25 +81,11 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 
 ## 测试
 
-**87 个单元测试 · 38 个 describe · 14 个测试模块 · 全零依赖**
+**90+ 单元测试 · 全零依赖 · node:test 原生运行**
 
-| 测试模块 | 数量 | 覆盖 |
-|----------|------|------|
-| `sentiment.test.ts` | 9 | 情感分析（中/英、混合、空文本） |
-| `memory-store.test.ts` | 14 | 存储/读写/列出/清理 |
-| `llm-parse.test.ts` | 9 | JSON 解析、日期格式化 |
-| `session-filter.test.ts` | 12 | Session 过滤规则 |
-| `db-bridge.test.ts` | 15 | FTS5/向量/混合搜索/边缘 |
-| `db-bridge-extra.test.ts` | 7 | 混合搜索/插入/LIKE/CJK |
-| `persona-state.test.ts` | 13 | 状态/更新/引导/衰减/预测/持久化 |
-| `feedback-tracker.test.ts` | 9 | 记录/统计/学习/压缩 |
-| `memory-export.test.ts` | 5 | JSONL 格式/日期筛选/关键词过滤 |
-| `memory-tag.test.ts` | 7 | 标签添加/搜索/移除/热门/清理/大小写 |
-| `memory-graph.test.ts` | 4 | FTS5/场景关联/跨项目搜索 |
-| `memory-search-enhanced.test.ts` | 7 | FTS5/LIKE/关键词提取/高亮 |
-| `memory-import.test.ts` | 4 | JSONL 解析/格式校验/日期截断 |
+覆盖 14 个测试模块：情感分析、存储读写、LLM 解析、session 过滤、FTS5/向量/混合搜索、PersonaStateMachine、FeedbackTracker、导入导出、标签、图谱、增强搜索等。
 
-## 心理学模型
+运行：`node --test test/*.test.mjs`
 
 ## 性能基准
 
@@ -107,15 +105,56 @@ DB 大小：~204KB（500 条条目）。
 
 ## 快速开始
 
-```bash
-# ClawHub
-openclaw plugins install yaoyao-memory
+### 方式一：ClawHub 安装（推荐）
 
-# 或从 GitHub 手动安装
-git clone https://github.com/taobaoaz/yaoyao-plugin.git
-cd yaoyao-plugin
-openclaw plugins install .
+```bash
+openclaw plugins install yaoyao-memory
 ```
+
+安装后，在 `openclaw.json` 中添加插件配置：
+
+```json5
+{
+  "plugins": {
+    "allow": ["yaoyao-memory"],  // 必须显式声明！
+    "entries": {
+      "yaoyao-memory": {
+        "enabled": true,
+        "config": {
+          "capture": { "enabled": true },
+          "recall": { "enabled": true, "maxResults": 3 }
+        }
+      }
+    }
+  }
+}
+```
+
+> ⚠️ **必须** 在 `plugins.allow` 中添加 `"yaoyao-memory"`，否则插件不会加载。
+
+### 方式二：从 GitHub 手动安装
+
+```bash
+git clone https://github.com/taobaoaz/yaoyao-plugin.git
+cp -r yaoyao-plugin ~/.openclaw/extensions/yaoyao-memory
+```
+
+然后在 `openclaw.json` 中添加上述配置。重启 Gateway 生效：
+
+```bash
+openclaw gateway restart
+```
+
+### 验证安装
+
+启动后查看终端输出，应看到：
+```
+🎲 ══════════════════════════════════════════
+🎲    摇摇 · 记忆引擎已启动
+🎲    v1.2.4  ·  22 Tools  ·  3 Hooks
+```
+
+如果看不到横幅，检查 `plugins.allow` 是否包含 `"yaoyao-memory"`。
 
 ## 配置
 
@@ -132,9 +171,10 @@ openclaw plugins install .
     // 向量搜索（可选，开启后支持混合搜索）
     "embedding": {
       "enabled": false,
-      "baseUrl": "https://api.openai.com/v1",
-      "apiKey": "sk-xxx",
-      "model": "text-embedding-3-small",
+      "provider": "openai",
+      "baseUrl": "",
+      "apiKey": "",
+      "model": "",
       "dimensions": 1024
     },
 
@@ -144,6 +184,7 @@ openclaw plugins install .
     //    如需关闭，设置 llm: { enabled: false }
     //    如需自定义，设置下方的 apiKey / baseUrl / model
     "llm": {
+      "enabled": true,
       "apiKey": "",
       "baseUrl": "https://api.deepseek.com",
       "model": "deepseek-chat"
@@ -152,17 +193,37 @@ openclaw plugins install .
     // 自动清理
     "cleanup": {
       "enabled": true,
-      "l0l1RetentionDays": 30
+      "l0l1RetentionDays": 30,
+      "allowAggressiveCleanup": false
     },
 
     // 排除的 session 标签
     "blockLabels": [],
 
     // 多模态记忆：AI 自动保存图片描述到记忆（默认关闭）
-    "autoSaveImage": false
+    "autoSaveImage": false,
+
+    // 云备份同步
+    "cloud": {
+      "enabled": true,
+      "autoSync": false,
+      "conflictPolicy": "newer",
+      "excludePatterns": []
+    }
   }
 }
 ```
+
+### 云备份凭证
+
+存储在 `~/.openclaw/credentials/secrets.env`，支持以下协议：
+
+| 协议 | 环境变量 |
+|------|----------|
+| **WebDAV** (坚果云/Nextcloud) | `WEBDAV_URL`, `WEBDAV_USERNAME`, `WEBDAV_PASSWORD` |
+| **S3** (AWS/OSS) | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_REGION` |
+| **SFTP** | `SFTP_HOST`, `SFTP_PORT`, `SFTP_USERNAME`, `SFTP_PASSWORD` |
+| **Samba/NAS** | `SAMBA_HOST`, `SAMBA_USER`, `SAMBA_PASSWORD`, `SAMBA_SHARE`, `SAMBA_PORT` |
 
 ## 数据存储
 
@@ -174,10 +235,10 @@ openclaw plugins install .
 | `memory/.backups/` | 时间戳快照备份（全量/增量） |
 | `memory/.backups/.last-backup.json` | 增量备份时间戳标记 |
 | `memory/.pipeline/` | L1→L3 管线检查点 |
-| `memory/.pipeline/` | L1→L3 管线检查点 |
 | `memory/.feedback.jsonl` | L4 反馈学习记录 |
 | `memory/scene_blocks/` | 场景分组数据 |
 | `memory/.archive/` | 已清理的旧日志 |
+| `memory/.sync-source` | 云同步来源标记 |
 
 ## 特性
 
@@ -185,13 +246,23 @@ openclaw plugins install .
 - **心情环** — 情感分析引擎，对话情绪一目了然
 - **心理学模型** — 状态追踪 + 趋势分析 + 自适应引导
 - **L4 反馈学习** — 自动监听纠错、统计模式、生成优化建议
+- **云备份** — WebDAV/S3/SFTP/Samba 多云同步
+- **趋势分析** — 话题频率变化趋势洞察
 - **零依赖** — 仅 node:sqlite + sqlite-vec，无 Python 无额外 npm
-- **101 测试全绿** — 全零依赖，node:test 原生运行
+- **90+ 测试全绿** — 全零依赖，node:test 原生运行
 
 ## 要求
 
-- OpenClaw ^2026.3.x
-- Node.js ^22（原生 sqlite 支持）
+- **OpenClaw** >= 2026.5.5（`openclaw --version` 查看）
+- **Node.js** >= 22（原生 `node:sqlite` 支持，`node --version` 查看）
 - 可选：embedding API key 用于向量搜索
-- 可选：LLM API key 用于记忆提取管线
+- 可选：LLM API key 用于记忆提取管线（未配置时自动复用 embedding 的 key）
 
+### 常见安装问题
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| 启动无横幅 | `plugins.allow` 缺少插件名 | 在 `openclaw.json` 的 `plugins.allow` 中添加 `"yaoyao-memory"` |
+| `Cannot find module` | OpenClaw 版本太低 | 升级到 >= 2026.5.5 |
+| `node:sqlite` 报错 | Node.js 版本太低 | 升级到 Node.js >= 22 |
+| 向量搜索不可用 | 未配置 embedding | 插件自动降级为 FTS5，不影响基本功能 |

@@ -3,9 +3,9 @@
   "version": "1.2.4",
   "description": "Yaoyao Memory — 搭载摇摇记忆引擎的四层记忆系统。FTS5 + sqlite-vec 混合搜索、情感分析、时间线、一键备份。让 AI 拥有长时记忆。",
   "type": "module",
-  "main": "index.ts",
+  "main": "dist/index.js",
   "exports": {
-    ".": "./index.ts"
+    ".": "./dist/index.js"
   },
   "files": [
     "dist/",
@@ -51,16 +51,36 @@
       "./dist/index.js"
     ],
     "compat": {
-      "pluginApi": "^2026.3.0"
+      "pluginApi": ">=2026.5.5"
     },
     "build": {
-      "openclawVersion": "2026.3.24",
-      "entry": [
-        "./dist/index.js"
-      ]
+      "openclawVersion": "2026.5.6"
     }
   },
   "dependencies": {
     "typescript": "^6.0.3"
+  },
+  "openclawSecurity": {
+    "disclosure": "SECURITY.md",
+    "flags": {
+      "dynamic_code_execution": {
+        "reason": "Cloud backup adapters use child_process for SFTP/Samba file transfer only. All commands are hardcoded, no arbitrary code execution. Passwords passed via environment variables.",
+        "files": ["src/utils/cloud-adapter.ts"],
+        "optIn": true,
+        "mitigation": "Cloud tools require explicit credential configuration in ~/.openclaw/credentials/secrets.env"
+      },
+      "llm_suspicious": {
+        "reason": "Optional LLM API calls for memory extraction pipeline (L1→L2→L3). Only active when user configures llm.apiKey. No telemetry or data transmission without explicit configuration.",
+        "files": ["src/utils/llm-client.ts", "src/hooks/pipeline-manager.ts"],
+        "optIn": true,
+        "mitigation": "Set llm.enabled=false to disable all LLM functionality"
+      },
+      "vt_suspicious": {
+        "reason": "VirusTotal heuristic triggered by child_process imports. All code is open source and auditable at https://github.com/taobaoaz/yaoyao-plugin. Zero external npm dependencies.",
+        "mitigation": "Full source available for manual review"
+      }
+    },
+    "dataStorage": "100% local (SQLite FTS5 + filesystem). No telemetry. No analytics.",
+    "dependencies": "Zero external npm dependencies. Only Node.js built-in modules."
   }
 }

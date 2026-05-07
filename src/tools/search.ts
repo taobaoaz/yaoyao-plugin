@@ -5,7 +5,7 @@ import type { ToolRegistration } from "./common.js";
 
 export function createSearchTool(db: DBBridge): ToolRegistration {
   return {
-    name: "yaoyao_memory_search",
+    name: "memory_search",
     label: "Yaoyao Memory Search",
     description: "Search through past memories using full-text search. Supports keywords, phrases, and natural language queries. Results are ranked by relevance.",
     parameters: {

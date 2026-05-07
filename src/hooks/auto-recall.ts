@@ -3,6 +3,11 @@
  *
  * Uses api.on("before_prompt_build", ...) to search memory via FTS5
  * and optionally sqlite-vec for semantic similarity search.
+ *
+ * Enhancements:
+ * 1. Time decay scoring (30-day half-life)
+ * 2. Diversity sampling (Jaccard dedup)
+ * 3. Session context accumulation (cross-turn keyword carry-over)
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
@@ -35,12 +40,91 @@ function setCachedResults(key: string, results: SearchResult[]): void {
   resultCache.set(key, { results, expires: Date.now() + CACHE_TTL_MS });
 }
 
+// ── Enhancement 3: Session context accumulation ──
+// Maintains cross-turn keyword context per session to improve recall relevance.
+const sessionContext = new Map<string, Set<string>>();
+const MAX_CONTEXT_KEYWORDS = 20;
+
+function updateSessionContext(sessionKey: string, keywords: string[]): void {
+  if (!sessionContext.has(sessionKey)) {
+    sessionContext.set(sessionKey, new Set<string>());
+  }
+  const ctx = sessionContext.get(sessionKey)!;
+  for (const kw of keywords) {
+    ctx.add(kw);
+  }
+  // Evict oldest when over limit
+  if (ctx.size > MAX_CONTEXT_KEYWORDS) {
+    const arr = Array.from(ctx);
+    const toRemove = arr.slice(0, ctx.size - MAX_CONTEXT_KEYWORDS);
+    for (const kw of toRemove) ctx.delete(kw);
+  }
+}
+
+function getSessionContextKeywords(sessionKey: string): string[] {
+  const ctx = sessionContext.get(sessionKey);
+  return ctx ? Array.from(ctx) : [];
+}
+
+// ── Enhancement 1: Time decay scoring ──
+// Applies exponential decay based on age: score *= exp(-daysAgo / halfLife)
+// halfLife = 30 days (30-day-old memories have ~37% weight)
+function applyTimeDecay(results: SearchResult[]): SearchResult[] {
+  if (results.length <= 1) return results;
+  const halfLife = 30;
+  const now = Date.now();
+  const dayMs = 86400000;
+
+  return results
+    .map((r, i) => {
+      let daysAgo = 365;
+      const dateMatch = r.filename.match(/(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) {
+        const dateObj = new Date(dateMatch[1] + "T00:00:00");
+        if (!isNaN(dateObj.getTime())) {
+          daysAgo = Math.max(0, (now - dateObj.getTime()) / dayMs);
+        }
+      }
+      // Default score when missing: positional (first=1.0, then -0.1)
+      const originalScore = typeof r.score === "number" ? r.score : Math.max(0.1, 1.0 - i * 0.1);
+      return { ...r, score: originalScore * Math.exp(-daysAgo / halfLife) };
+    })
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+}
+
+// ── Enhancement 2: Diversity sampling ──
+// Removes near-duplicate entries (Jaccard similarity > 0.7 on first 50 chars)
+function applyDiversitySampling(results: SearchResult[]): SearchResult[] {
+  if (results.length <= 1) return results;
+
+  function jaccardSimilarity(a: string, b: string): number {
+    const snippetA = a.slice(0, 50);
+    const snippetB = b.slice(0, 50);
+    const setA = new Set<string>();
+    const setB = new Set<string>();
+    for (const ch of snippetA) setA.add(ch);
+    for (const ch of snippetB) setB.add(ch);
+    const intersect = new Set<string>([...setA].filter((x) => setB.has(x)));
+    const union = new Set<string>([...setA, ...setB]);
+    return union.size > 0 ? intersect.size / union.size : 0;
+  }
+
+  const kept: SearchResult[] = [];
+  for (const r of results) {
+    const isDuplicate = kept.some((k) => jaccardSimilarity(r.snippet, k.snippet) > 0.7);
+    if (!isDuplicate) kept.push(r);
+  }
+  return kept;
+}
+
 /** Format search results into recall text snippet with sentiment emoji */
 function formatRecallText(results: SearchResult[]): string {
-  return results.map(r => {
-    const mood = detectSentiment(r.snippet);
-    return `[${r.filename}] ${mood.emoji}\n${r.snippet}`;
-  }).join("\n---\n");
+  return results
+    .map((r) => {
+      const mood = detectSentiment(r.snippet);
+      return `[${r.filename}] ${mood.emoji}\n${r.snippet}`;
+    })
+    .join("\n---\n");
 }
 
 /** Build the appendSystemContext object for return */
@@ -68,7 +152,9 @@ function buildPrependRules(config: YaoyaoMemoryConfig): string | undefined {
   // 多模态记忆指令：开启 autoSaveImage 后，AI 自动将图片理解结果存入记忆
   const autoSaveImage = (config as Record<string, unknown>).autoSaveImage === true;
   if (autoSaveImage) {
-    rules.push("## 行为规则\n\n当用户发送图片或你通过任何方式获取到图片内容后，在回复用户之前，请调用 memory_save 工具，以 `[图片] 图片描述` 的格式将图片描述保存到记忆中。图片描述应为简洁的中文完整句子。");
+    rules.push(
+      "## 行为规则\n\n当用户发送图片或你通过任何方式获取到图片内容后，在回复用户之前，请调用 memory_save 工具，以 `[图片] 图片描述` 的格式将图片描述保存到记忆中。图片描述应为简洁的中文完整句子。",
+    );
   }
 
   return rules.length > 0 ? rules.join("\n\n") : undefined;
@@ -82,7 +168,7 @@ function buildHookResult(
   if (!appendCtx && !config) return undefined;
 
   const prependSystemContext = buildPrependRules(config);
-  
+
   if (!prependSystemContext) return appendCtx;
 
   return {
@@ -97,9 +183,9 @@ export function registerRecallHook(
   config: YaoyaoMemoryConfig,
   embedding?: EmbeddingService | null,
   personaState?: PersonaStateMachine | null,
-  feedbackTracker?: FeedbackTracker | null
+  feedbackTracker?: FeedbackTracker | null,
 ) {
-  api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? ' + vector' : ''})`);
+  api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})`);
 
   // Create session filter with configured blockLabels
   const sessionFilter = createSessionFilter({
@@ -119,7 +205,7 @@ export function registerRecallHook(
       { patterns: ["太啰嗦", "太简洁", "说详细点", "简短点"], tag: "timing" },
     ];
     for (const { patterns, tag } of correctionPatterns) {
-      if (patterns.some(p => lower.includes(p))) {
+      if (patterns.some((p) => lower.includes(p))) {
         return { isCorrection: true, tag };
       }
     }
@@ -155,14 +241,25 @@ export function registerRecallHook(
             });
             api.logger.info(`[yaoyao-memory:feedback] Recorded correction (tag: ${correction.tag})`);
           }
-        } catch { /* best effort */ }
+        } catch {
+          /* best effort */
+        }
       }
 
-          // Extract keywords for FTS5 query
+      // Extract keywords for FTS5 query
       const keywords = extractKeywords(userMessage);
       if (keywords.length === 0) return;
 
-      const ftsQuery = keywords.join(" ");
+      // ── Enrich with session context keywords (cross-turn carry-over) ──
+      const ctxKeywords = getSessionContextKeywords(sessionKey);
+      const enrichedKeywords = [...keywords];
+      for (const kw of ctxKeywords) {
+        if (!enrichedKeywords.includes(kw)) {
+          enrichedKeywords.push(kw);
+        }
+      }
+
+      const ftsQuery = enrichedKeywords.join(" ");
       const maxResults = config.recall?.maxResults ?? 3;
       const cacheKey = `${ftsQuery}:${maxResults}`;
 
@@ -173,15 +270,27 @@ export function registerRecallHook(
         // Compute guidance from persona state (always fresh)
         let guidance = "";
         if (personaState && personaState.getState().confidence > 0.3) {
-          try { guidance = personaState.getGuidanceText(); } catch { /* best effort */ }
+          try {
+            guidance = personaState.getGuidanceText();
+          } catch {
+            /* best effort */
+          }
         }
-        return buildHookResult(buildRecallContext(cached, guidance), config);
+        // Apply enhancements to cached results
+        const decayed = applyTimeDecay(cached);
+        const deduped = applyDiversitySampling(decayed);
+        updateSessionContext(sessionKey, keywords);
+        return buildHookResult(buildRecallContext(deduped, guidance), config);
       }
 
       // Build guidance text from persona state (best-effort, never blocks)
       let guidance = "";
       if (personaState && personaState.getState().confidence > 0.3) {
-        try { guidance = personaState.getGuidanceText(); } catch { /* best effort */ }
+        try {
+          guidance = personaState.getGuidanceText();
+        } catch {
+          /* best effort */
+        }
       }
 
       // Hybrid search: FTS5 + optional vector
@@ -191,8 +300,14 @@ export function registerRecallHook(
           const results = db.hybridSearch(ftsQuery, vec, maxResults);
           if (results.length > 0) {
             setCachedResults(cacheKey, results);
-            api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms`);
-            return buildHookResult(buildRecallContext(results, guidance), config);
+            api.logger.info(
+              `[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms`,
+            );
+            // Apply enhancements
+            const decayed = applyTimeDecay(results);
+            const deduped = applyDiversitySampling(decayed);
+            updateSessionContext(sessionKey, keywords);
+            return buildHookResult(buildRecallContext(deduped, guidance), config);
           }
         } catch (vecErr: any) {
           api.logger.debug?.(`[yaoyao-memory:recall] Vector search failed: ${vecErr.message}, falling back to FTS5`);
@@ -208,7 +323,12 @@ export function registerRecallHook(
 
       setCachedResults(cacheKey, results);
       api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms`);
-      return buildHookResult(buildRecallContext(results, guidance), config);
+
+      // Apply enhancements
+      const decayed = applyTimeDecay(results);
+      const deduped = applyDiversitySampling(decayed);
+      updateSessionContext(sessionKey, keywords);
+      return buildHookResult(buildRecallContext(deduped, guidance), config);
     } catch (err) {
       api.logger.error(`[yaoyao-memory:recall] Error: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -217,22 +337,130 @@ export function registerRecallHook(
 
 function extractKeywords(text: string): string[] {
   const cleaned = text.toLowerCase().replace(/[^\w\u4e00-\u9fff]/g, " ");
-  const words = cleaned.split(/\s+/).filter(w => w.length > 1);
+  const words = cleaned.split(/\s+/).filter((w) => w.length > 1);
 
   const stopwords = new Set([
-    "的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都", "一",
-    "一个", "上", "也", "很", "到", "说", "要", "去", "你", "会", "着",
-    "没有", "看", "好", "自己", "这", "那", "他", "她", "它", "们",
-    "也", "吗", "吧", "呢", "啊", "哦", "哈", "嗯", "嘛", "哟",
-    "还是", "或者", "但是", "因为", "所以", "如果", "虽然", "而且", "然后", "可以",
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "can", "could",
-    "shall", "should", "may", "might", "must", "i", "you", "he", "she", "it",
-    "we", "they", "me", "him", "her", "us", "them", "this", "that", "these",
-    "those", "and", "or", "but", "if", "because", "when", "where", "how",
-    "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
-    "at", "by", "from", "as", "into", "not", "no", "yes",
+    "的",
+    "了",
+    "是",
+    "在",
+    "我",
+    "有",
+    "和",
+    "就",
+    "不",
+    "人",
+    "都",
+    "一",
+    "一个",
+    "上",
+    "也",
+    "很",
+    "到",
+    "说",
+    "要",
+    "去",
+    "你",
+    "会",
+    "着",
+    "没有",
+    "看",
+    "好",
+    "自己",
+    "这",
+    "那",
+    "他",
+    "她",
+    "它",
+    "们",
+    "也",
+    "吗",
+    "吧",
+    "呢",
+    "啊",
+    "哦",
+    "哈",
+    "嗯",
+    "嘛",
+    "哟",
+    "还是",
+    "或者",
+    "但是",
+    "因为",
+    "所以",
+    "如果",
+    "虽然",
+    "而且",
+    "然后",
+    "可以",
+    "the",
+    "a",
+    "an",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "can",
+    "could",
+    "shall",
+    "should",
+    "may",
+    "might",
+    "must",
+    "i",
+    "you",
+    "he",
+    "she",
+    "it",
+    "we",
+    "they",
+    "me",
+    "him",
+    "her",
+    "us",
+    "them",
+    "this",
+    "that",
+    "these",
+    "those",
+    "and",
+    "or",
+    "but",
+    "if",
+    "because",
+    "when",
+    "where",
+    "how",
+    "what",
+    "which",
+    "who",
+    "whom",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "at",
+    "by",
+    "from",
+    "as",
+    "into",
+    "not",
+    "no",
+    "yes",
   ]);
 
-  return words.filter(w => !stopwords.has(w) && w.length < 30);
+  return words.filter((w) => !stopwords.has(w) && w.length < 30);
 }

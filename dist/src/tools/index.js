@@ -17,6 +17,10 @@ import { createImportTool } from "./memory-import.js";
 import { createTagTool } from "./memory-tag.js";
 import { createRemindTool } from "./memory-remind.js";
 import { createRecommendTool } from "./memory-recommend.js";
+import { createTrendsTool } from "./memory-trends.js";
+import { createQualityTool } from "./memory-quality.js";
+import { createCloudSyncTool } from "./cloud-sync.js";
+
 export function registerMemoryTools(api, store, db, feedbackTracker, embedding) {
     const tools = [
         createSearchTool(db),
@@ -56,11 +60,28 @@ export function registerMemoryTools(api, store, db, feedbackTracker, embedding) 
         catch { /* best effort */ }
     }
     else {
-        // FTS5-only enhanced search (no rerank, but still highlight)
         try {
             tools.push(createEnhancedSearchTool(db));
         }
         catch { /* best effort */ }
     }
-    api.logger.info(`[yaoyao-memory] ${tools.length} tools registered (FTS5 + mood + timeline + backup)`);
+    // Trends analysis tool (best-effort)
+    try {
+        tools.push(createTrendsTool(store));
+    }
+    catch { /* best effort */ }
+    // Quality assessment tool (best-effort)
+    try {
+        tools.push(createQualityTool(store, db));
+    }
+    catch { /* best effort */ }
+    // Cloud sync tool (best-effort, graceful when no credentials configured)
+    try {
+        tools.push(createCloudSyncTool(store));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${e.message}`);
+    }
+    api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);
+    return tools.length;
 }

@@ -133,6 +133,34 @@
         "type": "boolean",
         "default": false,
         "description": "启用后，AI 在收到图片并理解其内容后会自动调用 memory_save 将图片描述存入记忆"
+      },
+      "cloud": {
+        "type": "object",
+        "description": "云备份同步配置（凭证存储在 ~/.openclaw/credentials/secrets.env）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用云备份功能"
+          },
+          "autoSync": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否启用每日自动同步（上传）"
+          },
+          "conflictPolicy": {
+            "type": "string",
+            "default": "newer",
+            "description": "双向同步冲突策略: newer=保留更新的文件, keep_both=保留双方",
+            "enum": ["newer", "keep_both"]
+          },
+          "excludePatterns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "description": "排除同步的文件名模式（如 [\"*.log\", \".tmp\"]）"
+          }
+        }
       }
     }
   },

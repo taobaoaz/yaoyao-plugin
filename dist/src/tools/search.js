@@ -2,7 +2,7 @@ import { detectSentiment } from "../utils/sentiment.js";
 import { withErrorHandling } from "./common.js";
 export function createSearchTool(db) {
     return {
-        name: "yaoyao_memory_search",
+        name: "memory_search",
         label: "Yaoyao Memory Search",
         description: "Search through past memories using full-text search. Supports keywords, phrases, and natural language queries. Results are ranked by relevance.",
         parameters: {

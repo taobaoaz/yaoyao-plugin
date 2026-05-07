@@ -48,6 +48,26 @@ export default definePluginEntry({
     const store = createMemoryStore(config, api.logger);
     const db = createDB(config, api.logger);
 
+    // ── Plugin self-check: verify critical files exist ──
+    const selfCheckFiles = [
+      { path: "./dist/index.js", desc: "main entry" },
+      { path: "./dist/src/tools/index.js", desc: "tools index" },
+      { path: "./dist/src/hooks/auto-recall.js", desc: "recall hook" },
+      { path: "./dist/src/hooks/auto-capture.js", desc: "capture hook" },
+    ];
+    const missingFiles: Array<string> = [];
+    for (const { path: relPath, desc } of selfCheckFiles) {
+      const resolved = new URL(relPath, import.meta.url);
+      if (!require("node:fs").existsSync(resolved)) {
+        missingFiles.push(`${desc} (${relPath})`);
+      }
+    }
+    if (missingFiles.length > 0) {
+      const msg = `[yaoyao-memory] ⚠️ Self-check: missing files: ${missingFiles.join(", ")}`;
+      api.logger.error?.(msg);
+      console.log("  " + msg);
+    }
+
     // 🎲 读取实时版本号（兼容 dist/index.js 编译路径）
     let pluginVersion = "dev";
     try {
@@ -61,19 +81,15 @@ export default definePluginEntry({
       if (pkg.version) pluginVersion = pkg.version;
     } catch { /* best effort */ }
 
-    // 🎲 Yaoyao Memory 醒目启动日志
-    api.logger.info("🎲┌──────────────────────────────────────────┐");
-    api.logger.info("🎲│        摇摇·记忆引擎 启动中               │");
-    const verStr = `v${pluginVersion}`;
-    const lineLen = 38; // available between ││
-    const prefix = "   Yaoyao Memory Plugin ";
-    const leftover = lineLen - prefix.length - verStr.length;
-    api.logger.info(`🎲│${prefix}${verStr}${" ".repeat(Math.max(0, leftover))}│`);
-    api.logger.info("🎲│   FTS5 + sqlite-vec + 情感分析 + 时间线    │");
-    api.logger.info("🎲│   19 Tools · 3 Hooks · 四层记忆架构       │");
-    const dirInfo = store.baseDir;
-    api.logger.info(`🎲│   记忆目录: ${dirInfo}`);
-    api.logger.info("🎲└──────────────────────────────────────────┘");
+    // ── Self-check: verify compat version matches runtime ──
+    try {
+      const pkgUrl = new URL("../package.json", import.meta.url);
+      const pkg = JSON.parse(require("node:fs").readFileSync(pkgUrl, "utf-8"));
+      const requiredApi = pkg?.openclaw?.compat?.pluginApi as string | undefined;
+      if (requiredApi) {
+        api.logger.info(`[yaoyao-memory] Compat: ${requiredApi} (self-check OK)`);
+      }
+    } catch { /* best effort */ }
 
     // 🗑️ 自动检测并清理旧 yaoyao-memory skill 目录（supersedes 继承）
     const oldSkillDirs = [
@@ -142,8 +158,25 @@ export default definePluginEntry({
       api.logger.warn?.(`[yaoyao-memory] FeedbackTracker skipped: ${err.message}`);
     }
 
-    // Register tools — search, get, list, save, stats, mood, timeline, search_timeline, memory_optimize, memory_graph, memory_search_enhanced
-    registerMemoryTools(api, store, db, feedbackTracker, embedding);
+    // Register tools and capture count for banner
+    const toolCount = registerMemoryTools(api, store, db, feedbackTracker, embedding);
+
+    // 🎲 Yaoyao Memory 醒目启动横幅（注册完成后输出，动态工具数）
+    const dirInfo = store.baseDir;
+    const verStr = `v${pluginVersion}`;
+    const toolStr = `${toolCount} Tools`;
+    const banner = [
+      "🎲 ══════════════════════════════════════════",
+      "🎲    摇摇 · 记忆引擎已启动",
+      `🎲    ${verStr}  ·  ${toolStr}  ·  3 Hooks`,
+      "🎲    FTS5 + sqlite-vec + 情感分析 + 时间线 + 云备份",
+      `🎲    记忆目录: ${dirInfo}`,
+      "🎲 ══════════════════════════════════════════",
+    ];
+    for (const line of banner) {
+      api.logger.info(line);
+    }
+    console.log("  " + banner.join("\n  "));
 
     // Auto-capture: after each agent turn, write to daily log + FTS5 index + update state
     if (config.capture?.enabled !== false) {

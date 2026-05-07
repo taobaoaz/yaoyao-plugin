@@ -6,7 +6,7 @@ import type { ToolRegistration } from "./common.js";
 
 export function createGetTool(store: MemoryStore, _db: DBBridge): ToolRegistration {
   return {
-    name: "yaoyao_memory_get",
+    name: "memory_get",
     label: "Yaoyao Memory Get",
     description: "Read a memory file by filename or date. Returns the full file contents.",
     parameters: {
