@@ -177,5 +177,25 @@
     "from": "yaoyao-memory",
     "version": "1.x",
     "instructions": "自动迁移：插件启动时将清理旧 skill 目录，所有功能由插件接管。无需手动操作。"
-  }
+  },
+  "compatibilityNotes": [
+    {
+      "id": "active-memory-conflict",
+      "level": "warning",
+      "message": "Conflicts with OpenClaw built-in Active Memory plugin. Both use before_prompt_build to inject memory context. Disable Active Memory when using Yaoyao Memory.",
+      "fix": "Set active-memory.enabled=false in openclaw.json, or disable it: openclaw plugins disable active-memory"
+    },
+    {
+      "id": "memory-core-coexistence",
+      "level": "info",
+      "message": "Memory Core (file-based memory) can coexist. Yaoyao uses its own .yaoyao.db index and does not interfere with memory-core.",
+      "fix": "No action needed."
+    },
+    {
+      "id": "memory-lancedb-coexistence",
+      "level": "info",
+      "message": "Memory LanceDB (vector memory) can coexist. Yaoyao uses its own sqlite-vec for vector search.",
+      "fix": "No action needed. Both can be enabled simultaneously."
+    }
+  ]
 }

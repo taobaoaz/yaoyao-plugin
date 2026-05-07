@@ -266,3 +266,13 @@ openclaw gateway restart
 | `Cannot find module` | OpenClaw 版本太低 | 升级到 >= 2026.5.5 |
 | `node:sqlite` 报错 | Node.js 版本太低 | 升级到 Node.js >= 22 |
 | 向量搜索不可用 | 未配置 embedding | 插件自动降级为 FTS5，不影响基本功能 |
+| 与 Active Memory 冲突 | 两者都在 `before_prompt_build` 注入记忆 | 禁用内置 Active Memory：`openclaw plugins disable active-memory` |
+| 记忆重复注入 | 内置记忆和 yaoyao 都在召回 | 确保只启用一个记忆召回系统 |
+
+### 兼容性
+
+| OpenClaw 内置系统 | 兼容性 | 说明 |
+|-------------------|--------|------|
+| **Active Memory** | ⚠️ 冲突 | 两者都在 `before_prompt_build` 注入 context，同时启用会导致重复/冲突。**建议禁用 Active Memory** |
+| **Memory Core** (文件记忆) | ✅ 兼容 | yaoyao 使用独立的 `.yaoyao.db` 索引，不干扰文件记忆 |
+| **Memory LanceDB** (向量记忆) | ✅ 兼容 | yaoyao 使用独立的 sqlite-vec，可同时启用 |
