@@ -1,7 +1,7 @@
 {
   "id": "yaoyao-memory",
   "name": "Yaoyao Memory",
-  "description": "四层记忆系统 (FTS5 + sqlite-vec 向量搜索 + 可选 LLM 管线) — 自动捕获对话, 混合搜索, 情感分析心情环, 记忆时间线, 场景管理, 用户画像生成。搭载「摇摇·记忆」引擎，让你的 AI 拥有长时记忆。",
+  "description": "4-layer AI memory system (FTS5 + sqlite-vec hybrid search + optional LLM pipeline) — auto-capture conversations, hybrid search, sentiment mood ring, memory timeline, scene management, user persona generation. Powered by Yaoyao Memory Engine.",
   "configSchema": {
     "type": "object",
     "additionalProperties": true,
@@ -152,11 +152,16 @@
             "type": "string",
             "default": "newer",
             "description": "双向同步冲突策略: newer=保留更新的文件, keep_both=保留双方",
-            "enum": ["newer", "keep_both"]
+            "enum": [
+              "newer",
+              "keep_both"
+            ]
           },
           "excludePatterns": {
             "type": "array",
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "default": [],
             "description": "排除同步的文件名模式（如 [\"*.log\", \".tmp\"]）"
           }
