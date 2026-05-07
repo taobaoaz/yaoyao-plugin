@@ -43,6 +43,7 @@ export default definePluginEntry({
  description: "Yaoyao Memory — FTS5 + sqlite-vec + 情感分析 + 时间线 — 自动捕获, 混合搜索, 记忆心情环, 场景管理, 用户画像。搭载摇摇记忆引擎的四层记忆系统。",
 
  register(api) {
+    try {
  const config = (api.pluginConfig || {});
  const store = createMemoryStore(config, api.logger);
  const db = createDB(config, api.logger);
@@ -223,6 +224,10 @@ export default definePluginEntry({
  });
 
  api.logger.debug?.("[yaoyao-memory] Plugin registered (FTS5 + sqlite-vec + optional embedding/LLM)");
+ } catch (err) {
+      api.logger.error?.(`[yaoyao-memory] Plugin registration FAILED: ${err instanceof Error ? err.message : String(err)}`);
+      console.log(`  [yaoyao-memory] ⚠️ Plugin registration failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
  },
 });
 

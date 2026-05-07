@@ -18,14 +18,20 @@ function getOpenClawMemoryDir() {
 function queryOpenClawDB(sql, params) {
   const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");
   if (!fs.existsSync(dbPath)) return null;
+  let db = null;
   try {
     const { DatabaseSync } = require("node:sqlite");
-    const db = new DatabaseSync(dbPath, { mode: "readonly" });
+    db = new DatabaseSync(dbPath, { mode: "readonly", timeout: 3000 });
+    // Set aggressive timeout for all operations
+    db.exec("PRAGMA busy_timeout = 2000");
+    // Limit query results to prevent memory issues
     const rows = db.prepare(sql).all(...(params || []));
-    db.close();
     return rows;
   } catch {
     return null;
+  } finally {
+    // ALWAYS close the connection, even on error
+    try { if (db) db.close(); } catch { /* best effort */ }
   }
 }
 
@@ -69,10 +75,20 @@ export function createUnifyTool(store) {
     },
     execute: withErrorHandling(async (_id, params) => {
       const action = String(params.action);
-      if (action === "status") return handleStatus(store);
-      if (action === "backends") return handleBackends(store);
-      if (action === "search_all") return handleSearchAll(store, String(params.query || ""));
-      return { content: [{ type: "text", text: "❌ 未知操作。支持: status, search_all, backends" }] };
+      // Wrap in timeout to prevent blocking the gateway
+      const timeoutMs = 5000;
+      const result = await Promise.race([
+        (async () => {
+          if (action === "status") return handleStatus(store);
+          if (action === "backends") return handleBackends(store);
+          if (action === "search_all") return handleSearchAll(store, String(params.query || ""));
+          return { content: [{ type: "text", text: "❌ 未知操作。支持: status, search_all, backends" }] };
+        })(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Operation timed out after " + timeoutMs + "ms")), timeoutMs)
+        ),
+      ]);
+      return result;
     }),
   };
 }
