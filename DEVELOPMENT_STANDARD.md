@@ -33,7 +33,94 @@ yaoyao-plugin/
 └── node_modules/                 # 依赖（gitignore）
 ```
 
-### 1.1 与旧 Skill 结构的区别
+### 1.1 构建环境要求（重要 ⚠️）— 必须将 dist/ 提交到 git
+
+**核心问题：** yaoyao 插件依赖于 OpenClaw 内部的 SDK 包（`openclaw/plugin-sdk/plugin-entry`）的类型声明才能编译。外部环境没有完整的 OpenClaw 环境，**无法单独通过 `tsc` 编译 TypeScript 源码**。
+
+**重要规则：`dist/` 目录必须提交到 git，不能 gitignore！**
+
+```
+# ❌ 之前错误的做法
+dist/        # 在 .gitignore 中忽略 → clone 后无 dist → 无法编译 → 无法使用
+
+# ✅ 正确的做法
+# 注意：dist/ 需要提交 git，因为编译依赖 OpenClaw SDK 内部类型声明，
+# 外部环境无法独立编译。clone 后直接使用 dist/index.js。
+# 如需重新编译，请在完整 OpenClaw 环境中执行 npx tsc。
+```
+
+**原理：**
+| 文件 | 来源 | 使用场景 |
+|------|------|----------|
+| `index.ts` | TypeScript 源码 | 在完整 OpenClaw 环境中编译用 |
+| `dist/index.js` | 编译产物 | **任何环境都能直接用**（OpenClaw 运行时加载） |
+| `openclaw/plugin-sdk/` | OpenClaw 运行时 | 编译时类型声明用，外部环境没有 |
+
+**开发者建议：**
+1. **修改源码后** → 在完整 OpenClaw 环境中执行 `npx tsc` 或 `node --experimental-strip-types index.ts`
+2. **提交前** → 确保 `dist/` 有最新的编译产物，`git add dist/`
+3. **只使用插件的用户** → 无需编译，`git clone` 后直接使用 `dist/index.js`
+
+#### 1.1.1 实际验证的编译错误
+
+| 错误 | 原因 |
+|------|------|
+| `Cannot find module 'openclaw/plugin-sdk/plugin-entry'` | 外部环境没有 OpenClaw 包 |
+| `Cannot find name 'require'` | 缺少 `@types/node` |
+| `Property 'config' is private` | 内部类型不匹配 |
+| `Cannot find name 'node:path'` | 缺少 Node 类型声明 |
+
+**解决方案：** `tsconfig.json` 中配置 `noEmitOnError: false`（允许类型错误时继续编译）+ `skipLibCheck: true` + `strict: false`，但**更好的做法是直接提交 `dist/`**。
+
+```json
+// tsconfig.json 中已配置的关键项
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmitOnError": false,   // ← 允许类型错误时继续编译
+    "skipLibCheck": true,     // ← 跳过 .d.ts 检查
+    "strict": false           // ← 宽松模式
+  }
+}
+```
+
+Yaoyao 插件是 **OpenClaw Plugin**，依赖于 OpenClaw 内部的 SDK 包才能编译。外部开发者如果没有完整的 OpenClaw 环境，**无法单独编译** TypeScript 源码。
+
+**已知编译器依赖：**
+| 依赖 | 原因 | 来源 |
+|------|------|------|
+| `openclaw/plugin-sdk/plugin-entry` | 插件入口类型声明 (`definePluginEntry`) | OpenClaw 运行时包 (`openclaw/node_modules/openclaw/`) |
+| `@types/node` | `node:path`、`node:fs`、`require` 等 Node API | NPM |
+| `openclaw` 内置 `.d.ts` | Plugin 类型 (`EmbeddingConfig` 等) | OpenClaw 运行时包 |
+
+**实际运行 vs 编译器验证：**
+- ✅ `dist/index.js` **可以正常运行**（已有构建产物）
+- ❌ `tsc --noEmit` **无法通过**（缺少 OpenClaw SDK 的类型声明）
+- 插件加载时由 OpenClaw 运行时负责提供 SDK 上下文，`dist/` 中的 JS 代码可直接运行
+
+**开发者建议：**
+1. **在完整 OpenClaw 环境内**进行开发和编译（当前环境已满足）
+2. 修改 `index.ts` 后，执行 `npx tsc` 编译前，先确认 `node_modules/openclaw` 存在（通过 `npm link` 或 `pwd` 确认）
+3. 如果需要在外部环境编译，需要安装 `openclaw` 包并引用其 `plugin-sdk`：`npm install openclaw`
+4. 对于只想使用插件的用户：**无需编译**，`dist/index.js` 已可直接使用
+
+```json
+// tsconfig.json 中已配置的关键项
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmitOnError": false,   // ← 允许类型错误时继续编译
+    "skipLibCheck": true,     // ← 跳过 .d.ts 检查
+    "strict": false           // ← 宽松模式
+  }
+}
+```
+
+### 1.2 与旧 Skill 结构的区别
 
 | 维度 | Skill（旧） | Plugin（新） |
 |------|-------------|--------------|
