@@ -26,6 +26,7 @@ import { createTagTool } from "./memory-tag.js";
 import { createRemindTool } from "./memory-remind.js";
 import { createRecommendTool } from "./memory-recommend.js";
 import { createCloudSyncTool } from "./cloud-sync.js";
+import { createUnifyTool } from "./memory-unify.js";
 import { createTrendsTool } from "./memory-trends.js";
 import { createQualityTool } from "./memory-quality.js";
 import type { FeedbackTracker } from "../learning/feedback-tracker.js";
@@ -90,6 +91,12 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
     tools.push(createCloudSyncTool(store));
   } catch (e: any) {
     api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${e.message}`);
+  }
+  // Unified memory management (all OpenClaw backends)
+  try {
+    tools.push(createUnifyTool(store));
+  } catch (e: any) {
+    api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${e.message}`);
   }
   api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);
   return tools.length;
