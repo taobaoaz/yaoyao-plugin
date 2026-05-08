@@ -234,18 +234,27 @@ export function createDB(config, logger) {
             // FTS5 unicode61 tokenizer treats each Chinese character as a separate token,
             // so multi-character words like "天气" or "今天" fail to match.
             // LIKE is character-based and handles CJK correctly.
-            // ── 优化6: LIKE fallback always filters by recent 30 days for large datasets ──
+            // ── 优化6: LIKE fallback date filter only for large datasets (> 1000 rows) ──
+            let totalRows = 0;
+            try {
+                totalRows = d.prepare("SELECT COUNT(*) as c FROM memory_meta").get()?.c || 0;
+            } catch { /* ignore */ }
             const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
             const likeQuery = `%${query.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
             let likeRows;
-            try {
-                // Try with date filter first (better performance for large tables)
-                const likeStmtDated = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
-                    "WHERE date >= ? AND (user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\') " +
-                    "ORDER BY id DESC LIMIT ?");
-                likeRows = likeStmtDated.all(thirtyDaysAgo, likeQuery, likeQuery, Math.min(Math.max(limit, 1), 100));
-            } catch {
-                // Fallback: no date filter
+            if (totalRows > 1000) {
+                // Large dataset: use 30-day window for performance
+                try {
+                    const likeStmtDated = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
+                        "WHERE date >= ? AND (user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\') " +
+                        "ORDER BY id DESC LIMIT ?");
+                    likeRows = likeStmtDated.all(thirtyDaysAgo, likeQuery, likeQuery, Math.min(Math.max(limit, 1), 100));
+                } catch {
+                    likeRows = null;
+                }
+            }
+            // Small dataset or dated query failed: no date filter
+            if (!likeRows || likeRows.length === 0) {
                 const likeStmt = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
                     "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
                     "ORDER BY id DESC LIMIT ?");
@@ -298,7 +307,33 @@ export function createDB(config, logger) {
                                 uniqueRows.push(row);
                             }
                         }
-                        return uniqueRows.map(row => ({
+                        // Score by match ratio and sort
+                        const scored = [];
+                        for (const row of uniqueRows) {
+                            const text = `${row.user_text || ""} ${row.asst_text || ""}`;
+                            let matchCount = 0;
+                            for (const bg of bigrams) {
+                                if (text.includes(bg)) matchCount++;
+                            }
+                            if (matchCount > 0) {
+                                scored.push({
+                                    row,
+                                    score: matchCount / bigrams.length,
+                                });
+                            }
+                        }
+                        scored.sort((a, b) => b.score - a.score);
+                        // Secondary dedup by snippet prefix
+                        const seenPrefix = new Set();
+                        const finalRows = [];
+                        for (const s of scored) {
+                            const prefix = `${s.row.user_text || ""} ${s.row.asst_text || ""}`.trim().slice(0, 50);
+                            if (!seenPrefix.has(prefix)) {
+                                seenPrefix.add(prefix);
+                                finalRows.push(s.row);
+                            }
+                        }
+                        return finalRows.slice(0, Math.min(Math.max(limit, 1), 100)).map(row => ({
                             filename: row.date ? `${row.date}.md` : "memory.db",
                             snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, 500),
                             score: 0.4,
@@ -368,6 +403,13 @@ export function createDB(config, logger) {
             });
         }
         for (const r of vecResults) {
+            // Backfill date from memory_meta if missing
+            if (!r.date && r.filename) {
+                try {
+                    const dateMatch = r.filename.match(/^(\d{4}-\d{2}-\d{2})\.md$/);
+                    if (dateMatch) r.date = dateMatch[1];
+                } catch { /* best effort */ }
+            }
             const key = `${r.date}|${r.snippet}`;
             if (merged.has(key)) {
                 const existing = merged.get(key);

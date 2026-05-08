@@ -29,26 +29,51 @@ function setCachedResults(key, results) {
         }
     }
     resultCache.set(key, { results, expires: Date.now() + CACHE_TTL_MS });
+    // Keep a copy of the last successful non-empty result for short-message fallback
+    if (results.length > 0) {
+        resultCache.set("__last_nonempty__", { results, expires: Date.now() + CACHE_TTL_MS * 2 });
+    }
 }
-/** Clean source/import tag prefixes from snippet text */
+/** Format human-friendly time-ago string from a date string (YYYY-MM-DD) */
+function formatTimeAgo(dateStr, now) {
+    if (!dateStr) return "未知时间";
+    try {
+        const d = new Date(dateStr + "T00:00:00Z");
+        if (isNaN(d.getTime())) return dateStr;
+        const days = Math.floor((now - d.getTime()) / 86400000);
+        if (days < 0) return dateStr;
+        if (days === 0) return "今天";
+        if (days === 1) return "昨天";
+        if (days < 7) return `${days}天前`;
+        if (days < 30) return `${Math.floor(days / 7)}周前`;
+        if (days < 365) return `${Math.floor(days / 30)}个月前`;
+        return `${Math.floor(days / 365)}年前`;
+    } catch {
+        return dateStr;
+    }
+}
+
+/** Clean source/import tag prefixes and HTML tags from snippet text */
 function cleanSnippet(text) {
     try {
         return text
-            .replace(/^\[nas-import:[^\]]*\]\s*/gm, "")
-            .replace(/^\[oc-import:[^\]]*\]\s*/gm, "")
-            .replace(/^\[ws:[^\]]*\]\s*/gm, "")
-            .replace(/^\[rule-extracted:[^\]]*\]\s*/gm, "")
-            .replace(/^\[daily-note:[^\]]*\]\s*/gm, "")
-            .replace(/^\[important\]\s*/gm, "⭐ ");
+            .replace(/<\/?b>/g, "")
+            .replace(/^\[(?:nas-import|oc-import|ws|rule-extracted|daily-note):[^\]]*\]\s*/gm, "")
+            .replace(/^\[important\]\s*/gm, "⭐ ")
+            .replace(/\s+/g, " ")
+            .trim();
     } catch { return text; }
 }
 
-/** Format search results into recall text snippet with sentiment emoji */
+/** Format search results into recall text snippet with sentiment emoji and time-ago */
 function formatRecallText(results) {
+    const now = Date.now();
     return results.map(r => {
-        const cleaned = cleanSnippet(r.snippet);
+        const cleaned = cleanSnippet(r.snippet || "");
         const mood = detectSentiment(cleaned);
-        return `[${r.filename}] ${mood.emoji}\n${cleaned}`;
+        const timeAgo = formatTimeAgo(r.date, now);
+        const truncated = cleaned.length > 200 ? cleaned.slice(0, 200) + "…" : cleaned;
+        return `[${timeAgo}] ${mood.emoji}\n${truncated}`;
     }).join("\n---\n");
 }
 /** Build the appendSystemContext object for return */
@@ -58,7 +83,7 @@ function buildRecallContext(results, guidance) {
     const parts = [];
     if (results.length > 0) {
         const recallText = formatRecallText(results);
-        parts.push(`## 相关记忆\n\n以下内容来自你的对话历史记录，可能与当前对话相关：\n\n${recallText}\n`);
+        parts.push(`## 相关记忆（${results.length} 条）\n\n以下历史记忆与当前对话相关，可用来补充上下文。注意时间标记，优先参考近期记忆：\n\n${recallText}\n\n---\n请自然融入参考，不要逐条复述。`);
     }
     if (guidance) {
         parts.push(`## 交互引导\n\n${guidance}\n`);
@@ -145,8 +170,21 @@ export function registerRecallHook(api, db, config, embedding, personaState, fee
             }
             // Extract keywords for FTS5 query
             const keywords = extractKeywords(userMessage);
-            if (keywords.length === 0)
+            if (keywords.length === 0) {
+                // Short message: reuse last cached results if available
+                if (userMessage.trim().length < 5) {
+                    const cachedFallback = getCachedResults("__last_nonempty__");
+                    if (cachedFallback) {
+                        let guidance = "";
+                        if (personaState && personaState.getState().confidence > 0.3) {
+                            try { guidance = personaState.getGuidanceText(); } catch { /* best effort */ }
+                        }
+                        api.logger.debug?.("[yaoyao-memory:recall] Short message, reusing last cached results");
+                        return buildHookResult(buildRecallContext(cachedFallback, guidance), config);
+                    }
+                }
                 return;
+            }
             const ftsQuery = keywords.join(" ");
             const maxResults = config.recall?.maxResults ?? 3;
             const cacheKey = `${ftsQuery}:${maxResults}`;
