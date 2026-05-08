@@ -103,6 +103,10 @@ export function createStatsTool(store, db) {
                 }
             }
             if (format === "json") {
+                // Add DB file size to JSON output
+                try {
+                    jsonResult.dbSizeKB = fs.existsSync(db.dbPath) ? (fs.statSync(db.dbPath).size / 1024).toFixed(1) : "0";
+                } catch { jsonResult.dbSizeKB = "0"; }
                 return { content: [{ type: "text", text: JSON.stringify(jsonResult, null, 2) }] };
             }
             // ── Text format ──
@@ -121,6 +125,13 @@ export function createStatsTool(store, db) {
             }
             if ((totalMemories || 0) < 10 && ftsMemories < 10) {
                 lines.push(`💡 提示：当前记忆较少，系统会随使用逐渐积累`);
+            }
+            // ── DB file size ──
+            try {
+                const dbSize = fs.existsSync(db.dbPath) ? (fs.statSync(db.dbPath).size / 1024).toFixed(1) : "0";
+                lines.push(`💿 DB 文件: ${dbSize} KB`);
+            } catch {
+                lines.push(`💿 DB 文件: N/A`);
             }
             if (detail === "full") {
                 if (sceneCount > 0)

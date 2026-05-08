@@ -30,11 +30,25 @@ function setCachedResults(key, results) {
     }
     resultCache.set(key, { results, expires: Date.now() + CACHE_TTL_MS });
 }
+/** Clean source/import tag prefixes from snippet text */
+function cleanSnippet(text) {
+    try {
+        return text
+            .replace(/^\[nas-import:[^\]]*\]\s*/gm, "")
+            .replace(/^\[oc-import:[^\]]*\]\s*/gm, "")
+            .replace(/^\[ws:[^\]]*\]\s*/gm, "")
+            .replace(/^\[rule-extracted:[^\]]*\]\s*/gm, "")
+            .replace(/^\[daily-note:[^\]]*\]\s*/gm, "")
+            .replace(/^\[important\]\s*/gm, "⭐ ");
+    } catch { return text; }
+}
+
 /** Format search results into recall text snippet with sentiment emoji */
 function formatRecallText(results) {
     return results.map(r => {
-        const mood = detectSentiment(r.snippet);
-        return `[${r.filename}] ${mood.emoji}\n${r.snippet}`;
+        const cleaned = cleanSnippet(r.snippet);
+        const mood = detectSentiment(cleaned);
+        return `[${r.filename}] ${mood.emoji}\n${cleaned}`;
     }).join("\n---\n");
 }
 /** Build the appendSystemContext object for return */

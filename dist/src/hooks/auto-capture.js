@@ -116,8 +116,14 @@ export function registerCaptureHook(api, store, db, config, personaState) {
             if (decisionKeywords.some(k => userContent.toLowerCase().includes(k)))
                 importance += 0.15;
             importance = Math.min(1, importance);
+            // Detect tool calls in AI reply
+            const hasToolCall = lastAsstMsg && (
+                (typeof lastAsstMsg.content === 'string' && /\btool[_ ]?(use|call|result)\b/i.test(lastAsstMsg.content)) ||
+                (Array.isArray(lastAsstMsg.content) && lastAsstMsg.content.some(p => p.type === 'tool_use' || p.type === 'tool_result'))
+            );
+            const toolTag = hasToolCall ? ' 🔧' : '';
             // Write to daily Markdown log (L0) — buffered for debounce
-            const entry = `\n### ${timestamp}${importance >= 0.8 ? ' ⭐' : ''}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
+            const entry = `\n### ${timestamp}${importance >= 0.8 ? ' ⭐' : ''}${toolTag}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
             const taggedContent = importance >= 0.8 ? `[important] ${userContent}` : userContent;
             writeBuffer.push({ date, entry, taggedContent, asstContent, sourceSession });
             if (!writeTimer) {

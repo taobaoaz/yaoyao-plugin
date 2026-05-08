@@ -289,7 +289,16 @@ export function createDB(config, logger) {
                     const bigramRows = bigramStmt.all(...bigramParams, effectiveLimit);
                     if (bigramRows.length > 0) {
                         log(`Bigram fallback found ${bigramRows.length} results for bigrams [${bigrams.join(", ")}]`);
-                        return bigramRows.map(row => ({
+                        // Deduplicate by id
+                        const seenIds = new Set();
+                        const uniqueRows = [];
+                        for (const row of bigramRows) {
+                            if (!seenIds.has(row.id)) {
+                                seenIds.add(row.id);
+                                uniqueRows.push(row);
+                            }
+                        }
+                        return uniqueRows.map(row => ({
                             filename: row.date ? `${row.date}.md` : "memory.db",
                             snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, 500),
                             score: 0.4,

@@ -20,10 +20,12 @@ export function createSaveTool(store, db) {
             const date = params.date ? String(params.date).trim() : new Date().toISOString().slice(0, 10);
             const tags = params.tags ? String(params.tags).trim() : "";
             const tagStr = tags ? ` [${tags}]` : "";
+            // Prefix tags as hashtags for FTS5 indexing
+            const tagPrefix = tags ? tags.split(',').map(t => `#${t.trim()}`).filter(t => t.length > 1).join(' ') + ' ' : '';
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
             const entry = `\n### ${timestamp}\n💾 ${content}${tagStr}\n`;
             store.appendToDaily(date, entry);
-            const rowId = db.indexTurn(content, "", date);
+            const rowId = db.indexTurn(`${tagPrefix}${content}`, "", date);
             return { content: [{ type: "text", text: `✅ 记忆已保存到 ${date}.md\n行号: ${rowId > 0 ? rowId : "索引失败"}` }] };
         }),
     };

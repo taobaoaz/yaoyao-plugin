@@ -14,11 +14,13 @@ export function createForgetTool(store, db) {
             properties: {
                 query: { type: "string", description: "Keyword to match (deletes matching entries)", default: "" },
                 date: { type: "string", description: "Date YYYY-MM-DD to delete an entire day", default: "" },
+                confirm: { type: "boolean", description: "Set to true to confirm deletion of >10 entries (preview mode otherwise)", default: false },
             },
         },
         execute: withErrorHandling(async (_id, params) => {
             const query = String(params.query ?? "").trim();
             const date = String(params.date ?? "").trim();
+            const confirm = params.confirm === true;
             if (!query && !date) {
                 return { content: [{ type: "text", text: "请提供要删除的关键词（query）或日期（date）。" }] };
             }
@@ -37,7 +39,21 @@ export function createForgetTool(store, db) {
                 msg += ` FTS5 索引中删除了 ${deleted} 条记录。`;
                 return { content: [{ type: "text", text: msg }] };
             }
-            // Delete by keyword
+            // Delete by keyword — preview mode for large deletions
+            if (query) {
+                try {
+                    const matching = db.queryMeta({ limit: 2000 }).filter(r => {
+                        const text = `${r.user_text || ""} ${r.asst_text || ""}`;
+                        return text.toLowerCase().includes(query.toLowerCase());
+                    });
+                    if (matching.length > 10 && !confirm) {
+                        const preview = matching.slice(0, 5).map(r =>
+                            `  [${r.date}] ${(r.user_text || "").slice(0, 60)}...`
+                        ).join("\n");
+                        return { content: [{ type: "text", text: `⚠️ 匹配到 ${matching.length} 条记录，即将删除的条目预览：\n${preview}\n...共 ${matching.length} 条。\n如确认删除，请加 confirm: true 参数。` }] };
+                    }
+                } catch { /* preview failed, proceed with delete */ }
+            }
             const files = store.listFiles().filter(f => f.type === "daily");
             let fileDeleted = 0;
             for (const f of files) {
