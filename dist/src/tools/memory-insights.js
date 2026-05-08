@@ -92,32 +92,19 @@ export function createInsightsTool(db) {
       const cutoff = daysAgo(days);
       const today = new Date().toISOString().slice(0, 10);
 
-      // Query memory_meta for the date range
-      let rows = [];
+      // Use queryMeta for proper bulk data access (not FTS5 hack)
+      let rows;
       try {
-        const stmt = db.search.bind(db);
-        // Use LIKE-based approach for date-range queries
-        const stats = db.getStats();
-        // We need raw rows from memory_meta — use getConfig pattern to access db
-        // Actually, let's use search with broad queries and filter by date
-        // Better: read from store daily files
-        // Actually db.search doesn't support date filtering. Let's use a direct query approach.
-        rows = [];
-      } catch { /* best effort */ }
-
-      // Use search to get recent data — search for common chars to get broad results
-      // Actually, let's read from the store's daily files instead
-      // The db object has getConfig/setConfig but not a raw query method exposed
-      // We can use db.search with empty or broad query, then filter by date
-      let searchResults;
-      try {
-        // Get a broad set of results
-        searchResults = db.search("的", Math.min(days * 10, 500));
+        rows = db.queryMeta({ dateFrom: cutoff, limit: 500 });
       } catch {
-        searchResults = [];
+        rows = [];
       }
-
-      const filteredResults = searchResults.filter(r => r.date >= cutoff);
+      // Map queryMeta rows to a compatible format for downstream handlers
+      const filteredResults = rows.map(r => ({
+        date: r.date,
+        snippet: `${r.user_text || ""} ${r.asst_text || ""}`.trim(),
+        _meta: r,
+      }));
       if (filteredResults.length === 0) {
         return { content: [{ type: "text", text: `在近 ${days} 天内没有找到记忆记录。` }] };
       }
@@ -172,7 +159,7 @@ function handleDecisions(results, limit) {
   ];
   for (let i = 0; i < decisions.length; i++) {
     const d = decisions[i];
-    lines.push(`**${i + 1}.** 【${d.date}】${(d.snippet || "").slice(0, 120)}`);
+    lines.push(`**${i + 1}.** 【${d.date}】${(d.snippet || "").slice(0, 200)}`);
     lines.push("");
   }
   return { content: [{ type: "text", text: lines.join("\n") }] };

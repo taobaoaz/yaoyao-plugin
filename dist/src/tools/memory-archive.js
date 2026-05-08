@@ -72,13 +72,13 @@ function handleArchive(db, before, dryRun) {
   }
   const current = getArchivedDates(db);
   // Get all dates from db up to 'before'
-  let allResults;
+  let allRows;
   try {
-    allResults = db.search("的", 500);
+    allRows = db.queryMeta({ dateTo: before, limit: 2000 });
   } catch {
-    allResults = [];
+    allRows = [];
   }
-  const datesToArchive = [...new Set(allResults.filter(r => r.date && r.date < before).map(r => r.date))];
+  const datesToArchive = [...new Set(allRows.filter(r => r.date && r.date < before).map(r => r.date))];
   if (datesToArchive.length === 0) {
     return { content: [{ type: "text", text: `没有找到 ${before} 之前的记忆记录。` }] };
   }
@@ -95,7 +95,7 @@ function handleArchive(db, before, dryRun) {
     `📦 ${prefix}归档完成`,
     "",
     `新增归档日期: ${newDates.length} 个`,
-    `涉及记录: ${allResults.filter(r => newDates.includes(r.date)).length} 条`,
+    `涉及记录: ${allRows.filter(r => newDates.includes(r.date)).length} 条`,
     "",
     "归档日期列表:",
     ...newDates.map(d => `- ${d}`),
@@ -142,26 +142,26 @@ function handleAuto(db, dryRun) {
   cutoff.setDate(cutoff.getDate() - AUTO_ARCHIVE_DAYS);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-  let allResults;
+  let allRows;
   try {
-    allResults = db.search("的", 500);
+    allRows = db.queryMeta({ dateTo: cutoffStr, limit: 2000 });
   } catch {
-    allResults = [];
+    allRows = [];
   }
   const current = getArchivedDates(db);
   // Find dates > 60 days old and without [important] tag
-  const candidates = [...new Set(allResults.filter(r => {
+  const candidates = [...new Set(allRows.filter(r => {
     if (!r.date || r.date >= cutoffStr) return false;
     if (current.includes(r.date)) return false;
-    const snippet = r.snippet || "";
-    // Check if any record for that date has [important]
-    return !snippet.includes("[important]");
+    const text = `${r.user_text || ""} ${r.asst_text || ""}`;
+    return !text.includes("[important]");
   }).map(r => r.date))];
 
   // Double check: exclude dates that have ANY [important] record
   const dateHasImportant = new Set();
-  for (const r of allResults) {
-    if (r.date && (r.snippet || "").includes("[important]")) {
+  for (const r of allRows) {
+    const text = `${r.user_text || ""} ${r.asst_text || ""}`;
+    if (r.date && text.includes("[important]")) {
       dateHasImportant.add(r.date);
     }
   }

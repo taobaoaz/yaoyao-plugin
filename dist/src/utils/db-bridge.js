@@ -449,6 +449,34 @@ export function createDB(config, logger) {
             return 0;
         }
     }
+    /** Query memory_meta directly with date range filter.
+     *  Returns full rows (id, date, user_text, asst_text, source_session, created_at).
+     *  This is the proper way for tools to bulk-read memories — not db.search().
+     */
+    function queryMeta(opts = {}) {
+      try {
+        const d = ensureDB();
+        const dateFrom = opts.dateFrom || '';
+        const dateTo = opts.dateTo || '';
+        const limit = Math.min(Math.max(Number(opts.limit) || 500, 1), 2000);
+        const offset = Math.max(Number(opts.offset) || 0, 0);
+        let sql = 'SELECT id, date, user_text, asst_text, source_session, created_at FROM memory_meta';
+        const conditions = [];
+        const params = [];
+        if (dateFrom) { conditions.push('date >= ?'); params.push(dateFrom); }
+        if (dateTo) { conditions.push('date <= ?'); params.push(dateTo); }
+        if (conditions.length > 0) {
+          sql += ' WHERE ' + conditions.join(' AND ');
+        }
+        sql += ' ORDER BY date DESC, id DESC LIMIT ? OFFSET ?';
+        params.push(limit, offset);
+        return d.prepare(sql).all(...params);
+      } catch (err) {
+        log(`queryMeta error: ${err.message}`);
+        return [];
+      }
+    }
+
     /** Get database stats */
     function getStats() {
         try {
@@ -528,5 +556,5 @@ export function createDB(config, logger) {
             refCount = 0;
         }
     }
-    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getStats, close, dbPath, getConfig, setConfig, getLocalDate };
+    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, queryMeta, getStats, close, dbPath, getConfig, setConfig, getLocalDate };
 }

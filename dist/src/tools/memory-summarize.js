@@ -42,10 +42,10 @@ export function createSummarizeTool(db, store) {
         } catch { /* best effort */ }
       }
 
-      // Also try db search for that date
-      let dbResults = [];
+      // Also try db queryMeta for that date
+      let dbRows = [];
       try {
-        dbResults = db.search("的", 100).filter(r => r.date === date);
+        dbRows = db.queryMeta({ dateFrom: date, dateTo: date, limit: 200 });
       } catch { /* best effort */ }
 
       // Combine sources
@@ -55,9 +55,9 @@ export function createSummarizeTool(db, store) {
         const lines = fileContent.split("\n").map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith("#"));
         texts.push(...lines);
       }
-      for (const r of dbResults) {
-        const snippet = (r.snippet || "").replace(/<\/?b>/g, "").trim();
-        if (snippet) texts.push(snippet);
+      for (const r of dbRows) {
+        const text = `${r.user_text || ""} ${r.asst_text || ""}`.trim();
+        if (text) texts.push(text);
       }
 
       if (texts.length === 0) {

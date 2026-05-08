@@ -106,14 +106,16 @@ export function createDiffTool(db) {
       const format = String(params.format || "text");
 
       // Get broad results and split into two halves by midpoint date
-      let allResults;
+      let allRows;
       try {
-        allResults = db.search("的", 500);
+        allRows = db.queryMeta({ dateFrom: from, dateTo: to, limit: 1000 });
       } catch {
-        allResults = [];
+        allRows = [];
       }
-      // Filter to range
-      const inRange = allResults.filter(r => r.date >= from && r.date <= to);
+      const inRange = allRows.map(r => ({
+        date: r.date,
+        snippet: `${r.user_text || ""} ${r.asst_text || ""}`.trim(),
+      }));
       if (inRange.length < 2) {
         return { content: [{ type: "text", text: `在 ${from} ~ ${to} 范围内记录不足（${inRange.length} 条），无法对比。` }] };
       }

@@ -40,13 +40,16 @@ export function createSuggestTool(db) {
       const days = Math.max(Number(params.days) || 14, 1);
       const cutoff = daysAgo(days);
 
-      let allResults;
+      let rows;
       try {
-        allResults = db.search("的", 500);
+        rows = db.queryMeta({ dateFrom: cutoff, limit: 500 });
       } catch {
-        allResults = [];
+        rows = [];
       }
-      const results = allResults.filter(r => r.date >= cutoff);
+      const results = rows.map(r => ({
+        date: r.date,
+        snippet: `${r.user_text || ""} ${r.asst_text || ""}`.trim(),
+      }));
       if (results.length === 0) {
         return { content: [{ type: "text", text: `近 ${days} 天内没有记忆记录。` }] };
       }
