@@ -393,16 +393,25 @@ export function createDB(config, logger) {
             return false;
         }
     }
-    /** Delete memory entries from FTS5 and meta tables by date */
+    /** Delete memory entries from FTS5 and meta tables by date.
+     *  Must delete from FTS5 first (using rowid = memory_meta.id), then meta.
+     *  rebuild alone does NOT work for standalone FTS5 tables (no content= sync).
+     */
     function deleteByDate(date) {
         try {
             const d = ensureDB();
-            // Delete from FTS5 (via content sync table)
+            // 1. Find rowids to delete from FTS5
+            const rows = d.prepare("SELECT id FROM memory_meta WHERE date = ?").all(date);
+            // 2. Delete from FTS5 by rowid (FTS5 rowid = memory_meta.id)
+            if (rows.length > 0) {
+                const ids = rows.map(r => r.id);
+                const placeholders = ids.map(() => '?').join(',');
+                d.prepare(`DELETE FROM memory_fts WHERE rowid IN (${placeholders})`).run(...ids);
+            }
+            // 3. Delete from meta
             const metaResult = d.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
             const deleted = metaResult.changes ?? 0;
-            // Rebuild FTS5 index to reflect content table changes
-            d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
-            log(`deleteByDate: ${deleted} entries removed for ${date}`);
+            log(`deleteByDate: ${deleted} entries removed for ${date} (fts cleared: ${rows.length})`);
             return deleted;
         }
         catch (err) {
@@ -410,17 +419,29 @@ export function createDB(config, logger) {
             return 0;
         }
     }
-    /** Delete memory entries matching a like pattern from user_text or asst_text */
+    /** Delete memory entries matching a like pattern from user_text or asst_text.
+     *  Must delete from FTS5 first (using rowid = memory_meta.id), then meta.
+     */
     function deleteByKeyword(keyword) {
         try {
             const d = ensureDB();
             const pattern = `%${keyword.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
-            const result = d.prepare("DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'").run(pattern, pattern);
-            const deleted = result.changes ?? 0;
-            if (deleted > 0) {
-                d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+            // 1. Find rowids to delete from FTS5
+            const rows = d.prepare(
+                "SELECT id FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
+            ).all(pattern, pattern);
+            // 2. Delete from FTS5 by rowid
+            if (rows.length > 0) {
+                const ids = rows.map(r => r.id);
+                const placeholders = ids.map(() => '?').join(',');
+                d.prepare(`DELETE FROM memory_fts WHERE rowid IN (${placeholders})`).run(...ids);
             }
-            log(`deleteByKeyword: ${deleted} entries removed for "${keyword}"`);
+            // 3. Delete from meta
+            const result = d.prepare(
+                "DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
+            ).run(pattern, pattern);
+            const deleted = result.changes ?? 0;
+            log(`deleteByKeyword: ${deleted} entries removed for "${keyword}" (fts cleared: ${rows.length})`);
             return deleted;
         }
         catch (err) {
