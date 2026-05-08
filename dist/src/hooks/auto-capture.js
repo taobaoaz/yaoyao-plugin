@@ -4,25 +4,38 @@ function extractContent(msg, maxLen) {
     if (!msg)
         return "";
     const content = msg.content;
-    if (typeof content === "string")
-        return content.slice(0, maxLen);
-    if (Array.isArray(content)) {
-        return content
+    let text = "";
+    if (typeof content === "string") {
+        text = content;
+    }
+    else if (Array.isArray(content)) {
+        text = content
             .map((part) => {
             if (part.type === "text")
                 return String(part.text ?? "");
             return "";
         })
-            .join(" ")
-            .slice(0, maxLen);
+            .join(" ");
     }
-    // Fallback: try JSON stringify
-    try {
-        return JSON.stringify(content).slice(0, maxLen);
+    else {
+        try {
+            text = JSON.stringify(content);
+        }
+        catch {
+            return "[unparseable content]";
+        }
     }
-    catch {
-        return "[unparseable content]";
-    }
+    // 清理 message_id 前缀
+    text = text.replace(/^\[message_id:\s*[^\]]+\]\s*/gm, "");
+    // 清理 user ID 前缀 (ou_xxx: )
+    text = text.replace(/^ou_[a-f0-9]+:\s*/gm, "");
+    // 清理 heartbeat 标记
+    if (text.trim() === "[OpenClaw heartbeat poll]")
+        return "";
+    // 清理 cron 标记的开头
+    text = text.replace(/^\[cron:[a-f0-9\-]+\s+/, "[cron] ");
+    // 截断
+    return text.trim().slice(0, maxLen);
 }
 export function registerCaptureHook(api, store, db, config, personaState) {
     api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
@@ -32,6 +45,21 @@ export function registerCaptureHook(api, store, db, config, personaState) {
         blockInternal: true,
         minMessages: 1,
     });
+    // ── Write buffer for debounce (2s window) ──
+    let writeBuffer = [];
+    let writeTimer = null;
+    const WRITE_BUFFER_MS = 2000;
+    function flushWriteBuffer() {
+        if (writeBuffer.length === 0) return;
+        const batch = writeBuffer.splice(0);
+        for (const item of batch) {
+            try {
+                store.appendToDaily(item.date, item.entry);
+                db.indexTurn(item.taggedContent, item.asstContent, item.date, item.sourceSession);
+            } catch { /* best effort */ }
+        }
+        writeTimer = null;
+    }
     api.on("agent_end", async (event, ctx) => {
         try {
             const e = event;
@@ -49,18 +77,52 @@ export function registerCaptureHook(api, store, db, config, personaState) {
             const lastAsstMsg = [...messages].reverse().find((m) => m.role === "assistant");
             if (!lastUserMsg)
                 return;
-            const date = new Date().toISOString().slice(0, 10);
+            // Use timezone-aware date if available
+            const date = typeof db.getLocalDate === 'function'
+                ? db.getLocalDate(config.tz)
+                : new Date().toISOString().slice(0, 10);
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
             const userContent = extractContent(lastUserMsg, 500);
             const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, 500) : "(no response)";
-            // Skip trivial entries (e.g., heartbeat, empty responses)
+            // Skip trivial entries (heartbeat, empty, too short)
             if (userContent.length < 3)
                 return;
-            // Write to daily Markdown log (L0)
-            const entry = `\n### ${timestamp}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
-            store.appendToDaily(date, entry);
-            // Index in FTS5 for search (L1 index)
-            db.indexTurn(userContent, asstContent, date);
+            // ── Group chat / noise filters ──
+            // 1. Skip very short AI replies (< 5 chars, e.g. "OK", "好", emoji)
+            if (asstContent.length < 5 && asstContent !== "(no response)")
+                return;
+            // 2. Skip pure system messages (wrapped in [ ])
+            if (/^\[.+\]$/.test(userContent.trim()))
+                return;
+            // 3. Skip pure emoji messages
+            if (/^[\p{Emoji}\s]+$/u.test(userContent.trim()))
+                return;
+            // ── Extract source session from sessionKey ──
+            let sourceSession = "";
+            const skMatch = sessionKey.match(/(ou_[a-f0-9]+)$/i);
+            if (skMatch)
+                sourceSession = skMatch[1];
+            // ── Compute importance weight ──
+            let importance = 0.5;
+            if (userContent.length > 50)
+                importance += 0.2;
+            if (userContent.length > 200)
+                importance += 0.1;
+            if (asstContent.length > 100)
+                importance += 0.1;
+            if (asstContent.length > 500)
+                importance += 0.1;
+            const decisionKeywords = ["决定", "选择", "方案", "确认", "agree", "decide", "confirm", "plan"];
+            if (decisionKeywords.some(k => userContent.toLowerCase().includes(k)))
+                importance += 0.15;
+            importance = Math.min(1, importance);
+            // Write to daily Markdown log (L0) — buffered for debounce
+            const entry = `\n### ${timestamp}${importance >= 0.8 ? ' ⭐' : ''}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
+            const taggedContent = importance >= 0.8 ? `[important] ${userContent}` : userContent;
+            writeBuffer.push({ date, entry, taggedContent, asstContent, sourceSession });
+            if (!writeTimer) {
+                writeTimer = setTimeout(flushWriteBuffer, WRITE_BUFFER_MS);
+            }
             // ── Update PersonaStateMachine (fire-and-forget, best-effort) ──
             if (personaState) {
                 // Determine if this turn was "successful" (the assistant actually responded)

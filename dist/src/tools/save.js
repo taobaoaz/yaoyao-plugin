@@ -3,7 +3,7 @@ export function createSaveTool(store, db) {
     return {
         name: "memory_save",
         label: "Memory Save",
-        description: "Manually save an important memory to long-term storage. Use this when you want to explicitly record something the AI should remember.",
+        description: "💾 Manually save an important memory to long-term storage. Use tags (comma-separated, e.g., 'decision,preference,learning') to categorize. Explicit save vs auto-capture.",
         parameters: {
             type: "object",
             properties: {

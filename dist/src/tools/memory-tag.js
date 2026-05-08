@@ -73,7 +73,10 @@ export function createTagTool(store) {
             required: ["action"],
         },
         execute: withErrorHandling(async (_id, params) => {
-            const action = String(params.action || "search");
+            const actionAliases = {
+                "添加": "add", "移除": "remove", "搜索": "search", "热门": "popular", "清理": "clean",
+            };
+            const action = actionAliases[String(params.action || "search")] || String(params.action || "search");
             const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
             const dbPath = getDbPath(store);
             if (!fs.existsSync(dbPath)) {
@@ -95,8 +98,9 @@ export function createTagTool(store) {
                         return { content: [{ type: "text", text: "标签不能为空。" }] };
                     }
                     // 搜索匹配的记忆条目
-                    const ftsStmt = db.prepare("SELECT id FROM memory_meta WHERE user_text LIKE ? OR asst_text LIKE ? LIMIT ?");
-                    const likeQ = `%${query}%`;
+                    const escapedQ = String(query).replace(/%/g, "\\%").replace(/_/g, "\\_");
+                    const likeQ = `%${escapedQ}%`;
+                    const ftsStmt = db.prepare("SELECT id FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' LIMIT ?");
                     const rows = ftsStmt.all(likeQ, likeQ, limit);
                     if (rows.length === 0) {
                         return { content: [{ type: "text", text: `没有找到匹配"${query}"的记忆。` }] };

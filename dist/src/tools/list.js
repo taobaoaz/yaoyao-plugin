@@ -3,7 +3,7 @@ export function createListTool(store) {
     return {
         name: "memory_list",
         label: "Memory List",
-        description: "List available memory files with metadata (type, date, size, modified time).",
+        description: "📂 List available memory files with metadata: type (daily/memory/archive), date, size in KB, and modified time. Filter by type.",
         parameters: {
             type: "object",
             properties: {

@@ -13,7 +13,7 @@ export function createQualityTool(store, db) {
     name: "memory_quality",
     label: "Memory Quality",
     description:
-      "💺 记忆质量评估 — 分析记忆数据库的健康度，包括覆盖率、重复度、新鲜度、索引完整性",
+      "💺 记忆质量评估 — 多维度健康检查：覆盖率、重复度（Jaccard抽样）、新鲜度（7/30天）、索引完整性。支持 report=质量报告, dedup=重复检测。",
     parameters: {
       type: "object",
       properties: {
@@ -26,7 +26,8 @@ export function createQualityTool(store, db) {
       required: ["action"],
     },
     execute: withErrorHandling(async (_id, params) => {
-      const action = String(params.action);
+      const actionAliases = { "报告": "report", "去重": "dedup" };
+      const action = actionAliases[String(params.action)] || String(params.action);
 
       if (action === "report") {
         return handleReport(store, db);
@@ -130,6 +131,20 @@ async function handleReport(store, db) {
     `- 记忆文件总数: ${totalFiles}`,
     `- 每日日志文件: ${dailyFiles.length}`,
     `- FTS5 索引条目: ${totalMemories}`,
+  ];
+
+  // ── 优化7: 条件性向量统计 ──
+  let vecStats = null;
+  try {
+    vecStats = db.getStats();
+  } catch { /* best effort */ }
+  if (vecStats?.vecEnabled) {
+    lines.push(`- 向量索引: ${vecStats.totalVectors || 0} 条 (${vecStats.dimensions || 0}维)`);
+  } else {
+    lines.push(`- 向量搜索: 未启用`);
+  }
+
+  lines.push(
     `- 记忆目录大小: ${memoryDirSizeKB} KB`,
     `- 数据库文件大小: ${dbSizeKB} KB`,
     "",
@@ -145,7 +160,7 @@ async function handleReport(store, db) {
     "",
     `🔁 **重复度 (抽样)**`,
     `- 疑似重复比例: ${duplicationRatio}%`,
-  ];
+  );
 
   const integrityOK = totalMemories > 0 || dailyFiles.length === 0;
   lines.push(``, `🔧 **索引完整性**`, `- 状态: ${integrityOK ? "✅ 正常" : "⚠️ 可能有问题"}`);
@@ -163,6 +178,11 @@ async function handleReport(store, db) {
   if (recs.length > 0) {
     lines.push(``, `💡 **建议**`);
     for (const r of recs) lines.push(r);
+  }
+
+  // ── 优化8: 数据量较少时的警告 ──
+  if (totalMemories < 5) {
+    lines.push(``, `⚠️ **数据量较少**（${totalMemories} 条记忆），质量评估结果可能不准确。建议积累更多记忆后重新评估。`);
   }
 
   return { content: [{ type: "text", text: lines.join("\n") }] };

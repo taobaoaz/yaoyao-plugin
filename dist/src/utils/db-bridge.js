@@ -26,8 +26,11 @@ export function createDB(config, logger) {
     const log = (msg) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
     let db = null;
     let initFailed = false; // fail-fast guard: once init fails, skip retries
-    /** Initialize database — create tables if not exist */
-    function init() {
+    let vecEnabled = false; // sqlite-vec availability flag (shared across functions)
+    let refCount = 0;
+    const MAX_REFS = 1000;
+    /** Initialize database — create tables if not exist. vecDimensions configures vector table size. */
+    function init(vecDimensions = 1024) {
         try {
             fs.mkdirSync(path.dirname(dbPath), { recursive: true });
             const { DatabaseSync } = _require("node:sqlite");
@@ -61,6 +64,19 @@ export function createDB(config, logger) {
             }
             db.exec("PRAGMA busy_timeout = 5000");
             db.exec("PRAGMA cache_size = -65536");
+            // ── Large WAL file cleanup ──
+            try {
+                const walStat = fs.statSync(dbPath + "-wal");
+                if (walStat.size > 10 * 1024 * 1024) {
+                    log(`Large WAL file detected (${(walStat.size / 1024 / 1024).toFixed(1)} MB), running checkpoint`);
+                    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+                }
+            } catch {
+                // WAL file doesn't exist, that's fine
+            }
+            // ── Indexes for faster queries ──
+            db.exec("CREATE INDEX IF NOT EXISTS idx_memory_meta_date ON memory_meta(date)");
+            db.exec("CREATE INDEX IF NOT EXISTS idx_memory_meta_created ON memory_meta(created_at)");
             // FTS5 table for full-text search
             db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
                 "date, user_text, asst_text, " +
@@ -72,17 +88,29 @@ export function createDB(config, logger) {
                 "date TEXT NOT NULL, " +
                 "user_text TEXT, " +
                 "asst_text TEXT, " +
-                "created_at TEXT DEFAULT (datetime('now'))" +
+                "created_at TEXT DEFAULT (datetime('now')), " +
+                "source_session TEXT DEFAULT ''" +
+                ")");
+            // Add source_session column if missing (upgrade path)
+            try {
+                db.exec("ALTER TABLE memory_meta ADD COLUMN source_session TEXT DEFAULT ''");
+            }
+            catch { /* column already exists */ }
+            // Config table for user-customizable settings
+            db.exec("CREATE TABLE IF NOT EXISTS memory_config (" +
+                "key TEXT PRIMARY KEY, " +
+                "value TEXT NOT NULL, " +
+                "updated_at TEXT DEFAULT (datetime('now'))" +
                 ")");
             // Vector search table (sqlite-vec)
-            let vecEnabled = false;
+            vecEnabled = false;
             try {
                 const sqliteVec = _require("sqlite-vec");
                 db.enableLoadExtension(true);
                 sqliteVec.load(db);
                 vecEnabled = true;
                 db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
-                    "embedding float[1024]" +
+                    `embedding float[${vecDimensions}]` +
                     ")");
                 db.exec("CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
                     "id INTEGER PRIMARY KEY, " +
@@ -98,6 +126,18 @@ export function createDB(config, logger) {
                 vecEnabled = false;
             }
             log(`DB initialized: ${dbPath} (vec=${vecEnabled})`);
+            // ── FTS5 integrity check ──
+            try {
+                const metaCount = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get()?.c || 0;
+                const ftsCount = db.prepare("SELECT COUNT(*) as c FROM memory_fts").get()?.c || 0;
+                if (metaCount > 0 && Math.abs(metaCount - ftsCount) > Math.max(10, metaCount * 0.1)) {
+                    log(`FTS5 integrity: meta=${metaCount}, fts=${ftsCount}, rebuilding...`);
+                    db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+                    log("FTS5 rebuild complete");
+                }
+            } catch (e) {
+                log(`FTS5 integrity check failed: ${e.message}`);
+            }
             return true;
         }
         catch (err) {
@@ -106,25 +146,39 @@ export function createDB(config, logger) {
             return false;
         }
     }
-    /** Ensure DB is initialized */
+    /** Ensure DB is initialized with retry */
     function ensureDB() {
         if (!db && !initFailed) {
             init();
         }
         if (!db) {
-            throw new Error("Database failed to initialize");
+            // Retry once (could be a transient issue like file lock)
+            initFailed = false;
+            init();
+        }
+        if (!db) {
+            throw new Error("Database failed to initialize after retry");
+        }
+        refCount++;
+        if (refCount > MAX_REFS) {
+            log(`Warning: DB ref count ${refCount} exceeds ${MAX_REFS}, possible leak`);
         }
         return db;
     }
     /** Index a conversation turn in FTS5. Returns the row id (>0) or -1 on failure. */
-    function indexTurn(userText, asstText, date) {
+    function indexTurn(userText, asstText, date, sourceSession = "") {
         try {
             const d = ensureDB();
-            const stmt = d.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-            const result = stmt.run(date, userText.slice(0, 500), asstText.slice(0, 500));
+            // Dedup: skip if same date + same user_text prefix already exists
+            const existing = d.prepare(
+                "SELECT id FROM memory_meta WHERE date = ? AND substr(user_text, 1, 100) = ? LIMIT 1"
+            ).get(date, userText.slice(0, 100));
+            if (existing) return existing.id;
+            const stmt = d.prepare("INSERT INTO memory_meta (date, user_text, asst_text, source_session) VALUES (?, ?, ?, ?)");
+            const result = stmt.run(date, userText.slice(0, 2000), asstText.slice(0, 2000), sourceSession);
             const rowId = Number(result.lastInsertRowid);
             const stmt2 = d.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
-            stmt2.run(rowId, date, userText.slice(0, 500), asstText.slice(0, 500));
+            stmt2.run(rowId, date, userText.slice(0, 2000), asstText.slice(0, 2000));
             return rowId;
         }
         catch (err) {
@@ -165,30 +219,84 @@ export function createDB(config, logger) {
             const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), 100));
             // FTS5 returns results, use them
             if (rows.length > 0) {
-                return rows.map(row => ({
-                    filename: row.date ? `${row.date}.md` : "memory.db",
-                    snippet: (row.snippet || "").slice(0, 500),
-                    score: computeScore(row.rank),
-                    date: row.date || "",
-                }));
+                return rows.map(row => {
+                    const snippet = (row.snippet || "").slice(0, 500);
+                    const isImportant = snippet.includes("<b>[important]</b>") || snippet.includes("[important]");
+                    return {
+                        filename: row.date ? `${row.date}.md` : "memory.db",
+                        snippet,
+                        score: isImportant ? computeScore(row.rank) * 1.3 : computeScore(row.rank),
+                        date: row.date || "",
+                    };
+                });
             }
             // ── FTS5 returned nothing → try LIKE fallback for CJK text ──
             // FTS5 unicode61 tokenizer treats each Chinese character as a separate token,
             // so multi-character words like "天气" or "今天" fail to match.
             // LIKE is character-based and handles CJK correctly.
+            // ── 优化6: LIKE fallback always filters by recent 30 days for large datasets ──
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
             const likeQuery = `%${query.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
-            const likeStmt = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
-                "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
-                "ORDER BY id DESC LIMIT ?");
-            const likeRows = likeStmt.all(likeQuery, likeQuery, Math.min(Math.max(limit, 1), 100));
+            let likeRows;
+            try {
+                // Try with date filter first (better performance for large tables)
+                const likeStmtDated = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
+                    "WHERE date >= ? AND (user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\') " +
+                    "ORDER BY id DESC LIMIT ?");
+                likeRows = likeStmtDated.all(thirtyDaysAgo, likeQuery, likeQuery, Math.min(Math.max(limit, 1), 100));
+            } catch {
+                // Fallback: no date filter
+                const likeStmt = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
+                    "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
+                    "ORDER BY id DESC LIMIT ?");
+                likeRows = likeStmt.all(likeQuery, likeQuery, Math.min(Math.max(limit, 1), 100));
+            }
             if (likeRows.length > 0) {
                 log(`FTS5 miss → LIKE fallback found ${likeRows.length} results for "${query.slice(0, 30)}"`);
-                return likeRows.map(row => ({
-                    filename: row.date ? `${row.date}.md` : "memory.db",
-                    snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, 500),
-                    score: 0.5,
-                    date: row.date || "",
-                }));
+                return likeRows.map(row => {
+                    const text = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
+                    const isImportant = text.includes("[important]");
+                    return {
+                        filename: row.date ? `${row.date}.md` : "memory.db",
+                        snippet: text.slice(0, 500),
+                        score: isImportant ? 0.7 : 0.5,
+                        date: row.date || "",
+                    };
+                });
+            }
+            // ── Bigram fallback for CJK: split query into 2-char substrings ──
+            // e.g. "天气很好" → ["天气", "很好"]
+            const cjkPattern = /[\u4e00-\u9fff]/;
+            if (cjkPattern.test(query) && query.length >= 2) {
+                const bigrams = [];
+                for (let i = 0; i + 1 < query.length; i++) {
+                    const pair = query.slice(i, i + 2);
+                    if (cjkPattern.test(pair.charAt(0)) && cjkPattern.test(pair.charAt(1))) {
+                        bigrams.push(pair);
+                    }
+                }
+                if (bigrams.length > 0) {
+                    // Query all records matching ANY bigram, then filter for ALL bigrams present
+                    const effectiveLimit = Math.min(Math.max(limit * 5, 50), 200);
+                    const placeholders = bigrams.map(() => '(user_text LIKE ? ESCAPE "\\"  OR asst_text LIKE ? ESCAPE "\\")').join(" AND ");
+                    const bigramParams = bigrams.flatMap(bg => {
+                        const likeBg = `%${bg.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+                        return [likeBg, likeBg];
+                    });
+                    const bigramStmt = d.prepare(
+                        `SELECT id, date, user_text, asst_text FROM memory_meta WHERE ${placeholders} ORDER BY id DESC LIMIT ?`
+                    );
+                    const bigramRows = bigramStmt.all(...bigramParams, effectiveLimit);
+                    if (bigramRows.length > 0) {
+                        log(`Bigram fallback found ${bigramRows.length} results for bigrams [${bigrams.join(", ")}]`);
+                        return bigramRows.map(row => ({
+                            filename: row.date ? `${row.date}.md` : "memory.db",
+                            snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, 500),
+                            score: 0.4,
+                            date: row.date || "",
+                        }));
+                    }
+                }
             }
             // Empty across the board
             return [];
@@ -198,8 +306,9 @@ export function createDB(config, logger) {
             return [];
         }
     }
-    /** Vector similarity search via sqlite-vec */
+    /** Vector similarity search via sqlite-vec — graceful degradation when vec unavailable */
     function vectorSearch(embedding, limit = 10) {
+        if (!vecEnabled) return []; // graceful: no sqlite-vec
         try {
             const d = ensureDB();
             const jsonArr = "[" + Array.from(embedding).join(",") + "]";
@@ -223,18 +332,22 @@ export function createDB(config, logger) {
         }
         catch (err) {
             log(`vectorSearch error: ${err.message}`);
-            return [];
+            return []; // graceful: return empty on error
         }
     }
-    /** Hybrid search: FTS5 + vector weighted combination */
+    /** Hybrid search: FTS5 + vector weighted combination — degrades to pure FTS5 when vec unavailable */
     function hybridSearch(query, embedding, limit = 10) {
         const ftsResults = search(query, limit);
-        if (!embedding || ftsResults.length === 0) {
+        if (!vecEnabled || !embedding) {
+            // Pure FTS5 mode — apply importance boost and return
             return ftsResults.map(r => ({
                 ...r,
                 vectorScore: 0,
                 hybridScore: r.score * 0.6,
             }));
+        }
+        if (ftsResults.length === 0 && !embedding) {
+            return [];
         }
         const vecResults = vectorSearch(embedding, limit);
         const merged = new Map();
@@ -336,7 +449,7 @@ export function createDB(config, logger) {
                 totalMemories: total,
                 datesSummary: datesRaw.map(r => ({ date: r.date, count: r.c })),
                 ftsEnabled: true,
-                vecEnabled: true,
+                vecEnabled: vecEnabled,
                 totalVectors: vecCount,
                 dimensions,
             };
@@ -346,15 +459,53 @@ export function createDB(config, logger) {
             return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
         }
     }
+    /** Get config value from memory_config table */
+    function getConfig(key, defaultVal) {
+        try {
+            const d = ensureDB();
+            const row = d.prepare("SELECT value FROM memory_config WHERE key = ?").get(key);
+            return row ? row.value : defaultVal;
+        }
+        catch {
+            return defaultVal;
+        }
+    }
+
+    /** Set config value in memory_config table */
+    function setConfig(key, value) {
+        try {
+            const d = ensureDB();
+            d.prepare("INSERT OR REPLACE INTO memory_config (key, value, updated_at) VALUES (?, ?, datetime('now'))").run(key, String(value));
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+
+    /** Get local date string for a given timezone */
+    function getLocalDate(tz) {
+        try {
+            return new Date().toLocaleDateString('sv-SE', { timeZone: tz || 'Asia/Shanghai' });
+        }
+        catch {
+            return new Date().toISOString().slice(0, 10);
+        }
+    }
+
     /** Close database connection */
     function close() {
         if (db) {
             try {
+                // Checkpoint WAL to ensure data is flushed to main DB
+                db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+            } catch { /* best effort */ }
+            try {
                 db.close();
-            }
-            catch { /* ignore */ }
+            } catch { /* ignore */ }
             db = null;
+            refCount = 0;
         }
     }
-    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getStats, close, dbPath };
+    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getStats, close, dbPath, getConfig, setConfig, getLocalDate };
 }

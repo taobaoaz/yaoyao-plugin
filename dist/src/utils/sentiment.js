@@ -107,6 +107,52 @@ const JOY_MARKERS = new Set([
 const SAD_MARKERS = new Set(["😢", "😭", "😥", "😰", "🥺", "😞", "😔"]);
 const ANGRY_MARKERS = new Set(["😠", "😡", "🤬", "💢"]);
 const SURPRISE_MARKERS = new Set(["😱", "😮", "😲", "🤯", "😳", "😨"]);
+
+// ── Fallback sentiment for unsupported languages (emoji + punctuation) ──
+function fallbackSentiment(text) {
+    const result = {
+        positive: 0.5, negative: 0.5, label: "neutral",
+        confidence: 0.3, emoji: "😐",
+        emotions: { joy: 0, sadness: 0, anger: 0, fear: 0, surprise: 0, disgust: 0 },
+        topEmotions: [],
+    };
+    // Check for common positive/negative emoji beyond the language-specific sets
+    const posEmoji = ["😊","😃","😄","😁","🤣","😂","🙂","😉","😍","🥰","😋","🤗","🤩","😎","🥳","👍","👏","💪","🎉","❤️","💚","💙","💜","🧡","💛","🤍","💯","⭐","✨","🔥","❣️","💕","💗","💖","💞","💓"];
+    const negEmoji = ["😢","😭","😥","😰","🥺","😞","😔","😠","😡","🤬","💢","👎","💔","😖","😣","😤","😩","😫","🥹","😟","🤮","🤢","😵","😫"];
+    let posE = 0, negE = 0;
+    for (const ch of text) {
+        if (posEmoji.includes(ch)) posE++;
+        if (negEmoji.includes(ch)) negE++;
+    }
+    // Check exclamation / question marks
+    const excl = (text.match(/[!！]/g) || []).length;
+    const quest = (text.match(/[?？]/g) || []).length;
+    const upperRatio = text.length > 0 ? (text.match(/[A-Z]/g) || []).length / Math.max(text.length, 1) : 0;
+    let posScore = posE * 2 + excl * 0.3;
+    let negScore = negE * 2;
+    if (excl > 2 && upperRatio > 0.4) posScore += 1; // enthusiastic
+    if (quest > 2) negScore += 0.5; // uncertainty
+    const fallbackTotal = posScore + negScore;
+    if (fallbackTotal === 0) return result;
+    const positive = posScore / fallbackTotal;
+    const negative = negScore / fallbackTotal;
+    const diff = positive - negative;
+    if (diff > 0.15) {
+        result.label = "positive";
+        result.emoji = positive > 0.8 ? "🥰" : "😊";
+        result.topEmotions = ["joy"];
+        result.emotions.joy = posScore;
+    } else if (diff < -0.15) {
+        result.label = "negative";
+        result.emoji = negative > 0.8 ? "😢" : "😟";
+        result.topEmotions = ["sadness"];
+        result.emotions.sadness = negScore;
+    }
+    result.positive = positive;
+    result.negative = negative;
+    result.confidence = Math.min(0.6, fallbackTotal / 8 + 0.2);
+    return result;
+}
 // ──────────────────────────── Main Functions ────────────────────────────
 /** Detect sentiment from text */
 export function detectSentiment(text) {
@@ -157,6 +203,9 @@ export function detectSentiment(text) {
     const negativeScore = emotionScores.sadness + emotionScores.anger + emotionScores.fear + emotionScores.disgust;
     const total = positiveScore + negativeScore;
     if (total === 0) {
+        // Fallback: emoji/punctuation-based sentiment for unsupported languages
+        const fallback = fallbackSentiment(text);
+        if (fallback.positive !== 0.5) return fallback;
         return {
             positive: 0.5, negative: 0.5, label: "neutral",
             confidence: 0.5, emoji: "😐",

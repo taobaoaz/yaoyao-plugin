@@ -29,6 +29,7 @@ import { createCloudSyncTool } from "./cloud-sync.js";
 import { createUnifyTool } from "./memory-unify.js";
 import { createTrendsTool } from "./memory-trends.js";
 import { createQualityTool } from "./memory-quality.js";
+import { createRetainTool } from "./memory-retain.js";
 import type { FeedbackTracker } from "../learning/feedback-tracker.js";
 import type { EmbeddingService } from "../utils/embedding.js";
 
@@ -75,6 +76,11 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
       tools.push(createEnhancedSearchTool(db));
     } catch { /* best effort */ }
   }
+
+  // Retain tool (memory enhancement / anti-forgetting, best-effort)
+  try {
+    tools.push(createRetainTool(store, db));
+  } catch { /* best effort */ }
 
   // Quality assessment tool (best-effort)
   try {

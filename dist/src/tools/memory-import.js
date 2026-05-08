@@ -28,7 +28,7 @@ export function createImportTool(store) {
     return {
         name: "memory_import",
         label: "Import Memories",
-        description: "从 JSONL 格式的数据中导入记忆到数据库。每行一条 JSON：{\"date\":\"...\",\"user_text\":\"...\",\"asst_text\":\"...\"}。支持来自 memory_export 的输出。",
+        description: "📥 Import memories from JSONL format (one JSON object per line: date, user_text, asst_text). Compatible with memory_export output. Supports dry-run validation.",
         parameters: {
             type: "object",
             properties: {
@@ -41,19 +41,115 @@ export function createImportTool(store) {
                     description: "备用：JSONL 文件路径（本地文件路径）",
                     default: "",
                 },
+                sourceType: {
+                    type: "string",
+                    enum: ["jsonl", "directory"],
+                    description: "导入源类型：jsonl=从 JSONL 文件导入, directory=从目录批量导入 md 文件",
+                    default: "jsonl",
+                },
+                sourcePath: {
+                    type: "string",
+                    description: "源路径（JSONL 文件路径或目录路径）",
+                    default: "",
+                },
                 dryRun: {
                     type: "boolean",
                     description: "设为 true 则只验证不写入",
                     default: false,
                 },
             },
-            required: ["jsonl"],
+            required: [],
         },
         execute: withErrorHandling(async (_id, params) => {
             let jsonlData = String(params.jsonl || "");
             const sourceFile = String(params.source || "");
             const dryRun = params.dryRun === true;
-            // 从文件读取
+            const sourceType = String(params.sourceType || "jsonl");
+            const sourcePath = String(params.sourcePath || "");
+
+            // ── Directory import mode ──
+            if (sourceType === "directory") {
+                const dirPath = sourcePath || store.baseDir;
+                if (!fs.existsSync(dirPath)) {
+                    return { content: [{ type: "text", text: `❌ 目录不存在: ${dirPath}` }] };
+                }
+                const mdFiles = fs.readdirSync(dirPath).filter(f => /\.md$/i.test(f));
+                if (mdFiles.length === 0) {
+                    return { content: [{ type: "text", text: "⚪ 目录下没有 .md 文件可导入。" }] };
+                }
+                if (dryRun) {
+                    const sample = mdFiles.slice(0, 5).map(f => `  - ${f}`);
+                    return { content: [{ type: "text", text: [
+                        `📋 预览: 发现 ${mdFiles.length} 个 .md 文件`,
+                        `目录: ${dirPath}`,
+                        "",
+                        ...sample,
+                        mdFiles.length > 5 ? `...还有 ${mdFiles.length - 5} 个` : "",
+                        "",
+                        "使用 dryRun: false 执行实际导入。",
+                    ].join("\n") }] };
+                }
+                // Parse and import each md file
+                const dbPath2 = path.join(store.baseDir, ".yaoyao.db");
+                const db2 = new DatabaseSync(dbPath2, { allowExtension: true });
+                try {
+                    tryLoadVec(db2);
+                    db2.exec("PRAGMA journal_mode = WAL");
+                    db2.exec("PRAGMA busy_timeout = 5000");
+                    db2.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(date, user_text, asst_text, tokenize='unicode61')");
+                    db2.exec("CREATE TABLE IF NOT EXISTS memory_meta (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, user_text TEXT, asst_text TEXT, created_at TEXT DEFAULT (datetime('now')), source_session TEXT DEFAULT '')");
+                    const insMeta = db2.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+                    const insFts = db2.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+                    let count = 0;
+                    db2.exec("BEGIN TRANSACTION");
+                    for (const f of mdFiles) {
+                        try {
+                            const dateMatch = f.match(/(\d{4}-\d{2}-\d{2})/);
+                            const date = dateMatch ? dateMatch[1] : new Date().toISOString().slice(0, 10);
+                            const content = fs.readFileSync(path.join(dirPath, f), "utf-8");
+                            if (content.trim().length < 10) continue;
+                            // Parse User/AI pairs from yaoyao format
+                            const entries = content.split(/^### /gm).filter(e => e.trim());
+                            for (const entry of entries) {
+                                const lines = entry.split("\n");
+                                let userText = "";
+                                let asstText = "";
+                                for (const line of lines) {
+                                    const userMatch = line.match(/^\*\*User:\*\*\s*(.*)/);
+                                    const asstMatch = line.match(/^\*\*AI:\*\*\s*(.*)/);
+                                    if (userMatch) userText = userMatch[1].trim();
+                                    if (asstMatch) asstText = asstMatch[1].trim();
+                                }
+                                if (userText || asstText) {
+                                    const r = insMeta.run(date, userText, asstText);
+                                    insFts.run(Number(r.lastInsertRowid), date, userText, asstText);
+                                    count++;
+                                }
+                            }
+                            // If no yaoyao format found, import as single entry
+                            if (entries.length === 0 && content.trim().length >= 20) {
+                                const text = content.trim().slice(0, 2000);
+                                const r = insMeta.run(date, text, "");
+                                insFts.run(Number(r.lastInsertRowid), date, text, "");
+                                count++;
+                            }
+                        } catch { /* skip file */ }
+                    }
+                    db2.exec("COMMIT");
+                    const total = db2.prepare("SELECT COUNT(*) as c FROM memory_meta").get();
+                    return { content: [{ type: "text", text: [
+                        `✅ 目录导入完成`,
+                        `目录: ${dirPath}`,
+                        `文件数: ${mdFiles.length}`,
+                        `导入条目: ${count}`,
+                        `现有记忆总数: ${total.c} 条`,
+                    ].join("\n") }] };
+                } finally {
+                    try { db2.close(); } catch {}
+                }
+            }
+
+            // ── JSONL import mode (original logic) ──
             if (!jsonlData && sourceFile) {
                 if (!fs.existsSync(sourceFile)) {
                     return { content: [{ type: "text", text: `文件不存在: ${sourceFile}` }] };

@@ -89,7 +89,7 @@ export function createTrendsTool(store) {
     name: "memory_trends",
     label: "Memory Trends",
     description:
-      "分析指定周期内记忆中的高频话题与趋势。通过日常日志词频统计，识别上升/下降话题。无需 LLM，仅基于词频。",
+      "📈 分析指定周期内记忆中的高频话题与趋势。通过词频统计识别上升/下降话题。无需 LLM，纯词频分析。支持 7d/30d/90d/all 周期。",
     parameters: {
       type: "object",
       properties: {
@@ -122,6 +122,11 @@ export function createTrendsTool(store) {
         return { content: [{ type: "text", text: "在指定周期内没有找到记忆文件。" }] };
       }
       filteredFiles.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
+      // ── 优化8: 数据量不足提示 ──
+      if (filteredFiles.length < 2) {
+        return { content: [{ type: "text", text: `⚠️ 数据量不足以计算趋势方向，需要至少 2 天的记录。当前仅有 ${filteredFiles.length} 天数据。` }] };
+      }
       const allTokens = [];
       const earlyTokens = [];
       const lateTokens = [];
@@ -167,12 +172,10 @@ export function createTrendsTool(store) {
         "",
         `## 热门话题 Top ${topN}`,
         "",
-        "| 排名 | 话题 | 出现次数 | 趋势 | 方向 |",
-        "|:---:|:----:|:-------:|:----:|:----:|",
       ];
       for (let i = 0; i < trends.length; i++) {
         const t = trends[i];
-        lines.push(`| ${i + 1} | \`${t.word}\` | ${t.count} | ${t.emoji} | ${t.direction}（前期:${t.earlyCount} → 后期:${t.lateCount}） |`);
+        lines.push(`${i + 1}. ${t.emoji} \`${t.word}\` — 出现 ${t.count} 次，${t.direction}（前期:${t.earlyCount} → 后期:${t.lateCount}）`);
       }
       const rising = trends.filter(t => t.emoji === "📈" || t.emoji === "↗️" || t.emoji === "🆕");
       const falling = trends.filter(t => t.emoji === "📉" || t.emoji === "↘️");

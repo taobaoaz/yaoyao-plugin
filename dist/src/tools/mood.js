@@ -4,7 +4,7 @@ export function createMoodTool(store) {
     return {
         name: "memory_mood",
         label: "Memory Mood",
-        description: "Analyze the emotional tone of recent conversations — gives a 'mood ring' view of your memory history.",
+        description: "🎨 Analyze emotional tone of recent conversations. Uses Ekman 6 basic emotions (happy, sad, angry, fearful, disgusted, surprised) for sentiment classification. Shows mood distribution.",
         parameters: {
             type: "object",
             properties: {

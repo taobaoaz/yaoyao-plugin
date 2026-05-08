@@ -8,7 +8,7 @@ export function createForgetTool(store, db) {
     return {
         name: "memory_forget",
         label: "Memory Forget",
-        description: "Delete memory entries matching a keyword or date. Use to remove outdated or incorrect memories.",
+        description: "🗑️ Delete memory entries by keyword or date. ⚠️ IRREVERSIBLE — deleted memories cannot be recovered. Use with caution.",
         parameters: {
             type: "object",
             properties: {

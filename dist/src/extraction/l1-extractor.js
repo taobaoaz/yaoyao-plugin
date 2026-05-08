@@ -5,8 +5,8 @@ export async function extractL1Memories(params) {
     const { messages, db, llm, embedding, logger } = params;
     const log = logger || console;
     if (!llm) {
-        log.debug?.(`${TAG} No LLM configured, skipping L1 extraction`);
-        return { success: false, extractedCount: 0, storedCount: 0, metaRowIds: [], sceneNames: [] };
+        log.debug?.(`${TAG} No LLM configured, trying rule-based extraction`);
+        return ruleBasedExtraction(messages, db, log);
     }
     if (messages.length < 2) {
         log.debug?.(`${TAG} Not enough messages for extraction`);
@@ -73,6 +73,36 @@ export async function extractL1Memories(params) {
     }
     catch (err) {
         log.error?.(`${TAG} Extraction failed: ${err.message}`);
-        return { success: false, extractedCount: 0, storedCount: 0, metaRowIds: [], sceneNames: [] };
+        // Degrade to rule-based extraction
+        try {
+            return ruleBasedExtraction(messages, db, log);
+        } catch {
+            return { success: false, extractedCount: 0, storedCount: 0, metaRowIds: [], sceneNames: [] };
+        }
     }
+}
+
+/** Rule-based extraction fallback when LLM is unavailable */
+function ruleBasedExtraction(messages, db, logger) {
+    const sceneNames = [];
+    let stored = 0;
+    const metaRowIds = [];
+    for (const m of messages) {
+        if (m.role !== "user" || !m.content) continue;
+        const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+        if (text.length < 50) continue;
+        const hasDecision = ["决定", "选择", "方案", "确认", "agree", "decide", "confirm", "plan"].some(k => text.toLowerCase().includes(k));
+        if (hasDecision && db) {
+            const date = new Date().toISOString().slice(0, 10);
+            const rowId = db.indexTurn(`[rule-extracted] ${text.slice(0, 200)}`, "", date);
+            if (rowId > 0) {
+                stored++;
+                metaRowIds.push(rowId);
+            }
+        }
+    }
+    if (stored > 0) {
+        logger.info?.(`${TAG} Rule-based extraction: ${stored} memories stored (LLM fallback)`);
+    }
+    return { success: stored > 0, extractedCount: stored, storedCount: stored, metaRowIds, sceneNames };
 }

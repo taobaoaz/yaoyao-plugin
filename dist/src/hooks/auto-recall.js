@@ -4,7 +4,16 @@ import { createSessionFilter } from "../utils/session-filter.js";
 const resultCache = new Map();
 const CACHE_TTL_MS = 30 * 1000;
 const MAX_CACHE_SIZE = 50;
+let cacheAccessCount = 0;
 function getCachedResults(key) {
+    cacheAccessCount++;
+    // Periodic expired-entry cleanup (every 100 accesses)
+    if (cacheAccessCount % 100 === 0) {
+        const now = Date.now();
+        for (const [k, v] of resultCache) {
+            if (v.expires < now) resultCache.delete(k);
+        }
+    }
     const cached = resultCache.get(key);
     if (cached && cached.expires > Date.now())
         return cached.results;
@@ -66,7 +75,7 @@ function buildHookResult(appendCtx, config) {
         appendSystemContext: appendCtx?.appendSystemContext || "",
     };
 }
-export function registerRecallHook(api, db, config, embedding, personaState, feedbackTracker) {
+export function registerRecallHook(api, db, config, embedding, personaState, feedbackTracker, circuitBreaker) {
     api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? ' + vector' : ''})`);
     // Create session filter with configured blockLabels
     const sessionFilter = createSessionFilter({
@@ -149,27 +158,100 @@ export function registerRecallHook(api, db, config, embedding, personaState, fee
                 }
                 catch { /* best effort */ }
             }
+            // ── 优化4: Search strategy adaptive based on data volume ──
+            let totalMemories = 0;
+            let lastStatsTime = 0;
+            function getTotalMemories() {
+                const now = Date.now();
+                if (now - lastStatsTime < 300000) return totalMemories; // 5min cache
+                try {
+                    const stats = db.getStats();
+                    totalMemories = stats.totalMemories || 0;
+                    lastStatsTime = now;
+                } catch { /* best effort */ }
+                return totalMemories;
+            }
+
+            // Adapt search params based on data volume
+            const total = getTotalMemories();
+            let adjustedMaxResults = maxResults;
+            if (total < 50) {
+                adjustedMaxResults = Math.max(maxResults, 5);
+            } else if (total > 5000) {
+                adjustedMaxResults = Math.min(maxResults, 3);
+            }
+
             // Hybrid search: FTS5 + optional vector
-            if (embedding) {
+            if (embedding && !circuitBreaker?.isOpen()) {
                 try {
                     const vec = await embedding.embed(userMessage);
-                    const results = db.hybridSearch(ftsQuery, vec, maxResults);
+                    const results = db.hybridSearch(ftsQuery, vec, adjustedMaxResults);
                     if (results.length > 0) {
+                        circuitBreaker?.recordSuccess();
                         setCachedResults(cacheKey, results);
                         api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms`);
                         return buildHookResult(buildRecallContext(results, guidance), config);
                     }
                 }
                 catch (vecErr) {
-                    api.logger.debug?.(`[yaoyao-memory:recall] Vector search failed: ${vecErr.message}, falling back to FTS5`);
+                    circuitBreaker?.recordFailure();
+                    api.logger.debug?.(`[yaoyao-memory:recall] Vector failed (${circuitBreaker?.failures}/${circuitBreaker?.threshold}), FTS5 fallback: ${vecErr.message}`);
                 }
+            } else if (circuitBreaker?.isOpen()) {
+                api.logger.debug?.("[yaoyao-memory:recall] Embedding circuit breaker open, skipping vector search");
             }
             // FTS5 search (with internal LIKE fallback for CJK)
-            const results = db.search(ftsQuery, maxResults);
+            let results = db.search(ftsQuery, adjustedMaxResults);
+
+            // ── 优化2: 无向量时，用原始消息补充搜索并合并去重 ──
+            if (!embedding && results.length < maxResults && userMessage.length > 3) {
+                try {
+                    const rawMessage = userMessage.slice(0, 100);
+                    const rawResults = db.search(rawMessage, maxResults);
+                    for (const r of rawResults) {
+                        if (results.length >= maxResults) break;
+                        const isDup = results.some(e => e.snippet.slice(0, 50) === r.snippet.slice(0, 50));
+                        if (!isDup) {
+                            results.push(r);
+                        }
+                    }
+                    if (rawResults.length > 0) {
+                        api.logger.debug?.(`[yaoyao-memory:recall] Raw-message supplement added ${results.length - (results.length - rawResults.length)} results`);
+                    }
+                } catch { /* best effort */ }
+            }
+
             if (results.length === 0) {
                 api.logger.debug?.("[yaoyao-memory:recall] No relevant memories found");
                 return;
             }
+            // ── Time decay: 30-day half-life ──
+            const now = Date.now();
+            const HALF_LIFE_DAYS = 30;
+            results = results.map(r => {
+                if (!r.date) return r;
+                try {
+                    const recordDate = new Date(r.date + "T00:00:00Z");
+                    const daysDiff = (now - recordDate.getTime()) / (1000 * 60 * 60 * 24);
+                    const decayFactor = Math.pow(0.5, daysDiff / HALF_LIFE_DAYS);
+                    return { ...r, score: r.score * decayFactor };
+                } catch { return r; }
+            });
+            // ── Diversity dedup: same snippet prefix → keep highest score only ──
+            const seen = new Map();
+            results = results.filter(r => {
+                const dedupeKey = r.snippet.slice(0, 50);
+                if (seen.has(dedupeKey)) {
+                    const existing = seen.get(dedupeKey);
+                    if (r.score > existing.score) {
+                        seen.set(dedupeKey, r);
+                        return true;
+                    }
+                    return false;
+                }
+                seen.set(dedupeKey, r);
+                return true;
+            });
             setCachedResults(cacheKey, results);
             api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms`);
             return buildHookResult(buildRecallContext(results, guidance), config);
@@ -188,6 +270,13 @@ function extractKeywords(text) {
         "没有", "看", "好", "自己", "这", "那", "他", "她", "它", "们",
         "也", "吗", "吧", "呢", "啊", "哦", "哈", "嗯", "嘛", "哟",
         "还是", "或者", "但是", "因为", "所以", "如果", "虽然", "而且", "然后", "可以",
+        // Japanese particles
+        "は", "が", "を", "に", "で", "と", "の", "も", "へ", "から", "まで", "より",
+        "です", "ます", "だ", "である", "する", "いる", "なる", "ない", "ある",
+        // Korean particles
+        "은", "는", "이", "가", "을", "를", "에", "에서", "로", "으로", "와", "과",
+        "의", "도", "만", "부터", "까지", "하다", "있다", "없다", "되다",
+        // English stopwords
         "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did", "will", "would", "can", "could",
         "shall", "should", "may", "might", "must", "i", "you", "he", "she", "it",
@@ -196,5 +285,27 @@ function extractKeywords(text) {
         "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
         "at", "by", "from", "as", "into", "not", "no", "yes",
     ]);
-    return words.filter(w => !stopwords.has(w) && w.length < 30);
+    const base = words.filter(w => !stopwords.has(w) && w.length < 30);
+    // ── CJK bigram/trigram extraction ──
+    // Find continuous CJK character sequences
+    const cjkSequences = cleaned.match(/[\u4e00-\u9fff]{2,}/g) || [];
+    for (const seq of cjkSequences) {
+        if (seq.length >= 4) {
+            // Generate all 2-char and 3-char combinations
+            for (let i = 0; i + 1 < seq.length; i++) {
+                const bigram = seq.slice(i, i + 2);
+                if (!stopwords.has(bigram)) base.push(bigram);
+            }
+            for (let i = 0; i + 2 < seq.length; i++) {
+                const trigram = seq.slice(i, i + 3);
+                if (!stopwords.has(trigram)) base.push(trigram);
+            }
+        }
+        else if (seq.length >= 2) {
+            // 2-3 char sequences: use directly
+            if (!stopwords.has(seq)) base.push(seq);
+        }
+    }
+    // Deduplicate
+    return [...new Set(base)];
 }

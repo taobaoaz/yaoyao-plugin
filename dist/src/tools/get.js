@@ -4,7 +4,7 @@ export function createGetTool(store, _db) {
     return {
         name: "memory_get",
         label: "Yaoyao Memory Get",
-        description: "Read a memory file by filename or date. Returns the full file contents.",
+        description: "📖 Read a memory file by filename or date. Supports relative paths (e.g., '2026-05-02.md') and absolute paths. Use from/lines for partial reads.",
         parameters: {
             type: "object",
             properties: {

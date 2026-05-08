@@ -15,7 +15,7 @@ export function createRemindTool() {
     return {
         name: "memory_remind",
         label: "Remind (Memory)",
-        description: "创建记忆定时提醒。通过 openclaw cron 在指定时间触发，推送相关记忆到当前会话。支持 cron 表达式或自然语言描述时间。",
+        description: "⏰ 生成记忆定时提醒的 cron 配置。输出可直接使用的 OpenClaw cron JSON 配置，而非自动创建。支持 cron 表达式或自然语言时间描述。",
         parameters: {
             type: "object",
             properties: {
@@ -87,35 +87,43 @@ export function createRemindTool() {
                 finalCron = convertHumanToCron(timeDescription) || cronExpr;
             }
             const finalMessage = message || (keyword
-                ? `⏰ 记忆提醒：关于"${keyword}"的记忆\n\n请使用 memory_search_enhanced / yaoyao_memory_search 搜索 "${keyword}" 来查看相关记忆。`
+                ? `⏰ 记忆提醒：关于"${keyword}"的记忆\n\n请使用 memory_search_enhanced 搜索 "${keyword}" 来查看相关记忆。`
                 : "⏰ 记忆提醒：随机记忆推送\n\n请使用 yaoyao_memory_search 搜索今日的随机记忆。");
+            const cronConfig = {
+                name: `记忆提醒: ${keyword || "随机"}`,
+                schedule: { kind: "cron", expr: finalCron, tz: "Asia/Shanghai" },
+                payload: { kind: "agentTurn", message: finalMessage },
+                sessionTarget: "main",
+                enabled: true,
+            };
             const cronLines = [
-                "## 记忆定时提醒 - 创建成功",
+                "## 记忆定时提醒 - Cron 配置",
                 ``,
                 `📋 关键词: ${keyword || "随机记忆"}`,
                 `⏰ Cron: \`${finalCron}\``,
                 `📝 消息: ${finalMessage}`,
                 ``,
-                `### 配置方法`,
+                `### Cron 配置 JSON`,
                 ``,
-                `请在终端中运行以下命令来激活此定时任务：`,
-                ``,
-                "```bash",
-                `openclaw cron add "${finalCron}" \\`,
-                `  --message "${finalMessage}" \\`,
-                `  --channel xiaoyi-channel`,
+                "```json",
+                JSON.stringify(cronConfig, null, 2),
                 "```",
+                ``,
+                `### 使用方法`,
+                ``,
+                `将上面的 JSON 配置通过 OpenClaw 网关的 cron 接口创建：`,
+                `- 在管理面板中创建定时任务`,
+                `- 或通过 API: POST /api/cron`,
+                `- 或使用 gateway 工具的 cron 相关操作`,
                 ``,
                 `### 常用 cron 示例`,
                 ``,
-                `| 时间 | Cron 表达式 |`,
-                `|------|-------------|`,
-                `| 每天早上 8 点 | \`0 8 * * *\` |`,
-                `| 每天早上 9 点 | \`0 9 * * *\` |`,
-                `| 每天中午 12 点 | \`0 12 * * *\` |`,
-                `| 每周一上午 9 点 | \`0 9 * * 1\` |`,
-                `| 每小时 | \`0 * * * *\` |`,
-                `| 每天早上和晚上 | \`0 8,20 * * *\` |`,
+                `- 每天早上 8 点: \`0 8 * * *\``,
+                `- 每天早上 9 点: \`0 9 * * *\``,
+                `- 每天中午 12 点: \`0 12 * * *\``,
+                `- 每周一上午 9 点: \`0 9 * * 1\``,
+                `- 每小时: \`0 * * * *\``,
+                `- 每天早上和晚上: \`0 8,20 * * *\``,
             ];
             // 如果有自然语言时间描述，显示转换结果
             if (timeDescription) {

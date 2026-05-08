@@ -4,7 +4,7 @@ export function createSearchTool(db) {
     return {
         name: "memory_search",
         label: "Yaoyao Memory Search",
-        description: "Search through past memories using full-text search. Supports keywords, phrases, and natural language queries. Results are ranked by relevance.",
+        description: "🔍 Search through past memories using full-text search (FTS5). Supports Chinese, English, and mixed queries — keywords, phrases, and natural language. Results ranked by relevance.",
         parameters: {
             type: "object",
             properties: {

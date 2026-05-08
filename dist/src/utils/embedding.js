@@ -4,9 +4,9 @@
  */
 export function createEmbeddingService(config) {
     const baseUrl = config.baseUrl.replace(/\/$/, "");
-    /** Fetch with AbortSignal timeout (15s default) */
+    /** Fetch with AbortSignal timeout (8s default) */
     async function fetchWithTimeout(url, init) {
-        const timeout = init.timeoutMs ?? 15_000;
+        const timeout = init.timeoutMs ?? 8_000;
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), timeout);
         try {
@@ -96,5 +96,15 @@ export function createEmbeddingService(config) {
         }
         return dataArr.map((d) => new Float32Array(d.embedding));
     }
-    return { embed, embedBatch, config };
+    /** Probe the embedding API to discover dimensions (call once at init) */
+    async function probe() {
+        try {
+            const vec = await embed("test");
+            return { dimensions: vec.length, success: true };
+        }
+        catch (err) {
+            return { dimensions: 0, success: false, error: err.message };
+        }
+    }
+    return { embed, embedBatch, probe, config };
 }

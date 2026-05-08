@@ -1,3 +1,5 @@
+import { createRequire } from "node:module";
+const _require = createRequire(import.meta.url);
 import { withErrorHandling } from "./common.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -5,7 +7,7 @@ export function createStatsTool(store, db) {
     return {
         name: "memory_stats",
         label: "Memory Stats",
-        description: "获取记忆统计信息：总数、日期分布、场景分组、标签、反馈学习、DB 健康状态。支持 text / json 两种格式。",
+        description: "📊 获取记忆统计信息：总数、日期分布、场景分组、标签、反馈学习、DB 健康状态。支持 text / json 格式和 basic / full 详细程度。format=json 返回结构化数据，detail=full 包含细分维度。",
         parameters: {
             type: "object",
             properties: {
@@ -38,7 +40,7 @@ export function createStatsTool(store, db) {
             try {
                 const tagFilePath = path.join(store.baseDir, ".yaoyao.db");
                 if (fs.existsSync(tagFilePath)) {
-                    const { DatabaseSync } = require("node:sqlite");
+                    const { DatabaseSync } = _require("node:sqlite");
                     const tagDb = new DatabaseSync(tagFilePath, { allowExtension: true });
                     try {
                         const tagRow = tagDb.prepare("SELECT COUNT(*) as c FROM memory_tags").get();
@@ -110,7 +112,16 @@ export function createStatsTool(store, db) {
                 `📁 总文件数: ${totalFiles} (每日日志: ${dailyFiles})`,
                 `💾 总大小: ${(totalSizeBytes / 1024).toFixed(1)}KB`,
                 `🔍 FTS5 索引条目: ${ftsMemories}`,
+                // ── 优化7: 条件性向量统计输出 ──
             ];
+            if (dbStats.vecEnabled) {
+                lines.push(`📊 向量索引: ${dbStats.totalVectors || 0} 条 (${dbStats.dimensions || 0}维)`);
+            } else {
+                lines.push(`⚪ 向量搜索: 未启用（配置 embedding API 以启用）`);
+            }
+            if ((totalMemories || 0) < 10 && ftsMemories < 10) {
+                lines.push(`💡 提示：当前记忆较少，系统会随使用逐渐积累`);
+            }
             if (detail === "full") {
                 if (sceneCount > 0)
                     lines.push(`📂 场景分组: ${sceneCount} 个`);
