@@ -24,6 +24,12 @@ import { createCloudSyncTool } from "./cloud-sync.js";
 import { createUnifyTool } from "./memory-unify.js";
 import { createImportOCTool } from "./memory-import-oc.js";
 import { createImportWorkspaceTool } from "./memory-import-workspace.js";
+import { createInsightsTool } from "./memory-insights.js";
+import { createDiffTool } from "./memory-diff.js";
+import { createSuggestTool } from "./memory-suggest.js";
+import { createArchiveTool } from "./memory-archive.js";
+import { createSummarizeTool } from "./memory-summarize.js";
+import { createSmartQueryTool } from "./smart-query.js";
 
 export function registerMemoryTools(api, store, db, feedbackTracker, embedding) {
     const tools = [
@@ -115,6 +121,48 @@ export function registerMemoryTools(api, store, db, feedbackTracker, embedding) 
     }
     catch (e) {
         api.logger.warn?.(`[yaoyao-memory] Import workspace tool skipped: ${e.message}`);
+    }
+    // Insights extraction tool
+    try {
+        tools.push(createInsightsTool(db));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Insights tool skipped: ${e.message}`);
+    }
+    // Diff comparison tool
+    try {
+        tools.push(createDiffTool(db));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Diff tool skipped: ${e.message}`);
+    }
+    // Action suggestion tool
+    try {
+        tools.push(createSuggestTool(db));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Suggest tool skipped: ${e.message}`);
+    }
+    // Archive management tool
+    try {
+        tools.push(createArchiveTool(db));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Archive tool skipped: ${e.message}`);
+    }
+    // Conversation summary tool
+    try {
+        tools.push(createSummarizeTool(db, store));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Summarize tool skipped: ${e.message}`);
+    }
+    // Smart query tool
+    try {
+        tools.push(createSmartQueryTool(db));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Smart query tool skipped: ${e.message}`);
     }
     api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);
     return tools.length;
