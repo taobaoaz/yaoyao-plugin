@@ -1,8 +1,8 @@
-# Yaoyao Memory Plugin v1.2.4
+# Yaoyao Memory Plugin v1.3.0
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**22 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · L4 反馈学习 · 90+ 单元测试**
+**26 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · L4 反馈学习 · 环境自适应 · 记忆接管 · 90+ 单元测试**
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
@@ -21,39 +21,103 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
      └─ L4 反馈学习层 (FeedbackTracker)
 ```
 
-## 工具 (22 个)
+## 工具 (26 个)
 
 | 工具 | 用途 |
 |------|------|
-| `memory_search` | 🔍 FTS5 全文搜索 + CJK 模糊降级 |
-| `memory_get` | 📖 读取指定记忆文件 |
-| `memory_list` | 📋 列出所有记忆文件 |
-| `memory_save` | 💾 手动记录一条记忆 |
-| `memory_stats` | 📊 记忆统计（总量、日期分布、场景、反馈、标签） |
-| `memory_mood` | 🎨 **分析情绪趋势** — 心情环可视化 |
+| `memory_search` | 🔍 FTS5 全文搜索 + CJK 模糊降级，支持中文、英文、混合查询 |
+| `memory_get` | 📖 读取指定记忆文件（支持相对路径和绝对路径） |
+| `memory_list` | 📋 列出所有记忆文件（含类型、日期、大小信息） |
+| `memory_save` | 💾 手动记录一条记忆（tags 参数支持分类标记） |
+| `memory_stats` | 📊 记忆统计（支持 text/json 格式，basic/full 详细程度） |
+| `memory_mood` | 🎨 **分析情绪趋势** — Ekman 6 基本情绪分析 + 心情环可视化 |
 | `memory_timeline` | 📅 **时间线热力图** — ███ 密度条 |
 | `memory_search_timeline` | 🔍📅 **搜索 + 时间轴分组** |
 | `memory_backup` | 📦 **创建快照备份**（全量 / 增量） |
-| `memory_forget` | 🗑️ **按关键词或日期删除** |
-| `memory_note` | 📌 **快捷笔记** — 像便签一样存 |
+| `memory_forget` | 🗑️ **按关键词或日期删除**（⚠️ 不可恢复） |
+| `memory_note` | 📌 **快捷笔记** — 轻量存储，适合临时想法 |
 | `memory_optimize` | 🧠 **L4 反馈学习** — 分析纠错模式生成优化建议 |
-| `memory_graph` | 🕸️ **记忆关联图谱** — 多维度关联（标签/场景/时间） |
-| `memory_search_enhanced` | 🔍📈 **语义搜索增强** — 向量重排序 + 关键词高亮 |
+| `memory_graph` | 🕸️ **记忆关联图谱** — 多维度关联（标签/场景/时间/语义） |
+| `memory_search_enhanced` | 🔍📈 **语义搜索增强** — 向量重排序 + 关键词高亮 + 混合加权 |
 | `memory_export` | 📤 **记忆导出** — JSONL 格式，支持跨设备迁移 |
-| `memory_import` | 📥 **记忆导入** — 从 JSONL 格式恢复记忆 |
-| `memory_tag` | 🏷️ **记忆标签** — 打标签、按标签搜索、热门标签 |
-| `memory_remind` | ⏰ **记忆定时提醒** — 生成 cron 任务推送记忆 |
-| `memory_recommend` | 🎯 **记忆推荐** — 基于上下文 + 场景多样化的智能推荐 |
-| `memory_trends` | 📈 **趋势分析** — 分析话题频率变化趋势（7d/30d/90d/all） |
-| `memory_cloud_sync` | ☁️ **云备份同步** — WebDAV/S3/SFTP/Samba |
+| `memory_import` | 📥 **记忆导入** — JSONL 格式 + 目录批量导入 md 文件 |
+| `memory_tag` | 🏷️ **记忆标签** — 打标签、按标签搜索、热门标签（中英文参数支持） |
+| `memory_remind` | ⏰ **记忆定时提醒** — 生成完整 cron 配置 JSON |
+| `memory_recommend` | 🎯 **记忆推荐** — 基于上下文 + 日期多样性 + 时间衰减 |
+| `memory_trends` | 📈 **趋势分析** — 话题频率变化趋势（无需 LLM，纯统计） |
+| `memory_quality` | ✅ **质量评估** — 记忆健康度、重复度、覆盖率多维评估 |
+| `memory_cloud_sync` | ☁️ **云备份同步** — WebDAV/S3/SFTP/Samba 多协议 |
+| `memory_unify` | 🔗 **统一记忆管理** — 跨后端搜索/去重/统计（OC + yaoyao + .dreams） |
+| `memory_import_oc` | 📦 **OC chunks 导入** — 从 OpenClaw 原生记忆增量导入，幂等安全 |
+| `memory_import_workspace` | 📂 **Workspace 导入** — 导入 MEMORY.md/USER.md 等 workspace 文件 |
+| `memory_retain` | 🧠 **记忆反遗忘** — 检测重要但长期未召回的记忆，支持手动刷新热度 |
 
 ## Hook (3 个)
 
 | Hook | 触发时机 | 作用 |
 |------|----------|------|
-| `agent_end` | 每次对话结束 | 自动捕获对话内容写入 L0 每日日志 |
+| `agent_end` | 每次对话结束 | 自动捕获对话内容写入 L0 每日日志 + FTS5 索引 |
 | `before_prompt_build` | 每次对话开始 | 自动从 L1 索引召回相关记忆注入上下文 |
-| `gateway_stop` | 插件/网关关闭 | 清理资源、持久化未写入的缓存 |
+| `gateway_stop` | 插件/网关关闭 | WAL checkpoint + 资源清理 + 缓存持久化 |
+
+---
+
+## 🆕 v1.3.0 新特性
+
+### 环境自适应能力
+
+插件会自动探测当前运行环境的能力边界，在 banner 中展示能力矩阵：
+
+```
+🎲 能力: FTS5✅ Vec✅ LLM✅ Cloud⚪
+```
+
+- **能力矩阵 banner** — 启动时探测 FTS5/向量/LLM/云同步可用性
+- **工具描述动态调整** — 无向量时 `search_enhanced` 自动切换为"关键词高亮"，不误导用户
+- **Pipeline 条件注册** — 无 LLM 时跳过 L1/L2/L3 管线，输出明确日志
+- **API 兼容层** — 检测 hooks 是否可用，不支持时降级为 tool-only 模式
+
+### 原始记忆环境接管
+
+安装 yaoyao-memory 后，可以一键接管已有的记忆数据源：
+
+- **`memory_import_oc`** — 从 OpenClaw 原生 `main.sqlite` 增量导入 chunks（只读源 DB，内容哈希去重，支持 dryRun 预览）
+- **`memory_import_workspace`** — 扫描 MEMORY.md/USER.md/SOUL.md 等 workspace 文件，按 `##` 标题分段导入索引
+- **旧 daily md 兼容** — 自动检测非 yaoyao 格式文件，插入迁移分隔符，保留原有内容不被破坏
+- **首次启动检测** — 自动扫描可接管数据源（OC chunks / workspace / 未索引 daily md），输出提示
+- **`memory_unify status` 接管面板** — 一目了然哪些数据源已导入
+
+### 搜索质量提升
+
+- **CJK bigram 搜索** — FTS5 miss 后增加 bigram 拆分搜索，中文短语召回率显著改善
+- **importance 加成** — `[important]` 标记的记忆搜索得分 ×1.3
+- **双路搜索合并** — 关键词搜索 + 原文补充搜索，合并去重后返回
+- **向量重排序优化** — 从 N+1 次 embed 改为 1 次 vectorSearch + 加权合并（FTS5 0.6 + Vec 0.4）
+- **搜索策略自适应** — <50 条数据放宽搜索，>5000 条收紧精准度
+
+### 稳定性增强
+
+- **Embedding 熔断器** — 连续 3 次失败开启，60 秒冷却，避免 API 故障拖累响应
+- **工具执行超时** — 10s Promise.race 保护，单个工具卡住不影响整体
+- **Embedding 超时降低** — 15s → 8s
+- **auto-capture 写入节流** — 2 秒缓冲窗口，多条消息合并写入
+- **FTS5 完整性检查** — 启动时 meta/fts 行数差异 >10% 自动 rebuild
+- **DB 连接泄漏防护** — 引用计数 + WAL checkpoint 刷盘
+- **文件写入安全** — 原子写（tmp+rename），失败自动 fallback 到 `.write-fallback.jsonl`
+- **WAL 清理增强** — 启动检测 WAL >10MB 主动 checkpoint
+- **Embedding 维度自适应** — 启动时 probe 实际维度，不匹配时自动重建 vec0 表
+
+### 多场景泛用性
+
+- **多语言情感分析** — 无词汇匹配时基于 emoji + 标点符号降级判断
+- **日语/韩语停用词** — 扩展关键词提取覆盖范围
+- **多用户场景隔离** — 记忆来源按 session 用户 ID 区分存储
+- **群聊消息过滤** — 短回复、纯系统消息、纯 emoji 自动跳过
+- **记忆重要性自适应** — 根据对话长度和决策关键词自动计算 importance 权重
+- **工具参数国际化** — quality/tag/unify/retain 的 action 参数同时支持中英文值
+- **时区感知** — `tz` 配置项控制日期计算，默认 `Asia/Shanghai`
+
+---
 
 ## 心理学模型
 
@@ -151,7 +215,8 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.2.4  ·  22 Tools  ·  3 Hooks
+🎲    v1.3.0  ·  26 Tools  ·  3 Hooks
+🎲 能力: FTS5✅ Vec✅ LLM✅ Cloud⚪
 ```
 
 如果看不到横幅，检查 `plugins.allow` 是否包含 `"yaoyao-memory"`。
@@ -167,6 +232,9 @@ openclaw gateway restart
 
     // L1 自动召回
     "recall": { "enabled": true, "maxResults": 3 },
+
+    // 时区配置（影响日期计算和 daily md 归档）
+    "tz": "Asia/Shanghai",
 
     // 向量搜索（可选，开启后支持混合搜索）
     "embedding": {
@@ -239,15 +307,19 @@ openclaw gateway restart
 | `memory/scene_blocks/` | 场景分组数据 |
 | `memory/.archive/` | 已清理的旧日志 |
 | `memory/.sync-source` | 云同步来源标记 |
+| `memory/.write-fallback.jsonl` | 写入失败 fallback 记录（自动恢复） |
 
 ## 特性
 
-- **中文友好** — FTS5 无法匹配 CJK 时自动降级 LIKE 模糊搜索
-- **心情环** — 情感分析引擎，对话情绪一目了然
+- **中文友好** — FTS5 无法匹配 CJK 时自动降级 LIKE + bigram 搜索
+- **环境自适应** — 自动探测 FTS5/向量/LLM/云同步能力，优雅降级
+- **记忆接管** — 一键导入 OC 原生记忆、workspace 文件、旧 daily md
+- **心情环** — 情感分析引擎，多语言支持（中/英/日/韩 + emoji 降级）
 - **心理学模型** — 状态追踪 + 趋势分析 + 自适应引导
 - **L4 反馈学习** — 自动监听纠错、统计模式、生成优化建议
 - **云备份** — WebDAV/S3/SFTP/Samba 多云同步
 - **趋势分析** — 话题频率变化趋势洞察
+- **反遗忘** — 检测重要记忆遗忘风险，主动提醒
 - **零依赖** — 仅 node:sqlite + sqlite-vec，无 Python 无额外 npm
 - **90+ 测试全绿** — 全零依赖，node:test 原生运行
 
