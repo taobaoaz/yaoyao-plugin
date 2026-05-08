@@ -25,15 +25,37 @@ export function createDB(config, logger) {
     const dbPath = path.join(baseDir, ".yaoyao.db");
     const log = (msg) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
     let db = null;
-    let initFailed = false; // fail-fast guard: once init fails, skip retries
-    let vecEnabled = false; // sqlite-vec availability flag (shared across functions)
+    let initFailed = false;
+    let vecEnabled = false;
+
+    // ── Node < 22 fallback: no-op DB stub ──
+    let DatabaseSync;
+    try {
+        DatabaseSync = _require("node:sqlite").DatabaseSync;
+    } catch {
+        DatabaseSync = null;
+        log("node:sqlite not available, using no-op stub");
+    }
     let refCount = 0;
     const MAX_REFS = 1000;
     /** Initialize database — create tables if not exist. vecDimensions configures vector table size. */
     function init(vecDimensions = 1024) {
+        // ── No-op stub when node:sqlite is unavailable ──
+        if (!DatabaseSync) {
+            log("init: node:sqlite unavailable, creating no-op stub");
+            db = {
+                exec: () => {},
+                prepare: () => ({
+                    all: () => [],
+                    get: () => null,
+                    run: () => ({ changes: 0, lastInsertRowid: 0 }),
+                }),
+                close: () => {},
+            };
+            return true;
+        }
         try {
             fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-            const { DatabaseSync } = _require("node:sqlite");
             db = new DatabaseSync(dbPath, { allowExtension: true });
             // Handle stale WAL/shm files from previous crash
             try {

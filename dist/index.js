@@ -75,26 +75,37 @@ export default definePluginEntry({
 
  // 🎲 读取实时版本号（兼容 dist/index.js 编译路径）
  let pluginVersion = "dev";
+ let pluginApiReq = "unknown";
  try {
  const currentUrl = import.meta.url;
- // Try root package.json first, then dist/ fallback
  let pkgPath = new URL("../package.json", currentUrl);
  if (!fs.existsSync(pkgPath)) {
  pkgPath = new URL("./package.json", currentUrl);
  }
  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
  if (pkg.version) pluginVersion = pkg.version;
+ if (pkg?.openclaw?.compat?.pluginApi) pluginApiReq = pkg.openclaw.compat.pluginApi;
  } catch { /* best effort */ }
 
- // ── Self-check: verify compat version matches runtime ──
- try {
- const pkgUrl = new URL("../package.json", import.meta.url);
- const pkg = JSON.parse(fs.readFileSync(pkgUrl, "utf-8"));
- const requiredApi = pkg?.openclaw?.compat?.pluginApi;
- if (requiredApi) {
- api.logger.info(`[yaoyao-memory] Compat: ${requiredApi} (self-check OK)`);
+ // ── 环境检测 ──
+ const nodeMajor = parseInt(process.version.slice(1).split('.')[0], 10);
+ let hasNodeSqlite = false;
+ try { _require('node:sqlite'); hasNodeSqlite = true; } catch {}
+ let hasSqliteVec = false;
+ try { _require('sqlite-vec'); hasSqliteVec = true; } catch {}
+
+ // 兼容性检查
+ if (!hasNodeSqlite) {
+ const msg = nodeMajor < 22
+ ? `⛔ Node.js ${process.version} 不支持 node:sqlite（需要 >= 22）。数据库功能不可用。`
+ : `⛔ node:sqlite 不可用（未知原因）。数据库功能可能受影响。`;
+ api.logger.error?.(`[yaoyao-memory] ${msg}`);
+ console.log(`  [yaoyao-memory] ${msg}`);
  }
- } catch { /* best effort */ }
+ if (!hasSqliteVec && hasNodeSqlite) {
+ api.logger.info("[yaoyao-memory] ⚪ sqlite-vec 未安装，向量搜索不可用，降级为 FTS5 纯文本搜索");
+ }
+ api.logger.info(`[yaoyao-memory] Env: Node ${process.version} | ${process.platform}/${process.arch} | sqlite:${hasNodeSqlite} vec:${hasSqliteVec} | API:${pluginApiReq}`);
 
  // 🗑️ 自动检测并清理旧 yaoyao-memory skill 目录（supersedes 继承）
  const oldSkillDirs = [
@@ -238,12 +249,13 @@ export default definePluginEntry({
  const verStr = `v${pluginVersion}`;
  const toolStr = `${toolCount} Tools`;
  const capLine = `🎲 能力: FTS5${capabilities.fts5 ? '✅' : '❌'} Vec${capabilities.vectorSearch || capabilities.sqliteVec ? '✅' : '⚪'} LLM${capabilities.llmPipeline ? '✅' : '⚪'} Cloud${capabilities.cloudSync ? '✅' : '⚪'}`;
+ const envLine = `🎲 环境: Node ${process.version} | ${process.platform}/${process.arch} | sqlite:${hasNodeSqlite ? '✅' : '❌'} vec:${hasSqliteVec ? '✅' : '⚪'}`;
  const banner = [
  "🎲 ══════════════════════════════════════════",
  "🎲 摇摇 · 记忆引擎已启动",
  `🎲 ${verStr} · ${toolStr} · 3 Hooks`,
- "🎲 FTS5 + sqlite-vec + 情感分析 + 时间线 + 云备份",
  capLine,
+ envLine,
  `🎲 记忆目录: ${dirInfo}`,
  "🎲 ══════════════════════════════════════════",
  ];

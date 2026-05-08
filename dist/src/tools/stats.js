@@ -152,6 +152,14 @@ export function createStatsTool(store, db) {
                     }
                 }
             }
+            // ── 环境信息 ──
+            lines.push("", "## 🔧 环境");
+            lines.push(`- Node.js: ${process.version}`);
+            lines.push(`- 平台: ${process.platform}/${process.arch}`);
+            let vecStatus = "未安装";
+            try { _require("sqlite-vec"); vecStatus = "已安装"; } catch {}
+            lines.push(`- sqlite-vec: ${vecStatus}`);
+            lines.push(`- DB 路径: ${db.dbPath || 'N/A'}`);
             return { content: [{ type: "text", text: lines.join("\n") }] };
         }),
     };
