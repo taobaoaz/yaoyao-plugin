@@ -15,6 +15,24 @@
 
 ## 迁移前必读
 
+### ⚠️ 数据保护声明
+
+**`git pull` 只更新代码文件，不会删除或覆盖你的数据。**
+
+用户数据默认存储在 `memory/` 目录和 `.yaoyao.db` 文件中，这些路径**不在 plugin 仓库内部**，因此更新代码时完全不受影响。
+
+但以防万一，建议迁移前手动确认以下数据文件存在：
+
+| 数据文件 | 默认位置 | 说明 |
+|----------|----------|------|
+| 每日对话日志 | `memory/*.md` | 核心数据，**绝不会被删除** |
+| SQLite 数据库 | `memory/.yaoyao.db` 或 `~/.openclaw/...` | 搜索索引，**不会被删除** |
+| 隐式标注 | `memory/.implicit-tags.jsonl` | soul 接管，**不会被删除** |
+| 反馈记录 | `memory/.feedback.jsonl` | soul 接管，**不会被删除** |
+| 用户画像 | `memory/persona.md` | soul 追加笔记，**不覆盖旧内容** |
+
+> 如果你曾手动修改过 `memoryDir` 配置，请确认你的数据实际存储位置。
+
 ### 数据兼容性 ✅
 
 | 数据文件 | 迁移后归属 | 是否保留 |
@@ -56,11 +74,25 @@ yaoyao-soul:
 set -e
 
 PLUGIN_DIR="${OPENCLAW_PLUGINS_DIR:-$HOME/.openclaw/plugins}"
+WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
 BACKUP_DIR="$HOME/.openclaw/backups/yaoyao-$(date +%Y%m%d-%H%M%S)"
 
-echo "📦 备份现有数据到 $BACKUP_DIR"
+echo "📦 备份数据到 $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"
-cp -r "$PLUGIN_DIR/yaoyao-plugin" "$BACKUP_DIR/" 2>/dev/null || true
+
+# 备份 plugin 代码
+cp -r "$PLUGIN_DIR/yaoyao-plugin" "$BACKUP_DIR/plugin-code" 2>/dev/null || true
+
+# 备份用户数据（memory 目录）
+if [ -d "$WORKSPACE_DIR/memory" ]; then
+  cp -r "$WORKSPACE_DIR/memory" "$BACKUP_DIR/memory-data"
+  echo "   ✓ 已备份 memory/ 目录"
+fi
+
+# 备份数据库（如果在 workspace 根目录）
+for db in "$WORKSPACE_DIR"/.yaoyao.db "$WORKSPACE_DIR"/.yaoyao.*.db; do
+  [ -f "$db" ] && cp "$db" "$BACKUP_DIR/" && echo "   ✓ 已备份 $(basename "$db")"
+done
 
 echo "🔄 更新 yaoyao-plugin 到 v1.5.0+"
 cd "$PLUGIN_DIR/yaoyao-plugin"
@@ -76,11 +108,19 @@ else
   echo "yaoyao-soul 已存在，跳过"
 fi
 
-echo "✅ 迁移完成。请重启 OpenClaw Gateway。"
+echo ""
+echo "✅ 迁移完成！"
+echo ""
+echo "数据安全确认："
+echo "  - memory/*.md          → 未变动 ✅"
+echo "  - .yaoyao.db           → 未变动 ✅"
+echo "  - persona.md           → 追加新内容，不覆盖旧内容 ✅"
+echo ""
+echo "请重启 OpenClaw Gateway 生效。"
 echo ""
 echo "回滚命令（万一出问题）："
 echo "  rm -rf '$PLUGIN_DIR/yaoyao-plugin'"
-echo "  cp -r '$BACKUP_DIR/yaoyao-plugin' '$PLUGIN_DIR/'"
+echo "  cp -r '$BACKUP_DIR/plugin-code' '$PLUGIN_DIR/yaoyao-plugin'"
 ```
 
 **执行：**
@@ -93,12 +133,27 @@ curl -fsSL https://raw.githubusercontent.com/taobaoaz/yaoyao-plugin/main/scripts
 
 ## 方案二：手动分步
 
-### Step 1：备份
+### Step 1：确认数据安全（重要）
+
+先确认你的数据文件位置：
+
+```bash
+ls ~/.openclaw/workspace/memory/*.md        # 每日对话日志
+ls ~/.openclaw/workspace/.yaoyao.db         # 数据库（文件名可能不同）
+ls ~/.openclaw/workspace/memory/persona.md  # 用户画像
+ls ~/.openclaw/workspace/memory/.implicit-tags.jsonl  # 隐式标注
+```
+
+这些文件**在 workspace 目录下**，不在 plugin 仓库内部，`git pull` 不会碰它们。
+
+如需备份：
 
 ```bash
 BACKUP_DIR="$HOME/.openclaw/backups/yaoyao-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
-cp -r ~/.openclaw/plugins/yaoyao-plugin "$BACKUP_DIR/"
+cp -r ~/.openclaw/workspace/memory "$BACKUP_DIR/"
+cp ~/.openclaw/workspace/.yaoyao.db* "$BACKUP_DIR/" 2>/dev/null || true
+echo "数据已备份到 $BACKUP_DIR"
 ```
 
 ### Step 2：更新 plugin
