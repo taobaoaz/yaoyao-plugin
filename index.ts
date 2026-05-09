@@ -110,6 +110,23 @@ export default definePluginEntry({
     }
 
     if (legacyTraces.length > 0) {
+      // ── Attempt auto-migration: install yaoyao-soul automatically ──
+      let autoMigrated = false;
+      try {
+        const pluginsDir = path.dirname(path.dirname(require.resolve("openclaw/plugin-sdk/plugin-entry"))) || path.join(workspaceDir, "plugins");
+        const soulDir = path.join(pluginsDir, "yaoyao-soul");
+        if (!fs.existsSync(soulDir)) {
+          const { execSync } = require("node:child_process");
+          execSync(
+            "git clone https://github.com/taobaoaz/yaoyao-soul.git yaoyao-soul",
+            { cwd: pluginsDir, stdio: "pipe", timeout: 30000 }
+          );
+          autoMigrated = true;
+        } else {
+          autoMigrated = true; // already exists
+        }
+      } catch { /* auto-migration failed, fallback to manual */ }
+
       const banner = [
         "",
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -125,10 +142,20 @@ export default definePluginEntry({
         "  ✅ 你的数据完全安全：",
         "     memory/*.md、.yaoyao.db、persona.md 均不受影响",
         "",
-        "  📦 如需恢复这些功能，请安装 yaoyao-soul：",
-        "     cd ~/.openclaw/plugins",
-        "     git clone https://github.com/taobaoaz/yaoyao-soul.git",
-        "",
+        ...(autoMigrated ? [
+          "  ✅ 已自动安装 yaoyao-soul 到 plugins 目录",
+          "",
+          "  📋 剩余步骤：",
+          "     1. 删除 openclaw.yaml 中的旧配置项：",
+          "        psychology, intervention, moodTracking",
+          "     2. 重启 OpenClaw Gateway",
+          "",
+        ] : [
+          "  📦 如需恢复这些功能，请安装 yaoyao-soul：",
+          "     cd ~/.openclaw/plugins",
+          "     git clone https://github.com/taobaoaz/yaoyao-soul.git",
+          "",
+        ]),
         "  📖 完整迁移指南：",
         "     https://github.com/taobaoaz/yaoyao-plugin/blob/main/MIGRATION.md",
         "",
