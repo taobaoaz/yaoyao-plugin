@@ -32,8 +32,11 @@ import { createQualityTool } from "./memory-quality.js";
 import { createRetainTool } from "./memory-retain.js";
 import type { FeedbackTracker } from "../learning/feedback-tracker.js";
 import type { EmbeddingService } from "../utils/embedding.js";
+import type { PersonaStateMachine } from "../utils/persona-state.js";
 
-export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge, feedbackTracker?: FeedbackTracker | null, embedding?: EmbeddingService | null) {
+import { createDistillTool } from "./memory-distill.js";
+
+export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge, feedbackTracker?: FeedbackTracker | null, embedding?: EmbeddingService | null, personaState?: PersonaStateMachine | null) {
   const tools = [
     createSearchTool(db),
     createGetTool(store, db),
@@ -51,6 +54,8 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
     createTagTool(store),
     createRemindTool(),
     createRecommendTool(db, store.baseDir),
+    // v3: Distill implicit observations into persona.md (silent, not real-time)
+    ...(personaState ? [createDistillTool(personaState, store.baseDir)] : []),
   ];
 
   // FeedbackTracker-powered tool (L4 learning)

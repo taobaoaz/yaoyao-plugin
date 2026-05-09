@@ -128,21 +128,12 @@ function formatRecallText(results: SearchResult[]): string {
 }
 
 /** Build the appendSystemContext object for return */
-function buildRecallContext(results: SearchResult[], guidance?: string): { appendSystemContext: string } | undefined {
-  if (results.length === 0 && !guidance) return undefined;
-  const parts: string[] = [];
-
-  if (results.length > 0) {
-    const recallText = formatRecallText(results);
-    parts.push(`## 相关记忆\n\n以下内容来自你的对话历史记录，可能与当前对话相关：\n\n${recallText}\n`);
-  }
-
-  if (guidance) {
-    parts.push(`## 交互引导\n\n${guidance}\n`);
-  }
-
-  if (parts.length === 0) return undefined;
-  return { appendSystemContext: parts.join("\n") };
+function buildRecallContext(results: SearchResult[]): { appendSystemContext: string } | undefined {
+  if (results.length === 0) return undefined;
+  const recallText = formatRecallText(results);
+  return {
+    appendSystemContext: `## 相关记忆\n\n以下内容来自你的对话历史记录，可能与当前对话相关：\n\n${recallText}\n`,
+  };
 }
 
 /** Build prependSystemContext for static system prompt rules (cached by provider) */
@@ -267,31 +258,16 @@ export function registerRecallHook(
       const cached = getCachedResults(cacheKey);
       if (cached) {
         api.logger.debug?.("[yaoyao-memory:recall] Cache hit");
-        // Compute guidance from persona state (always fresh)
-        let guidance = "";
-        if (personaState && personaState.getState().confidence > 0.3) {
-          try {
-            guidance = personaState.getGuidanceText();
-          } catch {
-            /* best effort */
-          }
-        }
         // Apply enhancements to cached results
         const decayed = applyTimeDecay(cached);
         const deduped = applyDiversitySampling(decayed);
         updateSessionContext(sessionKey, keywords);
-        return buildHookResult(buildRecallContext(deduped, guidance), config);
+        return buildHookResult(buildRecallContext(deduped), config);
       }
 
-      // Build guidance text from persona state (best-effort, never blocks)
-      let guidance = "";
-      if (personaState && personaState.getState().confidence > 0.3) {
-        try {
-          guidance = personaState.getGuidanceText();
-        } catch {
-          /* best effort */
-        }
-      }
+      // v3: Removed real-time persona guidance injection.
+      // Psychological state is now observation-only; persona decisions belong to the character layer.
+      // See PersonaStateMachine v3 changelog for rationale.
 
       // Hybrid search: FTS5 + optional vector
       if (embedding) {
@@ -307,7 +283,7 @@ export function registerRecallHook(
             const decayed = applyTimeDecay(results);
             const deduped = applyDiversitySampling(decayed);
             updateSessionContext(sessionKey, keywords);
-            return buildHookResult(buildRecallContext(deduped, guidance), config);
+            return buildHookResult(buildRecallContext(deduped), config);
           }
         } catch (vecErr: any) {
           api.logger.debug?.(`[yaoyao-memory:recall] Vector search failed: ${vecErr.message}, falling back to FTS5`);
@@ -328,7 +304,7 @@ export function registerRecallHook(
       const decayed = applyTimeDecay(results);
       const deduped = applyDiversitySampling(decayed);
       updateSessionContext(sessionKey, keywords);
-      return buildHookResult(buildRecallContext(deduped, guidance), config);
+      return buildHookResult(buildRecallContext(deduped), config);
     } catch (err) {
       api.logger.error(`[yaoyao-memory:recall] Error: ${err instanceof Error ? err.message : String(err)}`);
     }

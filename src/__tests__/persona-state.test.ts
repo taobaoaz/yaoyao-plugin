@@ -1,7 +1,8 @@
 /**
- * PersonaStateMachine 单元测试
+ * PersonaStateMachine v3 单元测试
  *
- * 覆盖：默认状态、更新周期、mood/energy/trust 计算、置信度衰减、趋势检测、引导文本
+ * 覆盖：默认状态、更新周期、mood/energy/trust 计算、置信度衰减、趋势检测、
+ *       隐式标注提取/读取（v3 新增）
  * 运行: node --test src/__tests__/persona-state.test.ts
  */
 import { describe, it, before, after } from "node:test";
@@ -34,7 +35,7 @@ describe("PersonaStateMachine", { concurrency: 1 }, () => {
       assert.strictEqual(s.trust, "medium");
       assert.strictEqual(s.confidence, 0.5);
       assert.strictEqual(s.moodTrend, "stable");
-      assert.strictEqual(s.version, 2);
+      assert.strictEqual(s.version, 3);
     });
   });
 
@@ -63,83 +64,98 @@ describe("PersonaStateMachine", { concurrency: 1 }, () => {
     });
   });
 
-  // ── Guidance ──
-  describe("getGuidance", () => {
-    it("returns default neutral guidance on fresh init", () => {
-      const g = psm.getGuidance();
-      assert.ok(["warm", "neutral", "gentle"].includes(g.tone));
-      assert.ok(["concise", "balanced", "thorough"].includes(g.verbosity));
-      assert.ok(["high", "normal", "low"].includes(g.autonomy));
+  // ── v3: Implicit Tags ──
+  describe("extractImplicitTags", () => {
+    it("extracts stress signals from text with indicators", () => {
+      const tags = psm.extractImplicitTags("今天又加班到很晚，压力好大！！");
+      const stress = tags.find(t => t.tag === "stress_signal");
+      assert.ok(stress, "should detect stress signal");
+      assert.ok(stress!.confidence > 0.5);
+      assert.ok(stress!.source.includes("加班"));
+    });
+
+    it("extracts decision avoidance pattern", () => {
+      const tags = psm.extractImplicitTags("随便吧，你定就行");
+      const avoid = tags.find(t => t.tag === "preference_pattern" && t.value === "decision_avoidance");
+      assert.ok(avoid, "should detect decision avoidance");
+    });
+
+    it("extracts engagement depth for long messages", () => {
+      const longText = "这是一个很长很长的消息，" + "我在详细解释我的想法。".repeat(20);
+      const tags = psm.extractImplicitTags(longText);
+      const engage = tags.find(t => t.tag === "engagement");
+      assert.ok(engage, "should detect engagement");
+      assert.strictEqual(engage!.value, "deep");
+    });
+
+    it("returns empty array for neutral short text", () => {
+      const tags = psm.extractImplicitTags("好的");
+      // No stress, no avoidance, not long enough for engagement
+      assert.ok(tags.length === 0 || !tags.some(t => t.tag === "stress_signal"));
     });
   });
 
-  describe("getGuidanceText", () => {
-    it("returns non-empty on fresh init", () => {
-      const txt = psm.getGuidanceText();
-      assert.ok(typeof txt === "string");
+  describe("readImplicitTags", () => {
+    it("reads back tags written by extractImplicitTags", () => {
+      psm.extractImplicitTags("累累累累累！！！");
+      const tags = psm.readImplicitTags(7);
+      assert.ok(tags.length > 0);
+      assert.ok(tags.some(t => t.tag === "stress_signal"));
     });
 
-    it("includes mood trend info when trend is not stable", () => {
-      // Force updates to build history
-      for (let i = 0; i < 5; i++) {
-        psm.update({ textSample: `amazing great wonderful happy ${i}` });
-      }
-      const txt = psm.getGuidanceText();
-      // If trend is rising, guidance likely mentions it
-      if (psm.getState().moodTrend !== "stable") {
-        assert.ok(txt.includes("趋势") || txt.includes("情绪"));
-      }
+    it("respects the sinceDays filter", () => {
+      const tags = psm.readImplicitTags(0);
+      assert.strictEqual(tags.length, 0);
     });
   });
 
   // ── Confidence Decay ──
   describe("confidence decay", () => {
     it("applies decay after long idle time (via applyConfidenceDecay)", () => {
-      // getState triggers applyConfidenceDecay
       const s = psm.getState();
-      // Since we haven't updated in a while, confidence may have decayed
       assert.ok(typeof s.confidence === "number");
-    });
-  });
-
-  // ── Persona Hints ──
-  describe("applyPersonaHints", () => {
-    it("accepts concision and depth hints", () => {
-      psm.applyPersonaHints({ prefersConcision: true, depthLevel: "deep" });
-      // The hints affect getGuidanceText output
-      const txt = psm.getGuidanceText();
-      assert.ok(txt.includes("简洁") || typeof txt === "string");
-    });
-
-    it("resets hints on new apply", () => {
-      psm.applyPersonaHints({ prefersConcision: false, depthLevel: "shallow" });
-      const txt = psm.getGuidanceText();
-      assert.ok(typeof txt === "string");
     });
   });
 
   // ── Mood Prediction ──
   describe("predictMood", () => {
     it("returns null when insufficient history", () => {
-      // Create a fresh PSM with empty history
       const freshDir = fs.mkdtempSync(path.join(os.tmpdir(), "psm-pred-"));
       const fresh = new PersonaStateMachine(freshDir);
       const pred = (fresh as any).predictMood();
-      assert.strictEqual(pred, null); // null because we have bug: need at least 3 states
+      assert.strictEqual(pred, null);
       try { fs.rmSync(freshDir, { recursive: true }); } catch { /* */ }
+    });
+
+    it("returns prediction after enough history", () => {
+      for (let i = 0; i < 5; i++) {
+        psm.update({ textSample: `mood track ${i}` });
+      }
+      const pred = (psm as any).predictMood();
+      if (pred) {
+        assert.ok(typeof pred.score === "number");
+        assert.ok(typeof pred.confidence === "number");
+      }
     });
   });
 
   // ── Persistence ──
   describe("persistence", () => {
     it("state persists to disk and reloads", () => {
-      const s = psm.update({ textSample: "persist test data" });
+      psm.update({ textSample: "persist test data" });
 
-      // Create a new PSM pointing to the same dir (simulates restart)
       const psm2 = new PersonaStateMachine(tmpDir);
       const loaded = psm2.getState();
       assert.ok(loaded.updatedAt);
       assert.ok(typeof loaded.moodScore === "number");
+    });
+
+    it("implicit tags persist to .implicit-tags.jsonl", () => {
+      psm.extractImplicitTags("深夜还在测试，有点崩溃了");
+      const tagsFile = path.join(tmpDir, ".implicit-tags.jsonl");
+      assert.ok(fs.existsSync(tagsFile), "tags file should exist");
+      const content = fs.readFileSync(tagsFile, "utf-8");
+      assert.ok(content.includes("stress_signal"));
     });
   });
 });

@@ -160,7 +160,7 @@ export default definePluginEntry({
     }
 
     // Register tools and capture count for banner
-    const toolCount = registerMemoryTools(api, store, db, feedbackTracker, embedding);
+    const toolCount = registerMemoryTools(api, store, db, feedbackTracker, embedding, psm);
 
     // 🎲 Yaoyao Memory 醒目启动横幅（注册完成后输出，动态工具数）
     const dirInfo = store.baseDir;

@@ -1,15 +1,15 @@
 /**
- * PersonaStateMachine v2 — AI 状态计算模块
+ * PersonaStateMachine v3 — AI 观察记录模块 (去干预化)
  *
- * 继承 v1 的核心原则（mood/energy/trust 是计算字段，不是感受）
- * 在此基础上增强：
- * - 历史追踪：保留趋势分析能力
- * - 置信度衰减：长时间无交互时逐渐降低置信度
- * - 自适应能量：基于消息长度、交互频率、时段计算真实 energy
- * - 平滑信任：指数移动平均取代原始比率
- * - 滚动情绪窗口：sentimentBuffer 真正投入使用
+ * 变更日志 (v3):
+ * - 删除 getGuidance() / getGuidanceText() — 不再替 AI 决定语气/篇幅/自主权
+ * - mood/energy/trust 保留为只读观察数据，不用于实时干预
+ * - 新增隐式标注接口：对话结束后自动标记 stress_signal / preference_pattern 等
+ * - 角色层的情感判断应基于记忆上下文 + 角色定义，而非本模块的数学模型
  *
- * ⚠️ 完全独立模块，所有 try-catch 兜底，失败不影响主流程。
+ * 职责边界：
+ * - 本模块 = 对话特征的被动记录者
+ * - 角色层 (SOUL.md + LLM) = 基于历史记忆主动理解用户的人
  */
 
 import fs from "node:fs";
@@ -41,9 +41,18 @@ export interface InteractionProfile {
   avgInterval: number;
 }
 
+export interface ImplicitTag {
+  tag: string;
+  value: string | number | boolean;
+  confidence: number;
+  source: string; // 触发文本片段
+  date: string;
+}
+
 const STATE_FILENAME = ".persona-state.json";
 const PROFILE_FILENAME = ".persona-interaction-profile.json";
-const CURRENT_VERSION = 2;
+const TAGS_FILENAME = ".implicit-tags.jsonl";
+const CURRENT_VERSION = 3;
 const WINDOW_SIZE = 30;
 const CONFIDENCE_HIGH = 1.0;
 const CONFIDENCE_LOW = 0.3;
@@ -64,9 +73,6 @@ export class PersonaStateMachine {
   private totalFailure: number = 0;
   private messageLengths: number[] = [];
   private interactionTimestamps: number[] = [];
-  /** L3-persona derived hints */
-  private userPrefersConcision: boolean | null = null;
-  private userDepthLevel: "shallow" | "medium" | "deep" | null = null;
 
   constructor(baseDir: string) {
     this.baseDir = baseDir;
@@ -76,6 +82,10 @@ export class PersonaStateMachine {
 
   // ── Public API ──
 
+  /**
+   * 获取当前观察状态（只读，不用于干预 AI 行为）
+   * 仅供工具查询、仪表盘展示、周度摘要提炼使用
+   */
   getState(): PersonaState {
     if (this.cache) {
       const decayed = this.applyConfidenceDecay(this.cache);
@@ -88,6 +98,10 @@ export class PersonaStateMachine {
     return this.cache;
   }
 
+  /**
+   * 记录一次对话交互的观察数据
+   * 不再生成 guidance，只做数据沉淀
+   */
   update(options: {
     textSample?: string;
     successCount?: number;
@@ -111,7 +125,7 @@ export class PersonaStateMachine {
     if (this.interactionTimestamps.length > 100) this.interactionTimestamps.shift();
     if (this.messageLengths.length > 100) this.messageLengths.shift();
 
-    // Compute mood from rolling sentiment window
+    // Compute mood from rolling sentiment window (只记数据，不干预)
     const mood = this.computeMood(sample);
 
     // Compute energy from actual interaction data
@@ -150,75 +164,85 @@ export class PersonaStateMachine {
     return state;
   }
 
-  getGuidance(): {
-    tone: "warm" | "neutral" | "gentle";
-    verbosity: "concise" | "balanced" | "thorough";
-    autonomy: "high" | "normal" | "low";
-  } {
-    const state = this.getState();
-    const tone = state.mood === "positive" ? "warm"
-      : state.mood === "negative" ? "gentle"
-      : "neutral";
-    const verbosity = state.energy === "high" ? "concise"
-      : state.energy === "low" ? "thorough"
-      : "balanced";
-    const autonomy = state.trust === "high" ? "high"
-      : state.trust === "low" ? "low"
-      : "normal";
-    return { tone, verbosity, autonomy };
+  /**
+   * 提取本次对话的隐式标注并追加到 tags 文件
+   * 这些标注不会被实时注入上下文，只供周度摘要 distill 时消费
+   */
+  extractImplicitTags(textSample: string): ImplicitTag[] {
+    const tags: ImplicitTag[] = [];
+    const date = new Date().toISOString().slice(0, 10);
+
+    // 压力信号检测
+    const stressIndicators = ["累", "烦", "压力", "加班", "不想", "受不了", "！！", "!!!", "焦虑", "崩溃"];
+    const stressMatches = stressIndicators.filter(w => textSample.includes(w));
+    if (stressMatches.length > 0) {
+      tags.push({
+        tag: "stress_signal",
+        value: stressMatches.join(", "),
+        confidence: Math.min(0.9, 0.5 + stressMatches.length * 0.1),
+        source: textSample.slice(0, 80),
+        date,
+      });
+    }
+
+    // 决策回避检测
+    if (/随便|都行|你定|无所谓|懒得|不想选/i.test(textSample)) {
+      tags.push({
+        tag: "preference_pattern",
+        value: "decision_avoidance",
+        confidence: 0.7,
+        source: textSample.slice(0, 80),
+        date,
+      });
+    }
+
+    // 深夜交互标记
+    const hour = new Date().getHours();
+    if (hour >= 0 && hour < 6) {
+      tags.push({
+        tag: "context",
+        value: "late_night_interaction",
+        confidence: 1.0,
+        source: textSample.slice(0, 80),
+        date,
+      });
+    }
+
+    // 兴趣强度：提到同一个话题的重复词
+    if (textSample.length > 50) {
+      tags.push({
+        tag: "engagement",
+        value: textSample.length > 200 ? "deep" : "normal",
+        confidence: 0.6,
+        source: textSample.slice(0, 80),
+        date,
+      });
+    }
+
+    this.appendTags(tags);
+    return tags;
   }
 
-  getGuidanceText(): string {
-    const state = this.getState();
-    const g = this.getGuidance();
-    const parts: string[] = [];
+  /**
+   * 读取所有隐式标注（供 distill 使用）
+   */
+  readImplicitTags(sinceDays: number = 7): ImplicitTag[] {
+    const fp = path.join(this.baseDir, TAGS_FILENAME);
+    if (!fs.existsSync(fp)) return [];
 
-    if (g.tone !== "neutral") {
-      parts.push(`语气: ${g.tone === "warm" ? "温馨友好" : "柔和体贴"}`);
-    }
-    if (g.verbosity === "concise") {
-      parts.push("回答: 精简高效");
-    } else if (g.verbosity === "thorough") {
-      parts.push("回答: 详细耐心");
-    }
-    if (state.moodTrend === "falling") {
-      parts.push("注意情绪有下行趋势，保持支持性语调");
-    } else if (state.moodTrend === "rising") {
-      parts.push("情绪趋势向好，可适度扩展话题");
-    }
-    if (g.autonomy === "high" && state.confidence > 0.6) {
-      parts.push("信任度较高，可主动推荐选项");
-    }
-    if (state.confidence < 0.4) {
-      parts.push("置信度较低，优先确认而非推断");
+    const cutoff = Date.now() - sinceDays * 86400000;
+    const lines = fs.readFileSync(fp, "utf-8").split("\n").filter(Boolean);
+    const tags: ImplicitTag[] = [];
+
+    for (const line of lines) {
+      try {
+        const tag = JSON.parse(line) as ImplicitTag;
+        const tagDate = new Date(tag.date + "T00:00:00").getTime();
+        if (tagDate >= cutoff) tags.push(tag);
+      } catch { /* skip malformed */ }
     }
 
-    // Persona hints
-    if (this.userPrefersConcision === true) {
-      parts.push("用户习惯简洁，优先提供结论");
-    }
-    if (this.userDepthLevel === "deep") {
-      parts.push("用户偏好深度内容，可展开技术细节");
-    } else if (this.userDepthLevel === "shallow") {
-      parts.push("用户偏好轻量回复，避免冗余信息");
-    }
-
-    // Mood prediction
-    const prediction = this.predictMood();
-    if (prediction && prediction.confidence > 0.6) {
-      const predLabel = prediction.score > 0.1 ? "偏积极"
-        : prediction.score < -0.1 ? "偏消极"
-        : "平稳";
-      parts.push(`预测下一轮情绪${predLabel}，可提前适配语气`);
-    }
-
-    return parts.length > 0 ? parts.join("；") : "";
-  }
-
-  /** Apply L3 persona hints to state */
-  applyPersonaHints(hints: { prefersConcision?: boolean; depthLevel?: "shallow" | "medium" | "deep" }): void {
-    if (hints.prefersConcision !== undefined) this.userPrefersConcision = hints.prefersConcision;
-    if (hints.depthLevel !== undefined) this.userDepthLevel = hints.depthLevel;
+    return tags;
   }
 
   /** Predict next mood score based on recent history (simple linear extrapolation) */
@@ -377,7 +401,10 @@ export class PersonaStateMachine {
       const fp = this.statePath();
       if (!fs.existsSync(fp)) return this.defaultState();
       const data = JSON.parse(fs.readFileSync(fp, "utf-8"));
-      if (data.version !== CURRENT_VERSION) throw new Error("Version mismatch");
+      if (data.version !== CURRENT_VERSION) {
+        // v2 → v3 迁移：保留数据，版本号升级
+        return { ...data, version: CURRENT_VERSION } as PersonaState;
+      }
       this.lastUpdateTime = new Date(data.updatedAt).getTime() || 0;
       return data as PersonaState;
     } catch {
@@ -429,6 +456,17 @@ export class PersonaStateMachine {
         moodHistory: this.moodHistory, stateHistory: this.stateHistory,
       };
       fs.writeFileSync(this.profilePath(), JSON.stringify(profile, null, 2), "utf-8");
+    } catch { /* best effort */ }
+  }
+
+  private appendTags(tags: ImplicitTag[]): void {
+    if (tags.length === 0) return;
+    try {
+      const fp = path.join(this.baseDir, TAGS_FILENAME);
+      const dir = path.dirname(fp);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const lines = tags.map(t => JSON.stringify(t)).join("\n") + "\n";
+      fs.appendFileSync(fp, lines, "utf-8");
     } catch { /* best effort */ }
   }
 

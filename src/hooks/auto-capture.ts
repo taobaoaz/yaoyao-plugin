@@ -87,16 +87,15 @@ export function registerCaptureHook(
       // Index in FTS5 for search (L1 index)
       db.indexTurn(userContent, asstContent, date);
 
-      // ── Update PersonaStateMachine (fire-and-forget, best-effort) ──
+      // ── v3: Implicit observation tagging (fire-and-forget) ──
+      // Replaces real-time mood/energy/trust state machine updates.
+      // Tags are stored silently for weekly distillation, not injected into live context.
       if (personaState) {
-        // Determine if this turn was "successful" (the assistant actually responded)
-        const success = asstContent.length > 10 && asstContent !== "(no response)";
-        personaState.update({
-          textSample: userContent,
-          successCount: success ? 1 : 0,
-          failCount: success ? 0 : 1,
-          intensity: 0.3, // default moderate intensity per turn
-        });
+        try {
+          personaState.extractImplicitTags(userContent);
+        } catch {
+          /* best effort */
+        }
       }
 
       api.logger.debug?.("[yaoyao-memory:capture] Captured turn to " + date);
