@@ -8,6 +8,9 @@
  * 1. Time decay scoring (30-day half-life)
  * 2. Diversity sampling (Jaccard dedup)
  * 3. Session context accumulation (cross-turn keyword carry-over)
+ *
+ * v1.5.0+: Removed L4 feedback tracking and persona state injection.
+ *          Feedback learning moved to yaoyao-soul.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
@@ -15,8 +18,6 @@ import type { DBBridge, SearchResult } from "../utils/db-bridge.js";
 import type { EmbeddingService } from "../utils/embedding.js";
 import { detectSentiment } from "../utils/sentiment.js";
 import { createSessionFilter } from "../utils/session-filter.js";
-import { PersonaStateMachine } from "../utils/persona-state.js";
-import type { FeedbackTracker } from "../learning/feedback-tracker.js";
 
 // ── Search result cache (30s TTL, prevents duplicate DB hits on repeated queries) ──
 const resultCache = new Map<string, { results: SearchResult[]; expires: number }>();
@@ -173,8 +174,6 @@ export function registerRecallHook(
   db: DBBridge,
   config: YaoyaoMemoryConfig,
   embedding?: EmbeddingService | null,
-  personaState?: PersonaStateMachine | null,
-  feedbackTracker?: FeedbackTracker | null,
 ) {
   api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})`);
 
@@ -184,24 +183,6 @@ export function registerRecallHook(
     blockInternal: true,
     minMessages: 1,
   });
-
-  // ── Correction detection patterns (simple keyword/pattern matching) ──
-  function detectCorrection(userMessage: string): { isCorrection: boolean; tag: string } | null {
-    const lower = userMessage.toLowerCase();
-    // Check for common correction patterns
-    const correctionPatterns: Array<{ patterns: string[]; tag: string }> = [
-      { patterns: ["不对", "不是", "错了", "不应该", "不是这样的"], tag: "memory" },
-      { patterns: ["不要说", "别这么说", "语气不对", "别用"], tag: "tone" },
-      { patterns: ["不相关", "没关系", "不是问这个"], tag: "relevance" },
-      { patterns: ["太啰嗦", "太简洁", "说详细点", "简短点"], tag: "timing" },
-    ];
-    for (const { patterns, tag } of correctionPatterns) {
-      if (patterns.some((p) => lower.includes(p))) {
-        return { isCorrection: true, tag };
-      }
-    }
-    return null;
-  }
 
   api.on("before_prompt_build", async (event, ctx) => {
     try {
@@ -217,24 +198,6 @@ export function registerRecallHook(
       const userMessage = e?.message || e?.prompt;
       if (!userMessage || typeof userMessage !== "string" || userMessage.trim().length < 3) {
         return;
-      }
-
-      // ── L4 Feedback: detect user corrections and record them ──
-      if (feedbackTracker && typeof userMessage === "string") {
-        try {
-          const correction = detectCorrection(userMessage);
-          if (correction) {
-            feedbackTracker.record({
-              type: "correction",
-              original: userMessage.slice(0, 200),
-              tag: correction.tag as any,
-              context: `session: ${sessionKey}`,
-            });
-            api.logger.info(`[yaoyao-memory:feedback] Recorded correction (tag: ${correction.tag})`);
-          }
-        } catch {
-          /* best effort */
-        }
       }
 
       // Extract keywords for FTS5 query
@@ -264,10 +227,6 @@ export function registerRecallHook(
         updateSessionContext(sessionKey, keywords);
         return buildHookResult(buildRecallContext(deduped), config);
       }
-
-      // v3: Removed real-time persona guidance injection.
-      // Psychological state is now observation-only; persona decisions belong to the character layer.
-      // See PersonaStateMachine v3 changelog for rationale.
 
       // Hybrid search: FTS5 + optional vector
       if (embedding) {

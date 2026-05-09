@@ -33,10 +33,7 @@ import type { EmbeddingConfig } from "./src/utils/embedding.js";
 import { registerMemoryTools } from "./src/tools/index.js";
 import { registerCaptureHook } from "./src/hooks/auto-capture.js";
 import { registerRecallHook } from "./src/hooks/auto-recall.js";
-import { registerPipelineManager } from "./src/hooks/pipeline-manager.js";
 import { createMemoryCleaner } from "./src/utils/memory-cleaner.js";
-import { PersonaStateMachine } from "./src/utils/persona-state.js";
-import { FeedbackTracker } from "./src/learning/feedback-tracker.js";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
@@ -140,27 +137,8 @@ export default definePluginEntry({
       api.logger.error?.("[yaoyao-memory] DB init failed, operating without persistent index");
     }
 
-    // ── PersonaStateMachine (optional state tracking, best-effort) ──
-    let psm: PersonaStateMachine | null = null;
-    try {
-      psm = new PersonaStateMachine(store.baseDir);
-      psm.getState(); // load existing state (creates default if none)
-      api.logger.info("[yaoyao-memory] PersonaStateMachine initialized");
-    } catch (err: any) {
-      api.logger.warn?.(`[yaoyao-memory] PersonaStateMachine skipped: ${err.message}`);
-    }
-
-    // ── FeedbackTracker (L4 feedback learning, best-effort) ──
-    let feedbackTracker: FeedbackTracker | null = null;
-    try {
-      feedbackTracker = new FeedbackTracker(store.baseDir);
-      api.logger.info("[yaoyao-memory] FeedbackTracker initialized (L4)");
-    } catch (err: any) {
-      api.logger.warn?.(`[yaoyao-memory] FeedbackTracker skipped: ${err.message}`);
-    }
-
     // Register tools and capture count for banner
-    const toolCount = registerMemoryTools(api, store, db, feedbackTracker, embedding, psm);
+    const toolCount = registerMemoryTools(api, store, db, null, embedding);
 
     // 🎲 Yaoyao Memory 醒目启动横幅（注册完成后输出，动态工具数）
     const dirInfo = store.baseDir;
@@ -179,21 +157,19 @@ export default definePluginEntry({
     }
     console.log("  " + banner.join("\n  "));
 
-    // Auto-capture: after each agent turn, write to daily log + FTS5 index + update state
+    // Auto-capture: after each agent turn, write to daily log + FTS5 index
     if (config.capture?.enabled !== false) {
-      registerCaptureHook(api, store, db, config, psm);
+      registerCaptureHook(api, store, db, config);
     }
 
-    // Auto-recall: before building prompt, search FTS5 + optional vectors + persona guidance
+    // Auto-recall: before building prompt, search FTS5 + optional vectors
     if (config.recall?.enabled !== false) {
-      registerRecallHook(api, db, config, embedding, psm, feedbackTracker);
+      registerRecallHook(api, db, config, embedding);
     }
 
     // L1→L2→L3 pipeline (LLM extraction, scene grouping, persona)
-    // Registered on same agent_end as capture, but throttled internally
-    if (config.llm?.enabled !== false && llm) {
-      registerPipelineManager(api, store, db, llm, config, embedding);
-    }
+    // v1.5.0: Pipeline moved to yaoyao-soul. Plugin now purely stores and indexes.
+    api.logger.info("[yaoyao-memory] L1/L2/L3 pipeline disabled — install yaoyao-soul for LLM-driven extraction");
 
     // ── Memory Cleaner (scheduled cleanup of old daily logs) ──
     let cleanerTimer: ReturnType<typeof setInterval> | null = null;

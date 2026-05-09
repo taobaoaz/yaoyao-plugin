@@ -4,12 +4,14 @@
  *
  * Uses api.on("agent_end", ...) to log each agent turn to the daily log.
  * Handles both string and structured content formats.
+ *
+ * v1.5.0+: Removed psychological state tracking (moved to yaoyao-soul).
+ *          Plugin now purely captures and indexes, without implicit tagging.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
 import type { DBBridge } from "../utils/db-bridge.js";
 import { createSessionFilter } from "../utils/session-filter.js";
-import { PersonaStateMachine } from "../utils/persona-state.js";
 
 /** Safely extract text content from a message, handling string/array/object formats */
 function extractContent(msg: unknown, maxLen: number): string {
@@ -41,7 +43,6 @@ export function registerCaptureHook(
   store: MemoryStore,
   db: DBBridge,
   config: YaoyaoMemoryConfig,
-  personaState?: PersonaStateMachine | null
 ) {
   api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
 
@@ -87,16 +88,8 @@ export function registerCaptureHook(
       // Index in FTS5 for search (L1 index)
       db.indexTurn(userContent, asstContent, date);
 
-      // ── v3: Implicit observation tagging (fire-and-forget) ──
-      // Replaces real-time mood/energy/trust state machine updates.
-      // Tags are stored silently for weekly distillation, not injected into live context.
-      if (personaState) {
-        try {
-          personaState.extractImplicitTags(userContent);
-        } catch {
-          /* best effort */
-        }
-      }
+      // NOTE: Implicit observation tagging removed in v1.5.0.
+      // If you want silent pattern extraction, install yaoyao-soul alongside this plugin.
 
       api.logger.debug?.("[yaoyao-memory:capture] Captured turn to " + date);
     } catch (err) {
