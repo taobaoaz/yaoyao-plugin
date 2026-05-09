@@ -89,7 +89,58 @@ export default definePluginEntry({
       }
     } catch { /* best effort */ }
 
-    // 🗑️ 自动检测并清理旧 yaoyao-memory skill 目录（supersedes 继承）
+    // ── v1.5.0 Migration Detection: detect legacy soul-layer traces ──
+    const legacyTraces: string[] = [];
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const workspaceDir = api.baseDir || ".";
+
+    // Check for old config keys
+    if ((config as Record<string, unknown>).psychology === true) legacyTraces.push("config.psychology=true");
+    if ((config as Record<string, unknown>).intervention === true) legacyTraces.push("config.intervention=true");
+    if ((config as Record<string, unknown>).moodTracking === true) legacyTraces.push("config.moodTracking=true");
+
+    // Check for legacy data files that v1.4.x would have created
+    const legacyFiles = [
+      path.join(workspaceDir, ".persona-state.json"),
+      path.join(workspaceDir, "memory", ".persona-state.json"),
+    ];
+    for (const f of legacyFiles) {
+      if (fs.existsSync(f)) legacyTraces.push(`legacy file: ${path.basename(f)}`);
+    }
+
+    if (legacyTraces.length > 0) {
+      const banner = [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "  ⚠️  检测到从 v1.4.x 升级的痕迹",
+        "",
+        "  摇摇记忆插件已升级到 v1.5.0+，架构已拆分：",
+        "",
+        "  • 情绪分析 (memory_mood)        → 已移至 yaoyao-soul",
+        "  • 画像生成 (persona-generator)   → 已移至 yaoyao-soul",
+        "  • 反馈学习 (feedback-tracker)    → 已移至 yaoyao-soul",
+        "  • LLM 提取管线 (L1→L2→L3)      → 已移至 yaoyao-soul",
+        "",
+        "  ✅ 你的数据完全安全：",
+        "     memory/*.md、.yaoyao.db、persona.md 均不受影响",
+        "",
+        "  📦 如需恢复这些功能，请安装 yaoyao-soul：",
+        "     cd ~/.openclaw/plugins",
+        "     git clone https://github.com/taobaoaz/yaoyao-soul.git",
+        "",
+        "  📖 完整迁移指南：",
+        "     https://github.com/taobaoaz/yaoyao-plugin/blob/main/MIGRATION.md",
+        "",
+        `  检测到的旧版痕迹: ${legacyTraces.join(", ")}`,
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        "",
+      ];
+      for (const line of banner) {
+        api.logger.warn?.(`[yaoyao-memory:migration] ${line}`);
+      }
+      console.log(banner.join("\n"));
+    }
     const oldSkillDirs = [
       require("node:path").join(api.baseDir || ".", "skills/yaoyao-memory"),
       require("node:path").join(api.baseDir || ".", "skills/yaoyao-memory-v2"),
@@ -148,7 +199,7 @@ export default definePluginEntry({
       "🎲 ══════════════════════════════════════════",
       "🎲    摇摇 · 记忆引擎已启动",
       `🎲    ${verStr}  ·  ${toolStr}  ·  3 Hooks`,
-      "🎲    FTS5 + sqlite-vec + 情感分析 + 时间线 + 云备份",
+      "🎲    FTS5 + sqlite-vec + 时间线 + 云备份",
       `🎲    记忆目录: ${dirInfo}`,
       "🎲 ══════════════════════════════════════════",
     ];
