@@ -443,7 +443,9 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       try {
         const vecRow = d.prepare("SELECT COUNT(*) as c FROM memory_vec").get() as { c: number } | undefined;
         vecCount = vecRow?.c ?? 0;
-        dimensions = 1024;
+        // Try to read actual dimensions from vec_meta; fallback to config or 1024
+        const actualDim = d.prepare("SELECT dimensions FROM memory_vec_meta LIMIT 1").get() as { dimensions: number } | undefined;
+        dimensions = actualDim?.dimensions ?? config.embedding?.dimensions ?? 1024;
       } catch {
         // vec table may not exist
       }

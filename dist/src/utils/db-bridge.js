@@ -597,7 +597,9 @@ export function createDB(config, logger) {
             try {
                 const vecRow = d.prepare("SELECT COUNT(*) as c FROM memory_vec").get();
                 vecCount = vecRow?.c ?? 0;
-                dimensions = 1024;
+                // Try to read actual dimensions from vec_meta; fallback to config or 1024
+                const actualDim = d.prepare("SELECT dimensions FROM memory_vec_meta LIMIT 1").get();
+                dimensions = (actualDim && actualDim.dimensions) || (config.embedding && config.embedding.dimensions) || 1024;
             }
             catch {
                 // vec table may not exist
