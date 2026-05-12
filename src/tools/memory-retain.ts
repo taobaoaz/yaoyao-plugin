@@ -357,7 +357,7 @@ async function handleImportant(
     `**标记时间**: ${tag.taggedAt}`,
     "",
     "该记忆在 check 中将获得特别标注。",
-    "建议随后使用 memory_retain(action:boost, keyword: "...") 强化。",
+    "建议随后使用 memory_retain(action:boost, keyword: ...) 强化.",
   ].filter(Boolean) as string[];
 
   return { content: [{ type: "text", text: lines.join("\n") }] };

@@ -100,7 +100,7 @@ export default definePluginEntry({
     const workspaceDir = api.baseDir || ".";
 
     // Check for old config keys
-    if ((config as Record<string, unknown>).psychology === true) legacyTraces.push("config.psychology=true");
+    if ((config as unknown as Record<string, unknown>).psychology === true) legacyTraces.push("config.psychology=true");
     if ((config as Record<string, unknown>).intervention === true) legacyTraces.push("config.intervention=true");
     if ((config as Record<string, unknown>).moodTracking === true) legacyTraces.push("config.moodTracking=true");
 
@@ -254,7 +254,7 @@ export default definePluginEntry({
     }
 
     // Register tools and capture count for banner
-    const toolCount = registerMemoryTools(api, store, db, null, embedding);
+    const toolCount = registerMemoryTools(api, store, db, embedding);
 
     // 🎲 Yaoyao Memory 醒目启动横幅（注册完成后输出，动态工具数）
     const dirInfo = store.baseDir;

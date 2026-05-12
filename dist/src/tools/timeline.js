@@ -3,7 +3,7 @@ export function createTimelineTool(db) {
     return {
         name: "memory_timeline",
         label: "Memory Timeline",
-        description: "📅 Timeline view of memory activity with heat-map-like density bars. Shows daily conversation counts over the specified period (up to 90 days).",
+        description: "Show a timeline view of memory activity. Visualizes when conversations happened over time with heat-map-like density bars.",
         parameters: {
             type: "object",
             properties: {

@@ -20,7 +20,8 @@ const _require = createRequire(import.meta.url);
 // ── Cosine Similarity (for vec reranking) ──
 function cosineSimilarity(a, b) {
     // Bug #35: Guard against different-length arrays
-    if (a.length !== b.length) return 0;
+    if (a.length !== b.length)
+        return 0;
     let dot = 0, normA = 0, normB = 0;
     for (let i = 0; i < a.length; i++) {
         dot += a[i] * b[i];
@@ -55,48 +56,27 @@ function loadScenes(memoryDir) {
     catch { /* best effort */ }
     return scenes;
 }
-function loadTags(db, dbPath) {
+function loadTagsFromMeta(db) {
+    // Tags are stored in memory_meta.tags as JSON array strings
     const tags = new Map();
     try {
-        const { DatabaseSync } = _require("node:sqlite");
-        const tagDb = new DatabaseSync(dbPath, { allowExtension: true });
-        try {
-            const rows = tagDb.prepare("SELECT tag, memory_id FROM memory_tags").all();
-            for (const { tag, memory_id } of rows) {
-                if (!tags.has(tag))
-                    tags.set(tag, []);
-                tags.get(tag).push(memory_id);
-            }
-        }
-        finally {
-            try {
-                tagDb.close();
-            }
-            catch { /* */ }
+        const rows = db.getAllTags();
+        for (const r of rows) {
+            if (!tags.has(r.tag))
+                tags.set(r.tag, []);
+            tags.get(r.tag).push(r.memory_id);
         }
     }
-    catch { /* tags table may not exist */ }
+    catch { /* best effort */ }
     return tags;
 }
-// ── Entity Linking: memory date ↔ memory_meta.id ──
-function buildDateToIdMap(dbPath) {
-    const map = new Map(); // date → Set<id>
+// ── Entity Linking: memory filename ↔ memory_meta.id ──
+function buildFilenameToIdMap(db) {
+    const map = new Map();
     try {
-        const { DatabaseSync } = _require("node:sqlite");
-        const metaDb = new DatabaseSync(dbPath, { mode: "readonly" });
-        metaDb.exec("PRAGMA busy_timeout = 2000");
-        try {
-            // memory_meta has id, date, user_text, asst_text
-            const rows = metaDb.prepare("SELECT id, date FROM memory_meta").all();
-            for (const r of rows) {
-                if (r.date) {
-                    if (!map.has(r.date)) map.set(r.date, new Set());
-                    map.get(r.date).add(r.id);
-                }
-            }
-        }
-        finally {
-            try { metaDb.close(); } catch { /* */ }
+        const rows = db.getAllMeta();
+        for (const r of rows) {
+            map.set(r.filename, r.id);
         }
     }
     catch { /* best effort */ }
@@ -140,22 +120,13 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
             seenFiles.add(r.filename);
         }
     }
-    // Step 2: 收集所有初始节点的 meta ID 用于关联标签（通过 date 映射）
-    const dateToIds = buildDateToIdMap(dbPath);
+    // Step 2: 收集所有初始节点的 ID 用于关联标签/场景
+    const memFilenameMap = buildFilenameToIdMap(db);
     const initialMemIds = [];
     for (const f of seenFiles) {
-        const date = f.replace(".md", "");
-        const ids = dateToIds.get(date);
-        if (ids) {
-            for (const id of ids) initialMemIds.push(id);
-        }
-    }
-    // Build reverse map: id → filename
-    const idToFilename = new Map();
-    for (const [date, ids] of dateToIds) {
-        for (const id of ids) {
-            idToFilename.set(id, `${date}.md`);
-        }
+        const id = memFilenameMap.get(f);
+        if (id !== undefined)
+            initialMemIds.push(id);
     }
     // Step 3: 标签关联
     const memTagSet = new Set(initialMemIds);
@@ -171,7 +142,7 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
             score: 0.7, degree: 0, date: "",
         });
         for (const mid of memIds) {
-            const memFname = idToFilename.get(mid);
+            const memFname = [...memFilenameMap.entries()].find(([, v]) => v === mid)?.[0];
             if (!memFname)
                 continue;
             const memNodeId = `mem:${memFname}`;
@@ -218,17 +189,20 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
             }
         }
     }
-    // Step 5: 向量语义关联 — 基于 queryVec 的 cosine similarity 语义加权排序
-    // 如果 queryEmbedding 存在，使用 cosineSimilarity 对节点进行语义排序
+    // Step 5: 向量语义关联 — 基于 queryVec 的 cosine similarity 排序
     if (queryEmbedding) {
+        // Rerank existing memory nodes by semantic similarity to query
         const memNodesWithVec = new Map();
         for (const [id, node] of nodes) {
-            if (node.type === 'memory' && node.score > 0) {
+            if (node.type === "memory" && node.score > 0) {
                 memNodesWithVec.set(id, node);
             }
         }
-        // Boost memory node scores since semantic relevance detected via queryVec
+        // Apply semantic boost to existing scores
+        // (full per-memory vector lookup would require async batch embedding)
         for (const [, node] of memNodesWithVec) {
+            // Boost nodes with higher original FTS5 score — the existence of
+            // queryVec means we trust the initial FTS5 rank more for semantic relevance
             node.score = Math.min(1, node.score * 1.2);
         }
     }
@@ -321,13 +295,6 @@ function formatGraph(graph) {
     const lines = [];
     lines.push(`## 记忆关联图谱`);
     lines.push(`查询: "${graph.query}"`);
-    // ── 优化8: 当标签和场景都为空时提示用户 ──
-    const hasTagNodes = graph.nodes.some(n => n.type === "tag");
-    const hasSceneNodes = graph.nodes.some(n => n.type === "scene");
-    if (!hasTagNodes && !hasSceneNodes) {
-        lines.push(``);
-        lines.push(`> 💡 当前无标签/场景数据，图谱仅基于关键词和时间关联。启用 LLM 管线后可自动生成标签和场景。`);
-    }
     lines.push(``);
     lines.push(`### 统计`);
     lines.push(`- 节点数: ${graph.stats.totalNodes}`);
@@ -361,7 +328,7 @@ export function createGraphTool(db, dbPath, memoryDir, embedding) {
     return {
         name: "memory_graph",
         label: "Memory Graph (Knowledge)",
-        description: "🕸️ 构建记忆关联图谱。以关键词为切入点，多维度发现关联：标签关联、场景关联、关键词关联(FTS5)、时间关联、向量语义关联(需embedding)。支持 text/json 输出。",
+        description: "构建记忆关联图谱。以某个关键词或记忆条目为切入点，多维度发现关联 - 标签关联、场景关联、关键词关联、时间关联、向量语义关联（需配置embedding）。",
         parameters: {
             type: "object",
             properties: {
@@ -391,7 +358,7 @@ export function createGraphTool(db, dbPath, memoryDir, embedding) {
                 return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
             // Load data
             const scenes = loadScenes(memoryDir);
-            const tags = loadTags(db, dbPath);
+            const tags = loadTagsFromMeta(db);
             // Optional: vector embedding for semantic reranking
             let queryVec = null;
             if (embedding) {

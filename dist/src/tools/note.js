@@ -3,7 +3,7 @@ export function createNoteTool(store, db) {
     return {
         name: "memory_note",
         label: "Memory Quick Note",
-        description: "🗒️ Quickly save a short note (max 500 chars) to today's memory. Lighter than memory_save — like a Post-it note. No tags, no date override — just fast capture.",
+        description: "Quickly save a short note to today's memory. Like sticking a Post-it note on your memory wall.",
         parameters: {
             type: "object",
             properties: {

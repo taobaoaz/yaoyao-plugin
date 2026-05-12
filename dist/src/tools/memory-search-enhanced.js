@@ -51,27 +51,21 @@ function extractKeywords(text) {
         "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
         "at", "by", "from", "as", "into", "not", "no", "yes",
     ]);
-    const base = words.filter(w => !stopwords.has(w) && w.length < 30);
-    // ── CJK bigram/trigram extraction ──
-    const cjkSequences = cleaned.match(/[\u4e00-\u9fff]{2,}/g) || [];
-    for (const seq of cjkSequences) {
-        if (seq.length >= 4) {
-            for (let i = 0; i + 1 < seq.length; i++) {
-                const bigram = seq.slice(i, i + 2);
-                if (!stopwords.has(bigram)) base.push(bigram);
-            }
-            for (let i = 0; i + 2 < seq.length; i++) {
-                const trigram = seq.slice(i, i + 3);
-                if (!stopwords.has(trigram)) base.push(trigram);
-            }
-        }
-        else if (seq.length >= 2) {
-            if (!stopwords.has(seq)) base.push(seq);
-        }
-    }
-    return [...new Set(base)];
+    return words.filter(w => !stopwords.has(w) && w.length < 30);
 }
-// cosineSimilarity removed — vector reranking now uses db.vectorSearch()
+/**
+ * Cosine similarity (for reranking)
+ */
+function cosineSimilarity(a, b) {
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+    }
+    const denom = Math.sqrt(normA) * Math.sqrt(normB);
+    return denom === 0 ? 0 : dot / denom;
+}
 /**
  * Format a single result row
  */
@@ -80,14 +74,10 @@ function formatResult(snippet, filename, score) {
     return `${mood.emoji} 【${filename}】(得分: ${score.toFixed(3)})\n${snippet}`;
 }
 export function createEnhancedSearchTool(db, embedding) {
-    const hasEmbedding = !!embedding;
-    const dynamicDesc = hasEmbedding
-        ? "🔍 语义搜索增强版。FTS5全文搜索 + 向量重排序，混合排序（FTS 0.6 + Vec 0.4）。支持中文、英文、混合查询。支持 text / json 输出格式。"
-        : "🔍 增强搜索。支持关键词高亮和结果多样化，基于 FTS5 全文搜索。无需向量配置。支持 text / json 输出格式。";
     return {
         name: "memory_search_enhanced",
         label: "Search (Rerank)",
-        description: dynamicDesc,
+        description: "语义搜索增强版。在全文搜索基础上支持向量重排序（需配置 embedding）和关键词高亮。支持 text / json 两种输出格式。",
         parameters: {
             type: "object",
             properties: {
@@ -128,45 +118,38 @@ export function createEnhancedSearchTool(db, embedding) {
             if (ftsResults.length === 0) {
                 return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
             }
-            // Step 2: 如果有 embedding → 向量重排序（用 db.vectorSearch 替代逐条 embed）
+            // Step 2: 如果有 embedding → 向量重排序
             if (embedding) {
                 try {
                     const queryVec = await embedding.embed(query);
-                    // 1 次 vectorSearch，不再对每个 snippet 逐条 embed
-                    const vecResults = (typeof db.vectorSearch === "function")
-                        ? db.vectorSearch(queryVec, ftsLimit)
-                        : [];
-                    // 合并 FTS + Vec 结果（去重 + 加权）
-                    const merged = new Map();
-                    for (const r of ftsResults) {
-                        const key = `${r.date}|${r.snippet.slice(0, 50)}`;
-                        merged.set(key, { ...r, vecScore: 0, hybridScore: r.score * 0.6 });
-                    }
-                    for (const r of vecResults) {
-                        const key = `${r.date}|${(r.snippet || "").slice(0, 50)}`;
-                        const vecS = r.vectorScore || r.score || 0;
-                        if (merged.has(key)) {
-                            const existing = merged.get(key);
-                            existing.vecScore = vecS;
-                            existing.hybridScore = (existing.score * 0.6) + (vecS * 0.4);
+                    // 为每个 FTS 结果计算向量相似度
+                    const reranked = await Promise.all(ftsResults.map(async (r) => {
+                        let vecScore = 0;
+                        try {
+                            // 用结果的 snippet 查询向量（需要 vectorSearch 支持）
+                            const resultVec = await embedding.embed(r.snippet.slice(0, 500));
+                            vecScore = cosineSimilarity(queryVec, resultVec);
                         }
-                        else {
-                            merged.set(key, { ...r, vecScore: vecS, hybridScore: vecS * 0.4 });
-                        }
-                    }
-                    const top = [...merged.values()].sort((a, b) => b.hybridScore - a.hybridScore).slice(0, limit);
+                        catch { /* best effort */ }
+                        // 混合评分：60% FTS5 + 40% 向量
+                        const hybridScore = (r.score * 0.6) + (vecScore * 0.4);
+                        return { ...r, vecScore, hybridScore };
+                    }));
+                    // 按混合分排序
+                    reranked.sort((a, b) => b.hybridScore - a.hybridScore);
+                    const top = reranked.slice(0, limit);
                     if (format === "json") {
                         const results = doHighlight
                             ? top.map(r => ({
                                 filename: r.filename,
-                                snippet: highlightKeywords(r.snippet || "", keywords),
+                                snippet: highlightKeywords(r.snippet, keywords),
                                 score: r.hybridScore,
                                 vecScore: r.vecScore,
                                 date: r.date,
                             }))
                             : top.map(r => ({
                                 filename: r.filename,
-                                snippet: r.snippet || "",
+                                snippet: r.snippet,
                                 score: r.hybridScore,
                                 vecScore: r.vecScore,
                                 date: r.date,
@@ -175,8 +158,8 @@ export function createEnhancedSearchTool(db, embedding) {
                     }
                     // Text format
                     const lines = top.map(r => {
-                        const snippet = doHighlight ? highlightKeywords(r.snippet || "", keywords) : (r.snippet || "");
-                        return formatResult(snippet, r.filename || "", r.hybridScore);
+                        const snippet = doHighlight ? highlightKeywords(r.snippet, keywords) : r.snippet;
+                        return formatResult(snippet, r.filename, r.hybridScore);
                     });
                     return { content: [{ type: "text", text: ["## 搜索结果（向量重排序）", `查询: ${query}`, "", ...lines].join("\n") }] };
                 }

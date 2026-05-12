@@ -12,7 +12,8 @@
     "outDir": "dist",
     "rootDir": ".",
     "declaration": false,
-    "noEmitOnError": false
+    "noEmitOnError": false,
+    "types": ["node"]
   },
   "include": [
     "index.ts",

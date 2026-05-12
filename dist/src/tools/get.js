@@ -1,11 +1,11 @@
-import fs from "node:fs";
 import * as path from "node:path";
+import fs from "node:fs";
 import { withErrorHandling } from "./common.js";
 export function createGetTool(store, _db) {
     return {
         name: "memory_get",
         label: "Yaoyao Memory Get",
-        description: "📖 Read a memory file by filename or date. Supports relative paths (e.g., '2026-05-02.md') and absolute paths. Use from/lines for partial reads.",
+        description: "Read a memory file by filename or date. Returns the full file contents.",
         parameters: {
             type: "object",
             properties: {
@@ -20,6 +20,7 @@ export function createGetTool(store, _db) {
             const resolved = rawPath.startsWith("/")
                 ? path.resolve(rawPath)
                 : path.resolve(store.baseDir, rawPath);
+            // Resolve symlinks first to prevent symlink bypass
             const realBase = fs.realpathSync(store.baseDir);
             const realResolved = fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
             if (!realResolved.startsWith(realBase)) {
