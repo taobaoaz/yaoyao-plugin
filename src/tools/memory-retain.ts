@@ -3,7 +3,7 @@
  *
  * Detects important but long-unrecalled memories, generates reinforcement suggestions.
  * Prevents key memory loss by tracking recall history and importance tags.
- * Zero external dependencies — uses only node:fs, node:path.
+ * Minimal external deps — only sqlite-vec (via npm); core logic uses node:fs, path.
  */
 import type { ToolRegistration } from "./common.js";
 import type { MemoryStore } from "../utils/memory-store.js";

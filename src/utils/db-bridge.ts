@@ -1,8 +1,7 @@
 /**
  * SQLite database layer — FTS5 + sqlite-vec vector search.
  *
- * Uses native Node 22 node:sqlite for zero-dependency SQLite access,
- * plus sqlite-vec extension (from openclaw workspace) for vector search.
+ * Uses native Node 22 node:sqlite + sqlite-vec npm package for vector search.
  *
  * Stores both FTS5 index and vector embeddings in a single .yaoyao.db file.
  */

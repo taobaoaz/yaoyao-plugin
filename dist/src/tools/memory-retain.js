@@ -3,7 +3,7 @@
  *
  * Detects important but long-unrecalled memories, generates reinforcement suggestions.
  * Prevents key memory loss by tracking recall history and importance tags.
- * Zero external dependencies — uses only node:fs, node:path.
+ * Minimal external deps — only sqlite-vec (via npm); core logic uses node:fs, path.
  */
 import { withErrorHandling } from "./common.js";
 import fsMod from "node:fs";

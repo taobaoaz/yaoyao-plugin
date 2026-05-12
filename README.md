@@ -167,7 +167,7 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 
 ## 测试
 
-**90+ 单元测试 · 全零依赖 · node:test 原生运行**
+**90+ 单元测试 · 全原生运行 · 仅 sqlite-vec（外部 npm 依赖）**
 
 覆盖 14 个测试模块：情感分析、存储读写、LLM 解析、session 过滤、FTS5/向量/混合搜索、PersonaStateMachine、FeedbackTracker、导入导出、标签、图谱、增强搜索等。
 

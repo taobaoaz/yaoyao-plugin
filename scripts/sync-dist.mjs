@@ -2,8 +2,9 @@
 /**
  * sync-dist.mjs — Sync TypeScript source to JavaScript dist (bypassing tsc type errors)
  *
- * Usage: node scripts/sync-dist.mjs [--check]
+ * Usage: node scripts/sync-dist.mjs [--check] [--force]
  * --check: Only check for differences, don't modify files
+ * --force: Re-write all dist files regardless of mtime
  *
  * Transformations:
  * 1. Remove type annotations (: Type, as Type)
@@ -26,6 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
 
 const checkOnly = process.argv.includes("--check");
+const force = process.argv.includes("--force");
 
 // ============================================================================
 // Transformations
@@ -74,7 +76,6 @@ function stripTypeAnnotations(line) {
     r = r.replace(/\s+as\s+[A-Za-z_]\w*(?:<[^>]*>)?(?:\[\])?(?:\s*[&|]\s*[A-Za-z_]\w*(?:<[^>]*>)?(?:\[\])?)*/g, "");
 
     // `as const`
-
     // `as "literal" | "literal"` string literal union types
     r = r.replace(/\s+as\s+"[^"]*"(?:\s*\|\s*"[^"]*")*/g, "");
     // `as const`
@@ -103,6 +104,9 @@ function stripTypeAnnotations(line) {
   // `): Type {` → `) {`, `): Type =>` → `) =>`
   // Match ONLY when `)` is NOT preceded by `?` (to avoid ternary confusion)
   // Use negative lookbehind for `?`: `(?<![?])`
+  // Handle complex types with nested angle brackets: `): Promise<{...}> {`
+  r = r.replace(/(?<![?])\)\s*:\s*[A-Za-z_]\w*<[^()]*>\s*(?=\{|=>)/g, ") ");
+  // Simpler return types: `): Type {`
   r = r.replace(/(?<![?])\)\s*:\s*(?![={=])(?:[A-Za-z_]\w*(?:\.\w+)?(?:\s*<[^>]*>)?(?:\[\])?(?:\s*[&|]\s*[A-Za-z_]\w*(?:\.\w+)?(?:\s*<[^>]*>)?(?:\[\])?)*)?\s*(?=\{|=>)/g, ") ");
 
     // ── Array/tuple type assertions: `as [Type1, Type2][]`
@@ -308,7 +312,7 @@ function processFile(relPath) {
     return { action: "missing", path: relPath };
   }
 
-  if (distExists) {
+  if (!force && distExists) {
     const distStat = statSync(distPath);
     if (distStat.mtimeMs >= srcStat.mtimeMs) {
       return { action: "skipped", path: relPath };

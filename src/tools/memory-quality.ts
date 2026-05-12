@@ -2,7 +2,7 @@
  * Memory Quality Assessment Tool
  *
  * Analyzes memory database health: coverage, dedup, freshness, index integrity.
- * Zero external dependencies — uses only node:fs, node:path, node:sqlite.
+ * Minimal external deps — only sqlite-vec (via npm); core logic uses node:fs, path, sqlite.
  */
 import type { ToolRegistration } from "./common.js";
 import type { MemoryStore } from "../utils/memory-store.js";

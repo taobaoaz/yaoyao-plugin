@@ -8,7 +8,7 @@
  * - Get a unified status dashboard
  * - Migrate/sync between backends
  *
- * Zero external dependencies. Read-only for non-yaoyao backends.
+ * Minimal external deps — only sqlite-vec (via npm); yaoyao backend uses node:sqlite.
  */
 
 import { withErrorHandling } from "./common.js";

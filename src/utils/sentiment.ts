@@ -2,7 +2,7 @@
  * Sentiment Analyzer v3 — Chinese/English sentiment detection with Ekman 6 basic emotions.
  *
  * Extends v2's positive/negative/neutral classification with fine-grained
- * emotion categories. Zero external dependencies.
+ * emotion categories. No external dependencies (pure JS logic).
  *
  * Ekman 6 basic emotions:
  * - joy      喜悦    — positive valence, high arousal
