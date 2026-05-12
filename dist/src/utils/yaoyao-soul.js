@@ -27,21 +27,10 @@
 
 const CURRENT_VERSION = 2;
 const SMOOTH_FACTOR = 0.15;
-const WINDOW_SIZE = 30;
 const CONFIDENCE_HIGH = 1.0;
 const CONFIDENCE_LOW = 0.3;
-const DECAY_1H = 0.85;
-const DECAY_6H = 0.55;
 const EMA_ALPHA = 0.3;
 const NEGATION_PREFIXES = ["不", "没", "未", "别", "无", "莫"];
-
-const JOY_MARKERS = new Set([
-  "哈哈", "嘻嘻", "hhh", "haha", "lol", "lmao",
-  "😊", "😃", "😄", "🤣", "🥰", "😍", "🎉", "🥳",
-]);
-const SAD_MARKERS = new Set(["😢", "😭", "😥", "😰", "🥺", "😞", "😔"]);
-const ANGRY_MARKERS = new Set(["😠", "😡", "🤬", "💢"]);
-const SURPRISE_MARKERS = new Set(["😱", "😮", "😲", "🤯", "😳", "😨"]);
 
 // ──────────────────────────── Trie ────────────────────────────
 
@@ -185,6 +174,43 @@ function buildENSet() {
 const cnTrie = buildEmotionTrie();
 const enSet = buildENSet();
 
+// Extended emoji/emoticon matching
+const EMOJI_PATTERNS = [
+  { pattern: "哈哈", emotion: "joy", score: 3 },
+  { pattern: "嘻嘻", emotion: "joy", score: 3 },
+  { pattern: "hhh", emotion: "joy", score: 2 },
+  { pattern: "haha", emotion: "joy", score: 2 },
+  { pattern: "lol", emotion: "joy", score: 2 },
+  { pattern: "lmao", emotion: "joy", score: 3 },
+  { pattern: "😊", emotion: "joy", score: 2 },
+  { pattern: "😃", emotion: "joy", score: 2 },
+  { pattern: "😄", emotion: "joy", score: 2 },
+  { pattern: "🤣", emotion: "joy", score: 3 },
+  { pattern: "🥰", emotion: "joy", score: 3 },
+  { pattern: "😍", emotion: "joy", score: 3 },
+  { pattern: "🎉", emotion: "joy", score: 2 },
+  { pattern: "🥳", emotion: "joy", score: 3 },
+  { pattern: "😢", emotion: "sadness", score: 3 },
+  { pattern: "😭", emotion: "sadness", score: 3 },
+  { pattern: "😥", emotion: "sadness", score: 2 },
+  { pattern: "😰", emotion: "sadness", score: 2 },
+  { pattern: "🥺", emotion: "sadness", score: 2 },
+  { pattern: "😞", emotion: "sadness", score: 2 },
+  { pattern: "😔", emotion: "sadness", score: 2 },
+  { pattern: "😠", emotion: "anger", score: 3 },
+  { pattern: "😡", emotion: "anger", score: 3 },
+  { pattern: "🤬", emotion: "anger", score: 3 },
+  { pattern: "💢", emotion: "anger", score: 2 },
+  { pattern: "😱", emotion: "surprise", score: 3 },
+  { pattern: "😮", emotion: "surprise", score: 2 },
+  { pattern: "😲", emotion: "surprise", score: 2 },
+  { pattern: "🤯", emotion: "surprise", score: 3 },
+  { pattern: "😳", emotion: "surprise", score: 2 },
+  { pattern: "😨", emotion: "surprise", score: 2 },
+];
+
+const sortedEmojiPatterns = [...EMOJI_PATTERNS].sort(function(a, b) { return b.pattern.length - a.pattern.length; });
+
 // ──────────────────────────── Sentiment Engine ────────────────────────────
 
 /**
@@ -255,13 +281,13 @@ export function detectSentiment(text) {
     }
   }
 
-  // ── Emoji markers ──
-  for (let ci = 0; ci < text.length; ci++) {
-    const ch = text[ci];
-    if (JOY_MARKERS.has(ch)) emotionScores.joy += 2;
-    else if (SAD_MARKERS.has(ch)) emotionScores.sadness += 2;
-    else if (ANGRY_MARKERS.has(ch)) emotionScores.anger += 2;
-    else if (SURPRISE_MARKERS.has(ch)) emotionScores.surprise += 2;
+  // ── Emoji / emoticon markers (multi-char aware) ──
+  const textSet = new Set(text);
+  for (let pi = 0; pi < sortedEmojiPatterns.length; pi++) {
+    const p = sortedEmojiPatterns[pi];
+    if (textSet.has(p.pattern[0]) && text.includes(p.pattern)) {
+      emotionScores[p.emotion] += p.score;
+    }
   }
 
   // ── Aggregate to positive/negative ──
@@ -605,11 +631,20 @@ export class YaoyaoSoul {
   computeEnergy(intensity, msgLen) {
     const isShort = msgLen > 0 && msgLen < 20;
     const isLong = msgLen > 100;
-    if (isShort && intensity > 0.6) return "low";
+    const isVeryLong = msgLen > 300;
+
+    // Long/deep messages indicate focused engagement → medium-low energy
+    if (isVeryLong) return "low";
+    if (isLong) return "medium";
+
+    // Short messages: if very frequent (high intensity) = scrolling/low energy
+    // If infrequent short = quick replies/high energy
+    if (isShort && intensity > 0.7) return "low";
     if (isShort) return "high";
-    if (isLong) return "low";
+
+    // Medium-length messages: use intensity
+    if (intensity > 0.7) return "low";
     if (intensity < 0.3) return "high";
-    if (intensity > 0.6) return "low";
     return "medium";
   }
 
@@ -692,13 +727,10 @@ export class YaoyaoSoul {
     const idleMs = Date.now() - this.lastUpdateTime;
     if (idleMs < 3600000) return state;
 
-    let factor = 1;
-    if (idleMs >= 21600000) {
-      factor = DECAY_6H;
-    } else if (idleMs >= 3600000) {
-      factor = DECAY_1H;
-    }
-    if (factor >= 1) return state;
+    // Cascading decay: each hour reduces confidence by a factor
+    const idleHours = idleMs / 3600000;
+    const hourlyDecay = 0.85;
+    const factor = Math.pow(hourlyDecay, Math.min(idleHours, 24));
 
     const newConfidence = Math.max(CONFIDENCE_LOW, state.confidence * factor);
     if (newConfidence >= state.confidence) return state;
