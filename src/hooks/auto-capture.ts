@@ -85,13 +85,18 @@ export function registerCaptureHook(
       // Skip trivial entries (e.g., heartbeat, empty responses)
       if (userContent.length < 3) return;
 
+      // Bug #12: Skip indexing if assistant content is empty or "(no response)"
+      const indexableAsst = (!asstContent || asstContent === "(no response)")
+        ? "[空内容]"
+        : asstContent;
+
       // Write to daily Markdown log (L0)
       const entry = `\n### ${timestamp}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
 
       // Issue #12: Make file append and DB index atomic — if index fails, undo file append
       try {
         store.appendToDaily(date, entry);
-        db.indexTurn(userContent, asstContent, date);
+        db.indexTurn(userContent, indexableAsst, date);
       } catch (indexErr) {
         // indexTurn failed; undo the file append by removing the last line we just added
         try {

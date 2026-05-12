@@ -71,24 +71,33 @@ export class LLMClient {
         if (options?.json) {
             body.response_format = { type: "json_object" };
         }
-        const res = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${this.config.apiKey}`,
-            },
-            body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-            const text = await res.text().catch(() => "unknown");
-            throw new Error(`LLM API error ${res.status}: ${text.slice(0, 200)}`);
+        // Add AbortController timeout to prevent hung requests
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${this.config.apiKey}`,
+                },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+            });
+            if (!res.ok) {
+                const text = await res.text().catch(() => "unknown");
+                throw new Error(`LLM API error ${res.status}: ${text.slice(0, 200)}`);
+            }
+            const data = await res.json();
+            return {
+                content: data.choices?.[0]?.message?.content || "",
+                model: data.model || this.config.model,
+                usage: data.usage || { prompt: 0, completion: 0, total: 0 },
+            };
         }
-        const data = await res.json();
-        return {
-            content: data.choices?.[0]?.message?.content || "",
-            model: data.model || this.config.model,
-            usage: data.usage || { prompt: 0, completion: 0, total: 0 },
-        };
+        finally {
+            clearTimeout(timeout);
+        }
     }
     async extract(systemPrompt, userPrompt) {
         const res = await this.chat([

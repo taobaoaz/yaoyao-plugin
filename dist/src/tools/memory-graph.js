@@ -19,6 +19,8 @@ import { createRequire } from "node:module";
 const _require = createRequire(import.meta.url);
 // ── Cosine Similarity (for vec reranking) ──
 function cosineSimilarity(a, b) {
+    // Bug #35: Guard against different-length arrays
+    if (a.length !== b.length) return 0;
     let dot = 0, normA = 0, normB = 0;
     for (let i = 0; i < a.length; i++) {
         dot += a[i] * b[i];

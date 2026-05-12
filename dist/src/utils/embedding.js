@@ -27,8 +27,8 @@ export function createEmbeddingService(config) {
                 const isLast = attempt === retries;
                 if (isLast)
                     throw err;
-                // Only retry on network errors/timeouts, not 4xx (which throw from embed/embedBatch)
-                if (err instanceof DOMException && err.name === "AbortError") {
+                // Retry on all network errors (timeout, ECONNREFUSED, ETIMEDOUT, system errors)
+                if (err.name === "AbortError" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.type === "system") {
                     await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // backoff: 1s, 2s
                     continue;
                 }
@@ -52,7 +52,7 @@ export function createEmbeddingService(config) {
                 "Authorization": `Bearer ${config.apiKey}`,
             },
             body: JSON.stringify({
-                input: text.slice(0, 8000), // Trim to avoid token limit
+                input: text.slice(0, 4000), // Trim to avoid token limit (conservative char-based, not token)
                 model: config.model,
             }),
         });
@@ -73,7 +73,7 @@ export function createEmbeddingService(config) {
     async function embedBatch(texts) {
         const path = baseUrl.endsWith("/v1") ? "" : "/v1";
         const url = `${baseUrl}${path}/embeddings`;
-        const inputs = texts.map(t => t.slice(0, 8000));
+        const inputs = texts.map(t => t.slice(0, 4000)); // Conservative char-based truncation (not token)
         const res = await fetchWithRetry(url, {
             method: "POST",
             headers: {

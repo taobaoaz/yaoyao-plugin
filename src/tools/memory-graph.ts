@@ -65,6 +65,8 @@ type TagMap = Map<string, number[]>; // tag → memory_ids[]
 // ── Cosine Similarity (for vec reranking) ──
 
 function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+  // Bug #35: Guard against different-length arrays
+  if (a.length !== b.length) return 0;
   let dot = 0, normA = 0, normB = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];

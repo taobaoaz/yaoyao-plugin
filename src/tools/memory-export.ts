@@ -11,13 +11,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { MemoryStore } from "../utils/memory-store.js";
+import type { DBBridge } from "../utils/db-bridge.js";
 import { withErrorHandling } from "./common.js";
 import type { ToolRegistration } from "./common.js";
 
 const _require = createRequire(import.meta.url);
 const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite");
 
-export function createExportTool(store: MemoryStore): ToolRegistration {
+export function createExportTool(store: MemoryStore, dbBridge?: DBBridge): ToolRegistration {
   return {
     name: "memory_export",
     label: "Export Memories",
@@ -58,8 +59,9 @@ export function createExportTool(store: MemoryStore): ToolRegistration {
         return { content: [{ type: "text", text: "数据库中暂无记忆，无法导出。" }] };
       }
 
-      // 以只读模式打开 DB
-      const db = new DatabaseSync(dbPath, { allowExtension: true });
+      // 复用 DBBridge 连接
+      const rawDb = dbBridge ? dbBridge.getRawDb() : new DatabaseSync(dbPath, { allowExtension: true });
+      const ownConnection = !dbBridge;
       try {
         // 构建查询
         const conditions: string[] = [];
@@ -69,7 +71,7 @@ export function createExportTool(store: MemoryStore): ToolRegistration {
         if (dateTo) { conditions.push("date <= ?"); bindParams.push(dateTo); }
 
         const whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
-        const stmt = db.prepare(
+        const stmt = rawDb.prepare(
           `SELECT date, user_text, asst_text, created_at FROM memory_meta ${whereClause} ORDER BY date DESC, id DESC LIMIT ?`
         );
         const rows = stmt.all(...bindParams, limit) as Array<Record<string, unknown>>;
@@ -112,7 +114,9 @@ export function createExportTool(store: MemoryStore): ToolRegistration {
 
         return { content: [{ type: "text", text: parts.join("\n") }] };
       } finally {
-        try { db.close(); } catch { /* ignore */ }
+        if (ownConnection) {
+          try { rawDb.close(); } catch { /* ignore */ }
+        }
       }
     }),
   };

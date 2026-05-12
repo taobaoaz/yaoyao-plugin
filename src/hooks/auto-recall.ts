@@ -24,7 +24,18 @@ const resultCache = new Map<string, { results: SearchResult[]; expires: number }
 const CACHE_TTL_MS = 30 * 1000;
 const MAX_CACHE_SIZE = 50;
 
+/** Periodic expired-entry cleanup counter */
+let cacheAccessCount = 0;
+
 function getCachedResults(key: string): SearchResult[] | null {
+  cacheAccessCount++;
+  // Periodic expired-entry cleanup (every 100 accesses)
+  if (cacheAccessCount % 100 === 0) {
+    const now = Date.now();
+    for (const [k, v] of resultCache) {
+      if (v.expires < now) resultCache.delete(k);
+    }
+  }
   const cached = resultCache.get(key);
   if (cached && cached.expires > Date.now()) return cached.results;
   resultCache.delete(key);
@@ -87,7 +98,9 @@ function applyTimeDecay(results: SearchResult[]): SearchResult[] {
   return results
     .map((r, i) => {
       let daysAgo = 365;
-      const dateMatch = r.filename.match(/(\d{4}-\d{2}-\d{2})/);
+      // Use r.date first (from the search result), fall back to filename parsing
+      const dateStr = r.date || r.filename?.replace(".md", "") || "";
+      const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);
       if (dateMatch) {
         const dateObj = new Date(dateMatch[1] + "T00:00:00");
         if (!isNaN(dateObj.getTime())) {

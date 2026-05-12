@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { DBBridge } from "../utils/db-bridge.js";
+import type { DatabaseSync } from "node:sqlite";
 import { withErrorHandling } from "./common.js";
 import type { ToolRegistration } from "./common.js";
 
@@ -63,7 +64,8 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
 
       if (!context) {
         // 无上下文时：推荐近期记忆（按日期降序）
-        const stmt = db.prepare(
+        const rawDb: DatabaseSync = db.getRawDb();
+        const stmt = rawDb.prepare(
           "SELECT date, user_text, asst_text FROM memory_meta ORDER BY date DESC LIMIT ?"
         );
         const recent = stmt.all(limit) as Array<{ date: string; user_text: string; asst_text: string }>;
@@ -81,7 +83,8 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
       const rawResults = db.search(context, Math.min(limit * 3, 30));
       if (rawResults.length === 0) {
         // 降级到 LIKE
-        const likeStmt = db.prepare(
+        const rawDb: DatabaseSync = db.getRawDb();
+        const likeStmt = rawDb.prepare(
           "SELECT date, user_text, asst_text FROM memory_meta " +
           "WHERE user_text LIKE ? OR asst_text LIKE ? ORDER BY date DESC LIMIT ?"
         );

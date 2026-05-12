@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import * as path from "node:path";
 import { withErrorHandling } from "./common.js";
 export function createGetTool(store, _db) {
@@ -19,7 +20,9 @@ export function createGetTool(store, _db) {
             const resolved = rawPath.startsWith("/")
                 ? path.resolve(rawPath)
                 : path.resolve(store.baseDir, rawPath);
-            if (!resolved.startsWith(store.baseDir)) {
+            const realBase = fs.realpathSync(store.baseDir);
+            const realResolved = fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
+            if (!realResolved.startsWith(realBase)) {
                 return { content: [{ type: "text", text: `⛔ 拒绝读取记忆目录之外的文件: ${rawPath}` }] };
             }
             const content = store.readFile(resolved);

@@ -20,8 +20,10 @@ function highlightKeywords(text, keywords) {
             continue;
         // Escape special regex chars
         const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        // ReDoS protection: truncate overlong keywords
+        const safeKw = escaped.slice(0, 100);
         try {
-            const regex = new RegExp(`(${escaped})`, "gi");
+            const regex = new RegExp(`(${safeKw})`, "gi");
             result = result.replace(regex, " **$1** ");
         }
         catch { /* skip invalid regex */ }

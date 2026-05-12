@@ -25,7 +25,8 @@ export function createNoteTool(store: MemoryStore, db: DBBridge): ToolRegistrati
       const date = new Date().toISOString().slice(0, 10);
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
       store.appendToDaily(date, `\n### ${timestamp}\n🗒️ ${note}\n`);
-      db.indexTurn(note, "", date);
+      // Bug #13: Index with placeholder instead of empty string
+      db.indexTurn(note, "[空内容]", date);
       return { content: [{ type: "text", text: `📌 笔记已保存到 ${date}.md` }] };
     }),
   };

@@ -41,7 +41,7 @@ export function createRecommendTool(db, memoryDir) {
             const limit = Math.min(20, Math.max(1, Number(params.limit) || 5));
             if (!context) {
                 // 无上下文时：推荐近期记忆（按日期降序）
-                const stmt = db.prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY date DESC LIMIT ?");
+                const stmt = db.getRawDb().prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY date DESC LIMIT ?");
                 const recent = stmt.all(limit);
                 if (recent.length === 0) {
                     return { content: [{ type: "text", text: "暂无记忆可推荐。" }] };

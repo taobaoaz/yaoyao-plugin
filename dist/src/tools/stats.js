@@ -38,23 +38,11 @@ export function createStatsTool(store, db) {
             let tagCount = 0;
             let uniqueTags = 0;
             try {
-                const tagFilePath = path.join(store.baseDir, ".yaoyao.db");
-                if (fs.existsSync(tagFilePath)) {
-                    const { DatabaseSync } = _require("node:sqlite");
-                    const tagDb = new DatabaseSync(tagFilePath, { allowExtension: true });
-                    try {
-                        const tagRow = tagDb.prepare("SELECT COUNT(*) as c FROM memory_tags").get();
-                        tagCount = tagRow?.c || 0;
-                        const uniqueRow = tagDb.prepare("SELECT COUNT(DISTINCT tag) as c FROM memory_tags").get();
-                        uniqueTags = uniqueRow?.c || 0;
-                    }
-                    finally {
-                        try {
-                            tagDb.close();
-                        }
-                        catch { /* */ }
-                    }
-                }
+                const rawDb = db.getRawDb();
+                const tagRow = rawDb.prepare("SELECT COUNT(*) as c FROM memory_tags").get();
+                tagCount = tagRow?.c || 0;
+                const uniqueRow = rawDb.prepare("SELECT COUNT(DISTINCT tag) as c FROM memory_tags").get();
+                uniqueTags = uniqueRow?.c || 0;
             }
             catch { /* tags table may not exist */ }
             // Count scenes

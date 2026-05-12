@@ -41,17 +41,11 @@ export function createStatsTool(store: MemoryStore, db: DBBridge): ToolRegistrat
       let tagCount = 0;
       let uniqueTags = 0;
       try {
-        const tagFilePath = path.join(store.baseDir, ".yaoyao.db");
-        if (fs.existsSync(tagFilePath)) {
-          const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
-          const tagDb = new DatabaseSync(tagFilePath, { allowExtension: true });
-          try {
-            const tagRow = tagDb.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as { c: number };
-            tagCount = tagRow?.c || 0;
-            const uniqueRow = tagDb.prepare("SELECT COUNT(DISTINCT tag) as c FROM memory_tags").get() as { c: number };
-            uniqueTags = uniqueRow?.c || 0;
-          } finally { try { tagDb.close(); } catch { /* */ } }
-        }
+        const rawDb = db.getRawDb();
+        const tagRow = rawDb.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as { c: number } | undefined;
+        tagCount = tagRow?.c || 0;
+        const uniqueRow = rawDb.prepare("SELECT COUNT(DISTINCT tag) as c FROM memory_tags").get() as { c: number } | undefined;
+        uniqueTags = uniqueRow?.c || 0;
       } catch { /* tags table may not exist */ }
 
       // Count scenes

@@ -104,13 +104,18 @@ export function registerCaptureHook(api, store, db, config, personaState) {
                 : new Date().toISOString().slice(0, 10);
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
             const userContent = extractContent(lastUserMsg, 500);
-            const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, 500) : "(no response)";
+            const rawAsstContent = lastAsstMsg ? extractContent(lastAsstMsg, 500) : "";
+            // Bug #12: Sanitize assistant content — replace empty or no-response with placeholder
+            const asstContent = (!rawAsstContent || rawAsstContent === "(no response)")
+                ? "[空内容]"
+                : rawAsstContent;
+            const indexableAsst = asstContent;
             // Skip trivial entries (heartbeat, empty, too short)
             if (userContent.length < 3)
                 return;
             // ── Group chat / noise filters ──
             // 1. Skip very short AI replies (< 5 chars, e.g. "OK", "好", emoji)
-            if (asstContent.length < 5 && asstContent !== "(no response)")
+            if (asstContent.length < 5 && asstContent !== "[空内容]")
                 return;
             // 2. Skip pure system messages (wrapped in [ ])
             if (/^\[.+\]$/.test(userContent.trim()))
@@ -153,7 +158,7 @@ export function registerCaptureHook(api, store, db, config, personaState) {
             // ── Update PersonaStateMachine (fire-and-forget, best-effort) ──
             if (personaState) {
                 // Determine if this turn was "successful" (the assistant actually responded)
-                const success = asstContent.length > 10 && asstContent !== "(no response)";
+                const success = asstContent.length > 10 && asstContent !== "[空内容]";
                 personaState.update({
                     textSample: userContent,
                     successCount: success ? 1 : 0,

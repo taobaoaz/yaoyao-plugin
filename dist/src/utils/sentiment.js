@@ -14,14 +14,14 @@
  */
 const cn = {
     joy: new Set([
-        "开心", "高兴", "快乐", "开心", "幸福", "美好", "满意",
+        "开心", "高兴", "快乐", "幸福", "美好", "满意",
         "舒服", "轻松", "惊喜", "爽", "酷", "完美", "无敌",
         "超级", "太棒", "真好", "不错", "漂亮", "靠谱",
         "恭喜", "祝贺", "好运", "幸运", "期待", "希望",
         "进步", "成长", "收获", "丰富", "爽了",
     ]),
     sadness: new Set([
-        "难过", "伤心", "痛苦", "悲伤", "凄凉", "心碎", "伤心",
+        "难过", "伤心", "痛苦", "悲伤", "凄凉", "心碎",
         "失落", "空虚", "沮丧", "抑郁", "苦闷", "伤感", "愁",
         "心酸", "哀伤", "痛心", "揪心", "绝望", "哭了", "流泪",
         "崩溃",
@@ -101,7 +101,7 @@ const en = {
     ]),
 };
 const JOY_MARKERS = new Set([
-    "哈哈", "呵呵", "嘻嘻", "hhh", "haha", "lol", "lmao",
+    "哈哈", "嘻嘻", "hhh", "haha", "lol", "lmao",
     "😊", "😃", "😄", "🤣", "🥰", "😍", "🎉", "🥳",
 ]);
 const SAD_MARKERS = new Set(["😢", "😭", "😥", "😰", "🥺", "😞", "😔"]);
@@ -169,14 +169,30 @@ export function detectSentiment(text) {
         joy: 0, sadness: 0, anger: 0, fear: 0, surprise: 0, disgust: 0,
     };
     // ── Chinese emotion matching (2+ char substrings) ──
+    const NEGATION_PREFIXES = ["不", "没", "未", "别", "无", "莫"];
     for (let i = 0; i < text.length - 1; i++) {
         const twoChar = text.slice(i, i + 2);
         const threeChar = i < text.length - 2 ? text.slice(i, i + 3) : "";
+        // Check for negation prefix before the emotion word
+        const prevChar = i > 0 ? text[i - 1] : "";
+        const isNegated = NEGATION_PREFIXES.includes(prevChar);
         for (const emotion of Object.keys(cn)) {
+            let score = 0;
             if (threeChar && cn[emotion].has(threeChar))
-                emotionScores[emotion] += 3;
+                score = 3;
             else if (twoChar && cn[emotion].has(twoChar))
-                emotionScores[emotion] += 2;
+                score = 2;
+            if (score > 0) {
+                if (isNegated && emotion === "joy") {
+                    // "不开心" → sadness instead of joy
+                    emotionScores.sadness += score;
+                } else if (isNegated) {
+                    // For other emotions, reduce score slightly
+                    emotionScores[emotion] += score * 0.5;
+                } else {
+                    emotionScores[emotion] += score;
+                }
+            }
         }
     }
     // ── English emotion matching ──

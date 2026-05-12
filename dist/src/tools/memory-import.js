@@ -106,7 +106,9 @@ export function createImportTool(store) {
                         try {
                             const dateMatch = f.match(/(\d{4}-\d{2}-\d{2})/);
                             const date = dateMatch ? dateMatch[1] : new Date().toISOString().slice(0, 10);
-                            const content = fs.readFileSync(path.join(dirPath, f), "utf-8");
+                            const filePath = path.resolve(dirPath, f);
+                            if (!filePath.startsWith(path.resolve(dirPath))) continue;
+                            const content = fs.readFileSync(filePath, "utf-8");
                             if (content.trim().length < 10) continue;
                             // Parse User/AI pairs from yaoyao format
                             const entries = content.split(/^### /gm).filter(e => e.trim());
@@ -151,10 +153,15 @@ export function createImportTool(store) {
 
             // ── JSONL import mode (original logic) ──
             if (!jsonlData && sourceFile) {
-                if (!fs.existsSync(sourceFile)) {
+                const resolved = path.resolve(sourceFile);
+                const allowedDirs = [store.baseDir, path.join(store.baseDir, ".yaoyao.db")];
+                if (!allowedDirs.some(dir => resolved.startsWith(path.resolve(dir)))) {
+                    return { content: [{ type: "text", text: "⛔ 拒绝读取记忆目录之外的文件" }] };
+                }
+                if (!fs.existsSync(resolved)) {
                     return { content: [{ type: "text", text: `文件不存在: ${sourceFile}` }] };
                 }
-                jsonlData = fs.readFileSync(sourceFile, "utf-8");
+                jsonlData = fs.readFileSync(resolved, "utf-8");
             }
             if (!jsonlData.trim()) {
                 return { content: [{ type: "text", text: "请提供要导入的 JSONL 数据。" }] };

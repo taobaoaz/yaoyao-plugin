@@ -446,9 +446,16 @@ class SFTPAdapter implements CloudAdapter {
     });
   }
 
+  // Helper: escape double quotes in user-supplied path strings for SFTP batch commands
+  private esc(path: string): string {
+    return path.replace(/"/g, '\\"');
+  }
+
   async upload(localPath: string, remotePath: string): Promise<boolean> {
     try {
-      const { ok } = await this.runSftp([`put "${localPath.replace(/\\/g, "/")}" "${remotePath}"`]);
+      const escapedLocal = this.esc(localPath.replace(/\\/g, "/"));
+      const escapedRemote = this.esc(remotePath);
+      const { ok } = await this.runSftp([`put "${escapedLocal}" "${escapedRemote}"`]);
       return ok;
     } catch {
       return false;
@@ -458,7 +465,9 @@ class SFTPAdapter implements CloudAdapter {
   async download(remotePath: string, localPath: string): Promise<boolean> {
     try {
       fs.mkdirSync(path.dirname(localPath), { recursive: true });
-      const { ok } = await this.runSftp([`get "${remotePath}" "${localPath.replace(/\\/g, "/")}"`]);
+      const escapedRemote = this.esc(remotePath);
+      const escapedLocal = this.esc(localPath.replace(/\\/g, "/"));
+      const { ok } = await this.runSftp([`get "${escapedRemote}" "${escapedLocal}"`]);
       return ok;
     } catch {
       return false;
@@ -467,7 +476,7 @@ class SFTPAdapter implements CloudAdapter {
 
   async list(remotePath: string = "/"): Promise<CloudFileEntry[]> {
     try {
-      const { ok, stdout } = await this.runSftp([`ls -l "${remotePath}"`]);
+      const { ok, stdout } = await this.runSftp([`ls -l "${this.esc(remotePath)}"`]);
       if (!ok) return [];
       const entries: CloudFileEntry[] = [];
       for (const line of stdout.split("\n")) {
@@ -488,7 +497,7 @@ class SFTPAdapter implements CloudAdapter {
 
   async delete(remotePath: string): Promise<boolean> {
     try {
-      const { ok } = await this.runSftp([`rm "${remotePath}"`]);
+      const { ok } = await this.runSftp([`rm "${this.esc(remotePath)}"`]);
       return ok;
     } catch {
       return false;
@@ -497,7 +506,7 @@ class SFTPAdapter implements CloudAdapter {
 
   async exists(remotePath: string): Promise<boolean> {
     try {
-      const { ok } = await this.runSftp([`stat "${remotePath}"`]);
+      const { ok } = await this.runSftp([`stat "${this.esc(remotePath)}"`]);
       return ok;
     } catch {
       return false;
@@ -545,10 +554,16 @@ class SambaAdapter implements CloudAdapter {
     return `//${this.host}/${this.share}`;
   }
 
-  /** Ensure drive is mounted on Windows */
-  /** Run smbclient with password passed via PASSWD env var (not command line) */
-  private smbCmd(args: string): Buffer {
-    return execSync(`smbclient "${this.smbTarget()}" -U "${this.username}" -p ${this.port} -c "${args}"`, {
+  /** Run smbclient with execFile + args array to prevent shell injection */
+  private smbCmd(args: string[]): Buffer {
+    const cmdArgs = [
+      `//${this.host}/${this.share}`,
+      "-U", this.username,
+      "-p", String(this.port),
+      "-c", args.join(";"),
+    ];
+    return execSync("smbclient", {
+      args: cmdArgs,
       timeout: 15000,
       env: { ...process.env as Record<string, string>, PASSWD: this.password },
     });
@@ -592,8 +607,10 @@ class SambaAdapter implements CloudAdapter {
       } else {
         // smbclient
         const remoteFile = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
-        const cmd = `mkdir ${path.dirname(remoteFile)} 2>/dev/null; put ${localPath} ${remoteFile}`;
-        this.smbCmd(cmd);
+        this.smbCmd([
+          `mkdir ${path.dirname(remoteFile)} 2>/dev/null`,
+          `put ${localPath} ${remoteFile}`,
+        ]);
         return true;
       }
     } catch {
@@ -612,8 +629,7 @@ class SambaAdapter implements CloudAdapter {
         return true;
       } else {
         const remoteFile = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
-        const cmd = `get ${remoteFile} ${localPath}`;
-        this.smbCmd(cmd);
+        this.smbCmd([`get ${remoteFile} ${localPath}`]);
         return true;
       }
     } catch {
@@ -636,8 +652,7 @@ class SambaAdapter implements CloudAdapter {
           });
       } else {
         const dir = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
-        const cmd = `ls ${dir}/*`;
-        const output = this.smbCmd(cmd).toString("utf-8");
+        const output = this.smbCmd([`ls ${dir}/*`]).toString("utf-8");
         const entries: CloudFileEntry[] = [];
         for (const line of output.split("\n")) {
           // smbclient ls format: "  filename                          A        123  Thu Jan  1 00:00:00 2025"
@@ -663,8 +678,7 @@ class SambaAdapter implements CloudAdapter {
         return true;
       } else {
         const remoteFile = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
-        const cmd = `rm ${remoteFile}`;
-        this.smbCmd(cmd);
+        this.smbCmd([`rm ${remoteFile}`]);
         return true;
       }
     } catch {
@@ -680,8 +694,7 @@ class SambaAdapter implements CloudAdapter {
         return fs.existsSync(`${drive}\\${this.remotePath}\\${remotePath.replace(/\//g, "\\")}`);
       } else {
         const remoteFile = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
-        const cmd = `ls ${remoteFile}`;
-        this.smbCmd(cmd);
+        this.smbCmd([`ls ${remoteFile}`]);
         return true;
       }
     } catch {
