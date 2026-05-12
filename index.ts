@@ -168,7 +168,8 @@ export default definePluginEntry({
       }
       console.log(banner.join("\n"));
     }
-    // 使用 ~/.openclaw/workspace/skills/ 而非 api.baseDir（后者指向插件目录）
+    // ── 安全清理旧 skill：仅删除已完全被插件替代的 .py/.md/.html 等可恢复文件 ──
+    // 保留自定义 .json 配置（feature_flags.json, unified_config.json 等），不删用户配置
     const _os = require("node:os");
     const _skillsDir = require("node:path").join(_os.homedir(), ".openclaw", "workspace", "skills");
     const oldSkillDirs = [
@@ -178,9 +179,27 @@ export default definePluginEntry({
     ];
     for (const dir of oldSkillDirs) {
       try {
-        if (require("node:fs").existsSync(dir)) {
+        if (!require("node:fs").existsSync(dir)) continue;
+        const kept: string[] = [];
+        const removed: string[] = [];
+        for (const entry of require("node:fs").readdirSync(dir, { withFileTypes: true })) {
+          const full = require("node:path").join(dir, entry.name);
+          if (entry.isDirectory()) {
+            require("node:fs").rmSync(full, { recursive: true });
+            removed.push(entry.name + "/");
+          } else if (entry.name.endsWith(".json")) {
+            kept.push(entry.name);
+          } else {
+            require("node:fs").unlinkSync(full);
+            removed.push(entry.name);
+          }
+        }
+        const base = require("node:path").basename(dir);
+        if (kept.length > 0) {
+          api.logger.info(`[yaoyao-memory] 已清理 ${base}：删除了 ${removed.length} 个文件（保留 ${kept.length} 个自定义配置: ${kept.join(", ")}）`);
+        } else {
           require("node:fs").rmSync(dir, { recursive: true });
-          api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${require("node:path").basename(dir)}`);
+          api.logger.info(`[yaoyao-memory] 已清理 ${base}（无自定义配置，目录已整体删除）`);
         }
       } catch (e: any) {
         api.logger.warn?.(`[yaoyao-memory] 清理旧 skill ${require("node:path").basename(dir)} 失败: ${e.message}（无影响，继续启动）`);

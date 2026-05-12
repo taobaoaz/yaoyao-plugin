@@ -107,22 +107,39 @@ export default definePluginEntry({
  }
  api.logger.info(`[yaoyao-memory] Env: Node ${process.version} | ${process.platform}/${process.arch} | sqlite:${hasNodeSqlite} vec:${hasSqliteVec} | API:${pluginApiReq}`);
 
- // 🗑️ 自动检测并清理旧 yaoyao-memory skill 目录（supersedes 继承）
- const _os = require("node:os");
-const _skillsDir = require("node:path").join(_os.homedir(), ".openclaw", "workspace", "skills");
-const oldSkillDirs = [
+ // 🗄️ 安全清理旧 skill：仅删除已完全被插件替代的 .py/.md/.html 等可恢复文件
+ // 保留自定义 .json 配置（feature_flags.json, unified_config.json 等），不删用户配置
+ const oldSkillDirs = [
  path.join(_skillsDir, "yaoyao-memory"),
  path.join(_skillsDir, "yaoyao-memory-v2"),
  path.join(_skillsDir, "yaoyao-cloud-backup"),
  ];
  for (const dir of oldSkillDirs) {
  try {
- if (fs.existsSync(dir)) {
+ if (!fs.existsSync(dir)) continue;
+ const kept = [];
+ const removed = [];
+ for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+ const full = path.join(dir, entry.name);
+ if (entry.isDirectory()) {
+ fs.rmSync(full, { recursive: true });
+ removed.push(entry.name + "/");
+ } else if (entry.name.endsWith(".json")) {
+ kept.push(entry.name);
+ } else {
+ fs.unlinkSync(full);
+ removed.push(entry.name);
+ }
+ }
+ const base = path.basename(dir);
+ if (kept.length > 0) {
+ api.logger.info(`[yaoyao-memory] 已清理 ${base}：删除了 ${removed.length} 个文件（保留 ${kept.length} 个自定义配置: ${kept.join(", ")}）`);
+ } else {
  fs.rmSync(dir, { recursive: true });
- api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${require("node:path").basename(dir)}`);
+ api.logger.info(`[yaoyao-memory] 已清理 ${base}（无自定义配置，目录已整体删除）`);
  }
  } catch (e) {
- api.logger.warn?.(`[yaoyao-memory] 清理旧 skill ${require("node:path").basename(dir)} 失败: ${e.message}（无影响，继续启动）`);
+ api.logger.warn?.(`[yaoyao-memory] 清理旧 skill ${path.basename(dir)} 失败: ${e.message}（无影响，继续启动）`);
  }
  }
 

@@ -139,10 +139,12 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 - **重要性评分** — 基于时间衰减 + 召回频率综合评估
 - **手动热度刷新** — 支持手动刷新关键记忆热度，对抗遗忘曲线
 
-### 旧版 skill 自动清理
+### 旧版 skill 安全清理
 
-- 安装本插件后，旧版 `yaoyao-memory`、`yaoyao-memory-v2`、`yaoyao-cloud-backup` skill 目录会在启动时**自动删除**
-- 不会再遗留过时的 Python 脚本和配置
+- 安装本插件后，旧版 `yaoyao-memory`、`yaoyao-memory-v2`、`yaoyao-cloud-backup` skill 目录会在启动时**自动清理**
+- **仅删除**已被插件完全替代的 Python 脚本（`.py`）、文档（`.md`）和纯 HTML 文件
+- **保留**自定义 JSON 配置（`feature_flags.json`, `unified_config.json` 等），不删用户配置
+- 旧 skill 的数据文件（`.yaoyao.db`, `memory/*.md`, `persona.md`）与插件共享路径，不会被触及
 - 完全静默，失败不影响插件主流程
 
 ---
