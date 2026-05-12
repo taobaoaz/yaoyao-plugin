@@ -535,7 +535,9 @@ smbCmd(args) {
 
 ensureMounted() {
  if (!this.isWindows) return null;
- const driveLetter = "Z:"; // dedicated letter for yaoyao-memory
+ // dedicated letter for yaoyao-memory
+ const driveLetter = "Z:";
+ const esc = (s) => s.replace(/"/g, '""');
  const unc = `\\\\${this.host}\\${this.share}`;
 
  try {
@@ -547,7 +549,7 @@ ensureMounted() {
  }
 
  try {
- execSync(`net use ${driveLetter} ${unc} /user:"${this.username}" /persistent:no`, {
+ execSync(`net use ${driveLetter} ${unc} /user:"${esc(this.username)}" /persistent:no`, {
  encoding: "utf-8",
  timeout: 10000,
  env: { ...process.env, PASSWD: this.password },

@@ -119,10 +119,11 @@ function applyDiversitySampling(results) {
  function jaccardSimilarity(a, b) {
  const snippetA = a.slice(0, 50);
  const snippetB = b.slice(0, 50);
- const setA = new Set();
- const setB = new Set();
- for (const ch of snippetA) setA.add(ch);
- for (const ch of snippetB) setB.add(ch);
+ // Token-level: split by whitespace/Punctuation for more meaningful Jaccard
+ const tokenize = (s) =>
+ [...s.toLowerCase().matchAll(/[\w\u4e00-\u9fff]+/g)].map(m => m[0]);
+ const setA = new Set(tokenize(snippetA));
+ const setB = new Set(tokenize(snippetB));
  const intersect = new Set([...setA].filter((x) => setB.has(x)));
  const union = new Set([...setA, ...setB]);
  return union.size > 0 ? intersect.size / union.size : 0;

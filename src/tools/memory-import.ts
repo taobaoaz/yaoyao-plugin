@@ -60,7 +60,7 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
       // 从文件读取 — 安全校验：限制在 baseDir 或 dbPath 内
       if (!jsonlData && sourceFile) {
         const resolved = path.resolve(sourceFile);
-        const allowedDirs = [store.baseDir, path.join(store.baseDir, ".yaoyao.db")];
+        const allowedDirs = [store.baseDir];
         if (!allowedDirs.some(dir => resolved.startsWith(path.resolve(dir)))) {
           return { content: [{ type: "text", text: "⛔ 拒绝读取记忆目录之外的文件" }] };
         }
