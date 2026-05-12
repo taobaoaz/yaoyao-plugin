@@ -70,14 +70,113 @@ export interface UpdateOptions {
   intensity?: number;
 }
 
-// ──────────────────────────── Constants ────────────────────────────
+// ──────────────────────────── Constants (tunable config) ────────────────────────────
 
 const CURRENT_VERSION = 2;
-const SMOOTH_FACTOR = 0.15;
+
+// ---- Sentiment thresholds ----
+export const SENTIMENT_CONFIG = {
+  /** Minimum text length to run sentiment analysis */
+  minTextLen: 2,
+  /** Neutral zone: |diff| <= this is "neutral" */
+  neutralThreshold: 0.15,
+  /** Strong positive: positive ratio > this gets stronger emoji */
+  strongPositiveThreshold: 0.8,
+  /** Moderate positive */
+  moderatePositiveThreshold: 0.6,
+  /** Strong negative */
+  strongNegativeThreshold: 0.8,
+  /** Moderate negative */
+  moderateNegativeThreshold: 0.6,
+  /** Confidence = min(1, totalScore / this + 0.3) */
+  confidenceNormalizer: 10,
+  /** Confidence baseline */
+  confidenceBaseline: 0.3,
+} as const;
+
+// ---- EMA smoothing ----
+export const EMA_CONFIG = {
+  /** EMA alpha for mood smoothing (0-1, lower = smoother) */
+  alpha: 0.3,
+  /** Blend factor for stateful mood prediction gradient (linear slope damping) */
+  predictionDamping: 0.3,
+  /** Max prediction confidence cap */
+  maxPredictionConfidence: 0.8,
+} as const;
+
+// ---- Trust estimation ----
+export const TRUST_CONFIG = {
+  /** Smoothing factor for EMA trust */
+  smoothFactor: 0.15,
+  /** High trust threshold */
+  highThreshold: 0.8,
+  /** Low trust threshold */
+  lowThreshold: 0.5,
+  /** Min observations before trust is considered stable */
+  minObservations: 10,
+} as const;
+
+// ---- Energy estimation ----
+export const ENERGY_CONFIG = {
+  /** Messages under this length are "short" */
+  shortMsgThreshold: 20,
+  /** Messages over this length are "long" */
+  longMsgThreshold: 100,
+  /** Messages over this length are "very long" */
+  veryLongMsgThreshold: 300,
+  /** Intensity window in ms (intervals > this = no intensity signal) */
+  intensityWindowMs: 60_000,
+  /** High intensity threshold */
+  highIntensityThreshold: 0.7,
+  /** Low intensity threshold */
+  lowIntensityThreshold: 0.3,
+  /** Default intensity for unknown intervals */
+  defaultIntensity: 0.3,
+} as const;
+
+// ---- Confidence decay ----
+export const DECAY_CONFIG = {
+  /** Idle time before decay starts (1 hour) */
+  idleGraceMs: 3_600_000,
+  /** Per-hour decay factor (0.85 = 15% drop per idle hour) */
+  hourlyDecayFactor: 0.85,
+  /** Max decay cap in hours */
+  maxDecayHours: 24,
+  /** Confidence below this resets mood to neutral */
+  neutralResetThreshold: 0.35,
+} as const;
+
+// ---- Mood labels / classification ----
+export const MOOD_CONFIG = {
+  positiveThreshold: 0.15,
+  negativeThreshold: -0.15,
+  /** Trend is "rising" when delta > this */
+  trendRisingThreshold: 0.1,
+  /** Trend is "falling" when delta < -this */
+  trendFallingThreshold: -0.1,
+  /** Max score history kept for trend detection */
+  maxTrendHistory: 5,
+  /** Max message length history */
+  maxMsgLenHistory: 100,
+} as const;
+
+// ---- Time-of-day energy adjustment ----
+export const TIME_CONFIG = {
+  /** Deep night start hour (inclusive) */
+  deepNightStart: 0,
+  /** Deep night end hour (exclusive) */
+  deepNightEnd: 6,
+  /** Late night / early morning end hour */
+  edgeHourEnd: 7,
+  /** Late night / early morning start hour */
+  edgeHourStart: 23,
+} as const;
+
+export const NEGATION_PREFIXES = ["不", "没", "未", "别", "无", "莫"];
+
+// ---- Computed (derived from above, not user-tunable) ----
 const CONFIDENCE_HIGH = 1.0;
-const CONFIDENCE_LOW = 0.3;
-const EMA_ALPHA = 0.3;
-const NEGATION_PREFIXES = ["不", "没", "未", "别", "无", "莫"];
+const CONFIDENCE_LOW = SENTIMENT_CONFIG.confidenceBaseline;
 
 // ──────────────────────────── Trie ────────────────────────────
 
@@ -265,7 +364,7 @@ const sortedEmojiPatterns = [...EMOJI_PATTERNS].sort((a, b) => b.pattern.length 
  * Trie-based sentiment detection. O(n) single-pass instead of O(n*m) nested loops.
  */
 export function detectSentiment(text: string): SentimentResult {
-  if (!text || text.length < 2) {
+  if (!text || text.length < SENTIMENT_CONFIG.minTextLen) {
     return {
       positive: 0, negative: 0, label: "neutral",
       confidence: 0.5, emoji: "😐",
@@ -350,17 +449,17 @@ export function detectSentiment(text: string): SentimentResult {
   const positive = positiveScore / total;
   const negative = negativeScore / total;
   const diff = positive - negative;
-  const confidence = Math.min(1, total / 10 + 0.3);
+  const confidence = Math.min(1, total / SENTIMENT_CONFIG.confidenceNormalizer + SENTIMENT_CONFIG.confidenceBaseline);
 
   let label: MoodLabel;
   let emoji: string;
 
-  if (diff > 0.15) {
+  if (diff > MOOD_CONFIG.positiveThreshold) {
     label = "positive";
-    emoji = positive > 0.8 ? "🥰" : positive > 0.6 ? "😊" : "🙂";
-  } else if (diff < -0.15) {
+    emoji = positive > SENTIMENT_CONFIG.strongPositiveThreshold ? "🥰" : positive > SENTIMENT_CONFIG.moderatePositiveThreshold ? "😊" : "🙂";
+  } else if (diff < MOOD_CONFIG.negativeThreshold) {
     label = "negative";
-    emoji = negative > 0.8 ? "😢" : negative > 0.6 ? "😟" : "😕";
+    emoji = negative > SENTIMENT_CONFIG.strongNegativeThreshold ? "😢" : negative > SENTIMENT_CONFIG.moderateNegativeThreshold ? "😟" : "😕";
   } else {
     label = "neutral";
     emoji = "😐";
@@ -491,7 +590,7 @@ export class YaoyaoSoul {
     this.totalSuccess += success;
     this.totalFailure += fail;
     if (msgLen > 0) this.messageLengths.push(msgLen);
-    if (this.messageLengths.length > 100) this.messageLengths.shift();
+    if (this.messageLengths.length > MOOD_CONFIG.maxMsgLenHistory) this.messageLengths.shift();
 
     // Compute mood from sentiment + EMA smoothing
     const mood = this.computeMood(sample);
@@ -506,7 +605,7 @@ export class YaoyaoSoul {
 
     // Detect trend from last 3 scores
     this.lastScores.push(mood.score);
-    if (this.lastScores.length > 5) this.lastScores.shift();
+    if (this.lastScores.length > MOOD_CONFIG.maxTrendHistory) this.lastScores.shift();
     const moodTrend = this.detectTrend();
 
     const state: PersonaState = {
@@ -634,14 +733,14 @@ export class YaoyaoSoul {
       this.emaMoodScore = rawScore;
       this.emaInitialized = true;
     } else {
-      this.emaMoodScore = EMA_ALPHA * rawScore + (1 - EMA_ALPHA) * this.emaMoodScore;
+      this.emaMoodScore = EMA_CONFIG.alpha * rawScore + (1 - EMA_CONFIG.alpha) * this.emaMoodScore;
     }
 
     // Pure EMA — no second blend layer. Single exponential smoothing avoids double-smoothing lag.
     const score = this.emaMoodScore;
 
-    const label: MoodLabel = score > 0.15 ? "positive"
-      : score < -0.15 ? "negative"
+    const label: MoodLabel = score > MOOD_CONFIG.positiveThreshold ? "positive"
+      : score < MOOD_CONFIG.negativeThreshold ? "negative"
       : "neutral";
 
     const confidence = Math.min(CONFIDENCE_HIGH, sentiment.confidence + 0.3);
@@ -650,15 +749,15 @@ export class YaoyaoSoul {
   }
 
   private computeIntensity(): number {
-    if (this.lastInterval <= 0) return 0.3;
+    if (this.lastInterval <= 0) return ENERGY_CONFIG.defaultIntensity;
     // Shorter interval = higher intensity
-    return Math.max(0, Math.min(1, 1 - this.lastInterval / 60_000));
+    return Math.max(0, Math.min(1, 1 - this.lastInterval / ENERGY_CONFIG.intensityWindowMs));
   }
 
   private computeEnergy(intensity: number, msgLen: number): EnergyLevel {
-    const isShort = msgLen > 0 && msgLen < 20;
-    const isLong = msgLen > 100;
-    const isVeryLong = msgLen > 300;
+    const isShort = msgLen > 0 && msgLen < ENERGY_CONFIG.shortMsgThreshold;
+    const isLong = msgLen > ENERGY_CONFIG.longMsgThreshold;
+    const isVeryLong = msgLen > ENERGY_CONFIG.veryLongMsgThreshold;
 
     // Long/deep messages indicate focused engagement → medium-low energy
     if (isVeryLong) return "low";
@@ -666,22 +765,22 @@ export class YaoyaoSoul {
 
     // Short messages: if very frequent (high intensity) = scrolling/low energy
     // If infrequent short = quick replies/high energy
-    if (isShort && intensity > 0.7) return "low";
+    if (isShort && intensity > ENERGY_CONFIG.highIntensityThreshold) return "low";
     if (isShort) return "high";
 
     // Medium-length messages: use intensity
-    if (intensity > 0.7) return "low";
-    if (intensity < 0.3) return "high";
+    if (intensity > ENERGY_CONFIG.highIntensityThreshold) return "low";
+    if (intensity < ENERGY_CONFIG.lowIntensityThreshold) return "high";
     return "medium";
   }
 
   private adjustEnergyForTimeOfDay(energy: EnergyLevel, hour: number): EnergyLevel {
-    // Deep night (0-5): suppress all energy
-    if (hour >= 0 && hour < 6) {
+    // Deep night: suppress all energy
+    if (hour >= TIME_CONFIG.deepNightStart && hour < TIME_CONFIG.deepNightEnd) {
       return energy === "high" ? "medium" : "low";
     }
-    // Late night (23-24) / early morning (6-7): suppress high only
-    if (hour >= 23 || hour < 7) {
+    // Late night / early morning: suppress high only
+    if (hour >= TIME_CONFIG.edgeHourStart || hour < TIME_CONFIG.edgeHourEnd) {
       if (energy === "high") return "medium";
     }
     return energy;
@@ -693,12 +792,12 @@ export class YaoyaoSoul {
       const currentRate = this.totalSuccess + this.totalFailure > 0
         ? this.totalSuccess / (this.totalSuccess + this.totalFailure)
         : 0.5;
-      const smoothed = currentRate * (1 - SMOOTH_FACTOR) + batchRate * SMOOTH_FACTOR;
-      const cappedRate = this.totalSuccess + this.totalFailure < 10
+      const smoothed = currentRate * (1 - TRUST_CONFIG.smoothFactor) + batchRate * TRUST_CONFIG.smoothFactor;
+      const cappedRate = this.totalSuccess + this.totalFailure < TRUST_CONFIG.minObservations
         ? Math.min(0.9, Math.max(0.1, smoothed))
         : smoothed;
-      if (cappedRate > 0.8) return "high";
-      if (cappedRate < 0.5) return "low";
+      if (cappedRate > TRUST_CONFIG.highThreshold) return "high";
+      if (cappedRate < TRUST_CONFIG.lowThreshold) return "low";
       return "medium";
     }
     return this.cache?.trust ?? "medium";
@@ -712,8 +811,8 @@ export class YaoyaoSoul {
     const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
     const delta = recent[recent.length - 1] - recent[0];
 
-    if (delta > 0.1) return "rising";
-    if (delta < -0.1) return "falling";
+    if (delta > MOOD_CONFIG.trendRisingThreshold) return "rising";
+    if (delta < MOOD_CONFIG.trendFallingThreshold) return "falling";
     return "stable";
   }
 
@@ -728,14 +827,14 @@ export class YaoyaoSoul {
       totalDelta += scores[i] - scores[i - 1];
     }
     const avgDelta = totalDelta / (scores.length - 1);
-    const dampedDelta = avgDelta * 0.3;
+    const dampedDelta = avgDelta * EMA_CONFIG.predictionDamping;
     const predictedScore = Math.max(-1, Math.min(1, scores[scores.length - 1] + dampedDelta));
 
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
     const variance = scores.reduce((sum, s) => sum + (s - mean) ** 2, 0) / scores.length;
     const stabilityConfidence = Math.max(0, 1 - variance * 2);
     const dataConfidence = Math.min(1, scores.length / 10);
-    const confidence = Math.min(0.8, stabilityConfidence * 0.6 + dataConfidence * 0.4 + 0.2);
+    const confidence = Math.min(EMA_CONFIG.maxPredictionConfidence, stabilityConfidence * 0.6 + dataConfidence * 0.4 + 0.2);
 
     return { score: predictedScore, confidence };
   }
@@ -745,12 +844,11 @@ export class YaoyaoSoul {
   private applyConfidenceDecay(state: PersonaState): PersonaState {
     if (this.lastUpdateTime === 0) return state;
     const idleMs = Date.now() - this.lastUpdateTime;
-    if (idleMs < 3_600_000) return state;
+    if (idleMs < DECAY_CONFIG.idleGraceMs) return state;
 
     // Cascading decay: each hour reduces confidence by a factor
-    const idleHours = idleMs / 3_600_000;
-    const hourlyDecay = 0.85; // per hour
-    const factor = Math.pow(hourlyDecay, Math.min(idleHours, 24)); // cap at 24h
+    const idleHours = idleMs / DECAY_CONFIG.idleGraceMs;
+    const factor = Math.pow(DECAY_CONFIG.hourlyDecayFactor, Math.min(idleHours, DECAY_CONFIG.maxDecayHours));
 
     const newConfidence = Math.max(CONFIDENCE_LOW, state.confidence * factor);
     if (newConfidence >= state.confidence) return state;
@@ -758,9 +856,9 @@ export class YaoyaoSoul {
     return {
       ...state,
       confidence: newConfidence,
-      mood: newConfidence < 0.35 ? "neutral" : state.mood,
-      moodScore: newConfidence < 0.35 ? 0 : state.moodScore,
-      moodTrend: newConfidence < 0.35 ? "stable" : state.moodTrend,
+      mood: newConfidence < DECAY_CONFIG.neutralResetThreshold ? "neutral" : state.mood,
+      moodScore: newConfidence < DECAY_CONFIG.neutralResetThreshold ? 0 : state.moodScore,
+      moodTrend: newConfidence < DECAY_CONFIG.neutralResetThreshold ? "stable" : state.moodTrend,
     };
   }
 
