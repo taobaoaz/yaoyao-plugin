@@ -1,8 +1,8 @@
-# Yaoyao Memory Plugin v1.3.0
+# Yaoyao Memory Plugin v1.5.0
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**26 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · L4 反馈学习 · 环境自适应 · 记忆接管 · 90+ 单元测试**
+**34 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · L4 反馈学习 · 环境自适应 · 记忆接管 · 趋势分析 · 质量评估 · 云备份 · 反遗忘 · 90+ 单元测试**
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
@@ -21,7 +21,7 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
      └─ L4 反馈学习层 (FeedbackTracker)
 ```
 
-## 工具 (26 个)
+## 工具 (34 个)
 
 | 工具 | 用途 |
 |------|------|
@@ -51,6 +51,16 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 | `memory_import_oc` | 📦 **OC chunks 导入** — 从 OpenClaw 原生记忆增量导入，幂等安全 |
 | `memory_import_workspace` | 📂 **Workspace 导入** — 导入 MEMORY.md/USER.md 等 workspace 文件 |
 | `memory_retain` | 🧠 **记忆反遗忘** — 检测重要但长期未召回的记忆，支持手动刷新热度 |
+| `memory_unify` | 🔗 **统一记忆管理** — 跨后端搜索/去重/统计（OC + yaoyao + .dreams） |
+| `memory_trends` | 📈 **趋势分析** — 话题频率趋势统计，无需 LLM |
+| `memory_quality` | ✅ **质量评估** — 记忆健康度、重复度、覆盖率评估 |
+| `memory_cloud_sync` | ☁️ **云备份同步** — WebDAV/S3/SFTP/Samba 多协议 |
+| `memory_import_oc` | 📦 **OC chunks 导入** — 从 OpenClaw 原生记忆增量导入 |
+| `memory_import_workspace` | 📂 **Workspace 导入** — 导入 MEMORY.md/USER.md 等文件 |
+| `memory_suggest` | 💡 **记忆建议** — 基于上下文推荐记忆操作 |
+| `memory_summarize` | 📝 **记忆摘要** — 智能提取关键信息 |
+| `memory_archive` | 📚 **记忆归档** — 冷数据归档管理 |
+| `memory_diff` | 🔄 **记忆对比** — 差异分析 |
 
 ## Hook (3 个)
 
@@ -62,7 +72,7 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 
 ---
 
-## 🆕 v1.3.0 新特性
+## 🆕 v1.5.0 新特性
 
 ### 环境自适应能力
 
@@ -95,6 +105,12 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 - **向量重排序优化** — 从 N+1 次 embed 改为 1 次 vectorSearch + 加权合并（FTS5 0.6 + Vec 0.4）
 - **搜索策略自适应** — <50 条数据放宽搜索，>5000 条收紧精准度
 
+### 质量与趋势
+
+- **`memory_quality`** — 多维记忆健康度评估（FTS5 覆盖率、重复度、DB 完整性）
+- **`memory_trends`** — 纯统计话题频率趋势分析，无需 LLM 即可洞察变化
+- **`memory_cloud_sync`** — 多云备份同步，支持 WebDAV/S3/SFTP/Samba，凭证安全分离
+
 ### 稳定性增强
 
 - **Embedding 熔断器** — 连续 3 次失败开启，60 秒冷却，避免 API 故障拖累响应
@@ -116,6 +132,12 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 - **记忆重要性自适应** — 根据对话长度和决策关键词自动计算 importance 权重
 - **工具参数国际化** — quality/tag/unify/retain 的 action 参数同时支持中英文值
 - **时区感知** — `tz` 配置项控制日期计算，默认 `Asia/Shanghai`
+
+### 反遗忘机制
+
+- **`memory_retain`** — 检测重要但长期未召回的遗忘记忆
+- **重要性评分** — 基于时间衰减 + 召回频率综合评估
+- **手动热度刷新** — 支持手动刷新关键记忆热度，对抗遗忘曲线
 
 ---
 
@@ -215,7 +237,7 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.3.0  ·  26 Tools  ·  3 Hooks
+🎲    v1.5.0  ·  34 Tools  ·  3 Hooks
 🎲 能力: FTS5✅ Vec✅ LLM✅ Cloud⚪
 ```
 
@@ -320,8 +342,8 @@ openclaw gateway restart
 - **云备份** — WebDAV/S3/SFTP/Samba 多云同步
 - **趋势分析** — 话题频率变化趋势洞察
 - **反遗忘** — 检测重要记忆遗忘风险，主动提醒
-- **零依赖** — 仅 node:sqlite + sqlite-vec，无 Python 无额外 npm
-- **90+ 测试全绿** — 全零依赖，node:test 原生运行
+- **极小依赖** — 仅 sqlite-vec（node:sqlite 内置），无 Python 无额外运行时
+- **90+ 测试全绿** — 原生运行
 
 ## 要求
 
