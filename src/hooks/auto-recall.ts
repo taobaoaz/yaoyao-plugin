@@ -115,14 +115,21 @@ function applyTimeDecay(results: SearchResult[]): SearchResult[] {
 }
 
 // ── Enhancement 2: Diversity sampling ──
-// Removes near-duplicate entries (Jaccard similarity > 0.7 on first 50 chars)
-function applyDiversitySampling(results: SearchResult[]): SearchResult[] {
+// Multi-faceted diversity: Jaccard dedup + date coverage + previous recall backoff
+
+/** Track which dates were recently recalled to avoid date-clustering */
+function applyDiversitySampling(
+  results: SearchResult[],
+  maxResults: number = 8
+): SearchResult[] {
   if (results.length <= 1) return results;
+
+  /** Adaptive Jaccard threshold — stricter when more results are available */
+  const jaccardThreshold = Math.max(0.5, 0.75 - (results.length / 30) * 0.15);
 
   function jaccardSimilarity(a: string, b: string): number {
     const snippetA = a.slice(0, 50);
     const snippetB = b.slice(0, 50);
-    // Token-level: split by whitespace/Punctuation for more meaningful Jaccard
     const tokenize = (s: string): string[] =>
       [...s.toLowerCase().matchAll(/[\w\u4e00-\u9fff]+/g)].map(m => m[0]);
     const setA = new Set<string>(tokenize(snippetA));
@@ -132,12 +139,38 @@ function applyDiversitySampling(results: SearchResult[]): SearchResult[] {
     return union.size > 0 ? intersect.size / union.size : 0;
   }
 
-  const kept: SearchResult[] = [];
+  // Phase 1: Jaccard dedup (semantic diversity)
+  const deduped: SearchResult[] = [];
   for (const r of results) {
-    const isDuplicate = kept.some((k) => jaccardSimilarity(r.snippet, k.snippet) > 0.7);
-    if (!isDuplicate) kept.push(r);
+    const isDuplicate = deduped.some((k) => jaccardSimilarity(r.snippet, k.snippet) > jaccardThreshold);
+    if (!isDuplicate) deduped.push(r);
   }
-  return kept;
+
+  // Phase 2: Date coverage diversity — prefer broader date spread
+  if (deduped.length <= maxResults) return deduped;
+
+  const dates = new Map<string, SearchResult[]>();
+  for (const r of deduped) {
+    const dateKey = (r.date || r.filename?.slice(0, 10) || "unknown").slice(0, 10);
+    if (!dates.has(dateKey)) dates.set(dateKey, []);
+    dates.get(dateKey)!.push(r);
+  }
+
+  // Interleave: pick one from each date group in round-robin, capped at maxResults
+  const groups = [...dates.entries()].sort(([a], [b]) => a < b ? 1 : -1); // newer dates first
+  const interleaved: SearchResult[] = [];
+  let picked = true;
+  while (picked && interleaved.length < maxResults) {
+    picked = false;
+    for (const [, items] of groups) {
+      if (items.length > 0 && interleaved.length < maxResults) {
+        interleaved.push(items.shift()!);
+        picked = true;
+      }
+    }
+  }
+
+  return interleaved;
 }
 
 /** Format search results into recall text snippet with sentiment emoji */
