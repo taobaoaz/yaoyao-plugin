@@ -213,7 +213,7 @@ export function registerRecallHook(
       if (keywords.length === 0) {
         // Fallback: return most recent memory when all input is stopwords
         try {
-          const fallback = db.search("", 1);
+          const fallback = db.getLatestMemory(1);
           if (fallback.length > 0) {
             api.logger.debug?.("[yaoyao-memory:recall] No keywords, using most recent memory as fallback");
             return buildHookResult(buildRecallContext(fallback), config);

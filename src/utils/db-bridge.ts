@@ -200,7 +200,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 200);
-    if (!s) return query.slice(0, 50).replace(/[^\w\u4e00-\u9fff]/g, " ").replace(/\s+/g, " ").trim() || "memory";
+    if (!s) return "";
     return s;
   }
 
@@ -478,7 +478,25 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     return ensureDB();
   }
 
-  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate };
+  /** Get most recent memory entries by date (for fallback when no keywords). */
+  function getLatestMemory(limit: number = 1): SearchResult[] {
+    try {
+      const d = ensureDB();
+      const rows = d.prepare(
+        "SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?"
+      ).all(limit) as Array<{ date: string; user_text: string | null; asst_text: string | null }>;
+      return rows.map(r => ({
+        filename: r.date ? `${r.date}.md` : "memory.db",
+        snippet: (r.user_text || r.asst_text || "").slice(0, 500),
+        score: 1.0,
+        date: r.date || "",
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;

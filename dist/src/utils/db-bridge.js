@@ -138,7 +138,7 @@ export function createDB(config, logger) {
                     "id INTEGER PRIMARY KEY, " +
                     "meta_id INTEGER, " +
                     "model TEXT, " +
-                    "dimensions INTEGER DEFAULT 1024, " +
+                    `dimensions INTEGER DEFAULT ${vecDimensions}, ` +
                     "created_at TEXT DEFAULT (datetime('now'))" +
                     ")");
                 log("sqlite-vec loaded successfully");
@@ -169,14 +169,18 @@ export function createDB(config, logger) {
         }
     }
     /** Ensure DB is initialized with retry */
+    function getVecDimensions() {
+        return (config && config.embedding && config.embedding.dimensions) || 1024;
+    }
     function ensureDB() {
+        const vd = getVecDimensions();
         if (!db && !initFailed) {
-            init();
+            init(vd);
         }
         if (!db) {
             // Retry once (could be a transient issue like file lock)
             initFailed = false;
-            init();
+            init(vd);
         }
         if (!db) {
             throw new Error("Database failed to initialize after retry");
@@ -666,8 +670,20 @@ export function createDB(config, logger) {
         }
     }
     /** Expose the raw DatabaseSync instance for tools that need direct SQL access (e.g., memory-tag). */
+    function getLatestMemory(limit = 1) {
+        try {
+            const d = ensureDB();
+            const rows = d.prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(limit);
+            return rows.map(r => ({
+                filename: r.date ? `${r.date}.md` : "memory.db",
+                snippet: (r.user_text || r.asst_text || "").slice(0, 500),
+                score: 1.0,
+                date: r.date || "",
+            }));
+        } catch { return []; }
+    }
     function getRawDb() {
         return ensureDB();
     }
-    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, queryMeta, getStats, close, dbPath, getConfig, setConfig, getLocalDate, getRawDb, getAllTags, getAllMeta };
+    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, queryMeta, getStats, close, dbPath, getConfig, setConfig, getLocalDate, getRawDb, getAllTags, getAllMeta };
 }
