@@ -108,18 +108,21 @@ export default definePluginEntry({
  api.logger.info(`[yaoyao-memory] Env: Node ${process.version} | ${process.platform}/${process.arch} | sqlite:${hasNodeSqlite} vec:${hasSqliteVec} | API:${pluginApiReq}`);
 
  // 🗑️ 自动检测并清理旧 yaoyao-memory skill 目录（supersedes 继承）
- const oldSkillDirs = [
- path.join(api.baseDir || ".", "skills/yaoyao-memory"),
- path.join(api.baseDir || ".", "skills/yaoyao-memory-v2"),
+ const _os = require("node:os");
+const _skillsDir = require("node:path").join(_os.homedir(), ".openclaw", "workspace", "skills");
+const oldSkillDirs = [
+ path.join(_skillsDir, "yaoyao-memory"),
+ path.join(_skillsDir, "yaoyao-memory-v2"),
+ path.join(_skillsDir, "yaoyao-cloud-backup"),
  ];
  for (const dir of oldSkillDirs) {
  try {
  if (fs.existsSync(dir)) {
  fs.rmSync(dir, { recursive: true });
- api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${dir}`);
+ api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${require("node:path").basename(dir)}`);
  }
  } catch (e) {
- api.logger.warn?.(`[yaoyao-memory] 清理旧 skill 失败: ${e.message}（无影响，继续启动）`);
+ api.logger.warn?.(`[yaoyao-memory] 清理旧 skill ${require("node:path").basename(dir)} 失败: ${e.message}（无影响，继续启动）`);
  }
  }
 

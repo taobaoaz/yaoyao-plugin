@@ -168,18 +168,22 @@ export default definePluginEntry({
       }
       console.log(banner.join("\n"));
     }
+    // 使用 ~/.openclaw/workspace/skills/ 而非 api.baseDir（后者指向插件目录）
+    const _os = require("node:os");
+    const _skillsDir = require("node:path").join(_os.homedir(), ".openclaw", "workspace", "skills");
     const oldSkillDirs = [
-      require("node:path").join(api.baseDir || ".", "skills/yaoyao-memory"),
-      require("node:path").join(api.baseDir || ".", "skills/yaoyao-memory-v2"),
+      require("node:path").join(_skillsDir, "yaoyao-memory"),
+      require("node:path").join(_skillsDir, "yaoyao-memory-v2"),
+      require("node:path").join(_skillsDir, "yaoyao-cloud-backup"),
     ];
     for (const dir of oldSkillDirs) {
       try {
         if (require("node:fs").existsSync(dir)) {
           require("node:fs").rmSync(dir, { recursive: true });
-          api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${dir}`);
+          api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${require("node:path").basename(dir)}`);
         }
       } catch (e: any) {
-        api.logger.warn?.(`[yaoyao-memory] 清理旧 skill 失败: ${e.message}（无影响，继续启动）`);
+        api.logger.warn?.(`[yaoyao-memory] 清理旧 skill ${require("node:path").basename(dir)} 失败: ${e.message}（无影响，继续启动）`);
       }
     }
 
