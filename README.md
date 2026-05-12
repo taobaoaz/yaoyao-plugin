@@ -139,12 +139,14 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 - **重要性评分** — 基于时间衰减 + 召回频率综合评估
 - **手动热度刷新** — 支持手动刷新关键记忆热度，对抗遗忘曲线
 
-### 旧版 skill 安全清理
+### 旧版 skill 自动迁移与清理
 
-- 安装本插件后，旧版 `yaoyao-memory`、`yaoyao-memory-v2`、`yaoyao-cloud-backup` skill 目录会在启动时**自动清理**
-- **仅删除**已被插件完全替代的 Python 脚本（`.py`）、文档（`.md`）和纯 HTML 文件
-- **保留**自定义 JSON 配置（`feature_flags.json`, `unified_config.json` 等），不删用户配置
-- 旧 skill 的数据文件（`.yaoyao.db`, `memory/*.md`, `persona.md`）与插件共享路径，不会被触及
+- 安装本插件后，旧版 `yaoyao-memory`、`yaoyao-memory-v2`、`yaoyao-cloud-backup` skill 目录会在启动时**自动迁移并清理**
+- **递归扫描**所有 `.json` 配置文件，迁移到 `extensions/yaoyao-memory/.skill-migrations/` 存档（扁平化 + skill 名前缀避免冲突）
+- **整体删除**旧 skill 目录（Python 脚本、文档、HTML 面板等可恢复文件），不留残留
+- **自定义配置**从 `~/.openclaw/workspace/skills/` 迁移到 `extensions/yaoyao-memory/.skill-migrations/`——用户可随时手动引用
+- 数据文件（`.yaoyao.db`, `memory/*.md`, `persona.md`）与插件共享路径，不会被触及
+- 幂等：首次迁移后二次启动不会重复拷贝
 - 完全静默，失败不影响插件主流程
 
 ---

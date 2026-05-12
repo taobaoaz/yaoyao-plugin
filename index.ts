@@ -168,41 +168,52 @@ export default definePluginEntry({
       }
       console.log(banner.join("\n"));
     }
-    // ── 安全清理旧 skill：仅删除已完全被插件替代的 .py/.md/.html 等可恢复文件 ──
-    // 保留自定义 .json 配置（feature_flags.json, unified_config.json 等），不删用户配置
+    // ── 旧 skill 配置迁移 + 安全清理 ──
+    // 检测旧 yaoyao skill 中的自定义 JSON 配置，迁移到插件配置目录后整体删除
     const _os = require("node:os");
     const _skillsDir = require("node:path").join(_os.homedir(), ".openclaw", "workspace", "skills");
+    const _migratedDir = require("node:path").join(_os.homedir(), ".openclaw", "extensions", "yaoyao-memory", ".skill-migrations");
     const oldSkillDirs = [
-      require("node:path").join(_skillsDir, "yaoyao-memory"),
-      require("node:path").join(_skillsDir, "yaoyao-memory-v2"),
-      require("node:path").join(_skillsDir, "yaoyao-cloud-backup"),
+      { dir: require("node:path").join(_skillsDir, "yaoyao-memory"), name: "yaoyao-memory" },
+      { dir: require("node:path").join(_skillsDir, "yaoyao-memory-v2"), name: "yaoyao-memory-v2" },
+      { dir: require("node:path").join(_skillsDir, "yaoyao-cloud-backup"), name: "yaoyao-cloud-backup" },
     ];
-    for (const dir of oldSkillDirs) {
+    for (const { dir, name } of oldSkillDirs) {
       try {
         if (!require("node:fs").existsSync(dir)) continue;
-        const kept: string[] = [];
-        const removed: string[] = [];
-        for (const entry of require("node:fs").readdirSync(dir, { withFileTypes: true })) {
-          const full = require("node:path").join(dir, entry.name);
-          if (entry.isDirectory()) {
-            require("node:fs").rmSync(full, { recursive: true });
-            removed.push(entry.name + "/");
-          } else if (entry.name.endsWith(".json")) {
-            kept.push(entry.name);
-          } else {
-            require("node:fs").unlinkSync(full);
-            removed.push(entry.name);
+        const migrated: string[] = [];
+        // Step 1: collect all .json files before cleaning
+        const jsonFiles: string[] = [];
+        const walk = (d: string) => {
+          for (const e of require("node:fs").readdirSync(d, { withFileTypes: true })) {
+            const full = require("node:path").join(d, e.name);
+            if (e.isDirectory()) walk(full);
+            else if (e.name.endsWith(".json")) jsonFiles.push(full);
+          }
+        };
+        walk(dir);
+        // Step 2: copy each .json to migration archive dir (flat, prefixed by skill name)
+        if (jsonFiles.length > 0) {
+          require("node:fs").mkdirSync(_migratedDir, { recursive: true });
+          for (const jf of jsonFiles) {
+            const rel = require("node:path").relative(dir, jf);
+            const safeName = name + "__" + rel.replace(/[\\/]/g, "_");
+            const dest = require("node:path").join(_migratedDir, safeName);
+            if (!require("node:fs").existsSync(dest)) {
+              require("node:fs").copyFileSync(jf, dest);
+            }
+            migrated.push(rel);
           }
         }
-        const base = require("node:path").basename(dir);
-        if (kept.length > 0) {
-          api.logger.info(`[yaoyao-memory] 已清理 ${base}：删除了 ${removed.length} 个文件（保留 ${kept.length} 个自定义配置: ${kept.join(", ")}）`);
+        // Step 3: delete the entire old skill directory (all content is safe to remove now)
+        require("node:fs").rmSync(dir, { recursive: true });
+        if (migrated.length > 0) {
+          api.logger.info(`[yaoyao-memory] 已迁移 ${migrated.length} 个配置文件并从 ${name} 转移（${_migratedDir}），旧目录已清理`);
         } else {
-          require("node:fs").rmSync(dir, { recursive: true });
-          api.logger.info(`[yaoyao-memory] 已清理 ${base}（无自定义配置，目录已整体删除）`);
+          api.logger.info(`[yaoyao-memory] 已清理旧 skill: ${name}（无配置文件需迁移）`);
         }
       } catch (e: any) {
-        api.logger.warn?.(`[yaoyao-memory] 清理旧 skill ${require("node:path").basename(dir)} 失败: ${e.message}（无影响，继续启动）`);
+        api.logger.warn?.(`[yaoyao-memory] 清理旧 skill ${name} 失败: ${e.message}（无影响，继续启动）`);
       }
     }
 
