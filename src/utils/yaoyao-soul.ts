@@ -529,8 +529,9 @@ export class YaoyaoSoul {
     const tone: GuidanceHints["tone"] = state.mood === "positive" ? "warm"
       : state.mood === "negative" ? "gentle"
       : "neutral";
-    const verbosity: GuidanceHints["verbosity"] = state.energy === "high" ? "concise"
-      : state.energy === "low" ? "thorough"
+    // Energy principle: high energy = user can handle detail; low energy = keep it short
+    const verbosity: GuidanceHints["verbosity"] = state.energy === "low" ? "concise"
+      : state.energy === "high" ? "thorough"
       : "balanced";
     const autonomy: GuidanceHints["autonomy"] = state.trust === "high" ? "high"
       : state.trust === "low" ? "low"
@@ -636,19 +637,16 @@ export class YaoyaoSoul {
       this.emaMoodScore = EMA_ALPHA * rawScore + (1 - EMA_ALPHA) * this.emaMoodScore;
     }
 
-    // Also blend with last known state if available
-    let blendedScore = this.emaMoodScore;
-    if (this.cache) {
-      blendedScore = blendedScore * 0.6 + this.cache.moodScore * 0.4;
-    }
+    // Pure EMA — no second blend layer. Single exponential smoothing avoids double-smoothing lag.
+    const score = this.emaMoodScore;
 
-    const blendedLabel: MoodLabel = blendedScore > 0.15 ? "positive"
-      : blendedScore < -0.15 ? "negative"
+    const label: MoodLabel = score > 0.15 ? "positive"
+      : score < -0.15 ? "negative"
       : "neutral";
 
     const confidence = Math.min(CONFIDENCE_HIGH, sentiment.confidence + 0.3);
 
-    return { label: blendedLabel, score: blendedScore, confidence };
+    return { label, score, confidence };
   }
 
   private computeIntensity(): number {
@@ -678,9 +676,11 @@ export class YaoyaoSoul {
   }
 
   private adjustEnergyForTimeOfDay(energy: EnergyLevel, hour: number): EnergyLevel {
+    // Deep night (0-5): suppress all energy
     if (hour >= 0 && hour < 6) {
       return energy === "high" ? "medium" : "low";
     }
+    // Late night (23-24) / early morning (6-7): suppress high only
     if (hour >= 23 || hour < 7) {
       if (energy === "high") return "medium";
     }
