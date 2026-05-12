@@ -210,6 +210,11 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const d = ensureDB();
       const safeQuery = sanitizeFTSQuery(query);
 
+      // Empty query → skip FTS5 (which errors on empty MATCH) and go straight to LIKE
+      if (!safeQuery) {
+        return searchAll(limit);
+      }
+
       // Try FTS5 first
       const stmt = d.prepare(
         "SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
@@ -254,6 +259,24 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       return [];
     } catch (err: any) {
       log(`search error: ${err.message}`);
+      return [];
+    }
+  }
+
+  /** Full-scan search (no FTS, no LIKE filtering — returns latest entries). Used when query is empty. */
+  function searchAll(limit: number): SearchResult[] {
+    try {
+      const d = ensureDB();
+      const rows = d.prepare(
+        "SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?"
+      ).all(Math.min(Math.max(limit, 1), 100)) as Array<{ date: string; user_text: string | null; asst_text: string | null }>;
+      return rows.map(r => ({
+        filename: r.date ? `${r.date}.md` : "memory.db",
+        snippet: (r.user_text || r.asst_text || "").slice(0, 500),
+        score: 1.0,
+        date: r.date || "",
+      }));
+    } catch {
       return [];
     }
   }
@@ -496,7 +519,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
   }
 
-  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate };
+  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;

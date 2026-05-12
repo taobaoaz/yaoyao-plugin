@@ -240,8 +240,8 @@ export function createDB(config, logger) {
         try {
             const d = ensureDB();
             const safeQuery = sanitizeFTSQuery(query);
-            // Empty sanitized query → return no results (don't fallback to "memory")
-            if (!safeQuery) return [];
+            // Empty sanitized query → return latest entries (no FTS5 MATCH which errors on empty string)
+            if (!safeQuery) return searchAll(limit);
             // Try FTS5 first
             const stmt = d.prepare("SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
                 "FROM memory_fts WHERE memory_fts MATCH ? " +
@@ -379,6 +379,18 @@ export function createDB(config, logger) {
             log(`search error: ${err.message}`);
             return [];
         }
+    }
+    function searchAll(limit) {
+        try {
+            const d = ensureDB();
+            const rows = d.prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(Math.min(Math.max(limit, 1), 100));
+            return rows.map(r => ({
+                filename: r.date ? `${r.date}.md` : "memory.db",
+                snippet: (r.user_text || r.asst_text || "").slice(0, 500),
+                score: 1.0,
+                date: r.date || "",
+            }));
+        } catch { return []; }
     }
     /** Vector similarity search via sqlite-vec — graceful degradation when vec unavailable */
     function vectorSearch(embedding, limit = 10) {
@@ -685,5 +697,5 @@ export function createDB(config, logger) {
     function getRawDb() {
         return ensureDB();
     }
-    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, queryMeta, getStats, close, dbPath, getConfig, setConfig, getLocalDate, getRawDb, getAllTags, getAllMeta };
+    return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, queryMeta, getStats, close, dbPath, getConfig, setConfig, getLocalDate, getRawDb, getAllTags, getAllMeta };
 }
