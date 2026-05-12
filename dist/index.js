@@ -114,10 +114,11 @@ export default definePluginEntry({
  // 🗄️ 旧 skill 配置迁移 + 安全清理
  // 检测旧 yaoyao skill 中的自定义 JSON 配置，迁移到插件配置目录后整体删除
  const migratedDir = path.join(os.homedir(), ".openclaw", "extensions", "yaoyao-memory", ".skill-migrations");
+ const _skillsDir2 = path.join(os.homedir(), ".openclaw", "workspace", "skills");
  const oldSkillDirs = [
- { dir: path.join(_skillsDir, "yaoyao-memory"), name: "yaoyao-memory" },
- { dir: path.join(_skillsDir, "yaoyao-memory-v2"), name: "yaoyao-memory-v2" },
- { dir: path.join(_skillsDir, "yaoyao-cloud-backup"), name: "yaoyao-cloud-backup" },
+ { dir: path.join(_skillsDir2, "yaoyao-memory"), name: "yaoyao-memory" },
+ { dir: path.join(_skillsDir2, "yaoyao-memory-v2"), name: "yaoyao-memory-v2" },
+ { dir: path.join(_skillsDir2, "yaoyao-cloud-backup"), name: "yaoyao-cloud-backup" },
  ];
  for (const { dir, name } of oldSkillDirs) {
  try {
