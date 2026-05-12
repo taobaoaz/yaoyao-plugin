@@ -54,15 +54,19 @@ export default definePluginEntry({
  const db = createDB(config, api.logger);
 
  // ── Plugin self-check: verify critical files exist ──
+ // 当运行 dist/index.js 时，import.meta.url 指向 dist/ 目录
+ // 因此自检路径要用 "../dist/xxx"（从 dist/ 回到插件根目录再进 dist/）
+ const _selfUrl2 = import.meta.url;
  const selfCheckFiles = [
- { path: "./dist/index.js", desc: "main entry" },
- { path: "./dist/src/tools/index.js", desc: "tools index" },
- { path: "./dist/src/hooks/auto-recall.js", desc: "recall hook" },
- { path: "./dist/src/hooks/auto-capture.js", desc: "capture hook" },
+ { path: "./index.js", desc: "self (index.js)" },
+ { path: "../dist/index.js", desc: "dist main entry" },
+ { path: "../dist/src/tools/index.js", desc: "tools index" },
+ { path: "../dist/src/hooks/auto-recall.js", desc: "recall hook" },
+ { path: "../dist/src/hooks/auto-capture.js", desc: "capture hook" },
  ];
  const missingFiles = [];
  for (const { path: relPath, desc } of selfCheckFiles) {
- const resolved = new URL(relPath, import.meta.url);
+ const resolved = new URL(relPath, _selfUrl2);
  if (!fs.existsSync(resolved)) {
  missingFiles.push(`${desc} (${relPath})`);
  }
