@@ -72,8 +72,9 @@ yaoyao-memory operates in a **completely isolated** data space:
 | `node:crypto` | Node.js built-in | S3 AWS Signature V4 |
 | `node:child_process` | Node.js built-in | SFTP/Samba cloud backup |
 | `node:path` | Node.js built-in | Path manipulation |
+| `sqlite-vec` | npm (optional) | Native SQLite extension for vector/KNN search |
 
-**Zero external npm dependencies.** Only Node.js built-in modules are used.
+**Minimal external dependency.** `sqlite-vec` is optional — without it, vector search gracefully degrades to FTS5-only hybrid ranking.
 
 ## Open Source
 

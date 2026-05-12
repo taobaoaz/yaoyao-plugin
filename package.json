@@ -1,7 +1,7 @@
 {
   "name": "yaoyao-memory-plugin",
   "version": "1.5.0",
-  "description": "Yaoyao Memory — 4-layer AI memory system with FTS5 + sqlite-vec hybrid search, sentiment analysis, timeline, cloud backup, and topic trends. Zero external dependencies.",
+  "description": "Yaoyao Memory — 4-layer AI memory system with FTS5 + sqlite-vec hybrid search, sentiment analysis, timeline, cloud backup, and topic trends. Minimal external deps (sqlite-vec).",
   "type": "module",
   "main": "dist/index.js",
   "exports": {
@@ -58,6 +58,9 @@
     }
   },
   "dependencies": {
+    "sqlite-vec": "^0.1.9"
+  },
+  "devDependencies": {
     "typescript": "^6.0.3"
   },
   "openclawSecurity": {
@@ -81,11 +84,11 @@
         "mitigation": "Set llm.enabled=false to disable all LLM functionality"
       },
       "vt_suspicious": {
-        "reason": "VirusTotal heuristic triggered by child_process imports. All code is open source and auditable at https://github.com/taobaoaz/yaoyao-plugin. Zero external npm dependencies.",
+        "reason": "VirusTotal heuristic triggered by child_process imports. All code is open source and auditable at https://github.com/taobaoaz/yaoyao-plugin. Minimal external deps: sqlite-vec (optional vector search).",
         "mitigation": "Full source available for manual review"
       }
     },
     "dataStorage": "100% local (SQLite FTS5 + filesystem). No telemetry. No analytics.",
-    "dependencies": "Zero external npm dependencies. Only Node.js built-in modules."
+    "dependencies": "Minimal: sqlite-vec for optional vector search; typescript (dev). Zero runtime npm deps beyond sqlite-vec."
   }
 }

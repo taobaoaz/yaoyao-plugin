@@ -169,6 +169,21 @@
       }
     }
   },
+  "openclaw": {
+    "compat": {
+      "pluginApi": ">=3"
+    }
+  },
+  "extensions": {
+    "hooks": {
+      "path": "./dist/src/hooks",
+      "desc": "auto-capture + auto-recall + pipeline-manager"
+    },
+    "register": {
+      "path": "./dist/index.js",
+      "desc": "plugin entry"
+    }
+  },
   "supersedes": [
     "yaoyao-memory",
     "yaoyao-memory-v2"

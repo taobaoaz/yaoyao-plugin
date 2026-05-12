@@ -64,12 +64,19 @@ function stripTypeAnnotations(line) {
   const isImportLine = /^\s*import\s/.test(r);
 
   if (!isImportLine) {
+    // `as typeof import("...")` — remove completely
+    r = r.replace(/\s+as\s+typeof\s+import\s*\([^)]+\)/g, "");
+
     // `as { ... }` inline object types
     r = r.replace(/\s+as\s+\{[^}]*\}/g, "");
 
     // `as TypeA & TypeB<X>` intersection types
-    r = r.replace(/\s+as\s+[A-Za-z_]\w*(?:<[^>]*>)?(?:\s*[&|]\s*[A-Za-z_]\w*(?:<[^>]*>)?)*/g, "");
+    r = r.replace(/\s+as\s+[A-Za-z_]\w*(?:<[^>]*>)?(?:\[\])?(?:\s*[&|]\s*[A-Za-z_]\w*(?:<[^>]*>)?(?:\[\])?)*/g, "");
 
+    // `as const`
+
+    // `as "literal" | "literal"` string literal union types
+    r = r.replace(/\s+as\s+"[^"]*"(?:\s*\|\s*"[^"]*")*/g, "");
     // `as const`
     r = r.replace(/\s+as\s+const/g, "");
 
@@ -89,13 +96,19 @@ function stripTypeAnnotations(line) {
   r = r.replace(/(\w+)\?\s*:\s*[A-Z]\w*(?:<[^>]*>)?(?:\s*[&|]\s*[A-Za-z_]\w*(?:<[^>]*>)?)*(?=\s*[,)=])/g, "$1");
   r = r.replace(/(\w+)\?(?=\s*[,)=])/g, "$1");
 
+  // `?: import(...)` optional param with import type
+  r = r.replace(/(\w+)\?\s*:\s*import\s*\([^)]+\)[^,)]*/g, "$1");
+
   // ── Return type annotations ──
   // `): Type {` → `) {`, `): Type =>` → `) =>`
   // Match ONLY when `)` is NOT preceded by `?` (to avoid ternary confusion)
   // Use negative lookbehind for `?`: `(?<![?])`
   r = r.replace(/(?<![?])\)\s*:\s*(?![={=])(?:[A-Za-z_]\w*(?:\.\w+)?(?:\s*<[^>]*>)?(?:\[\])?(?:\s*[&|]\s*[A-Za-z_]\w*(?:\.\w+)?(?:\s*<[^>]*>)?(?:\[\])?)*)?\s*(?=\{|=>)/g, ") ");
 
-  // ── Catch binding ──
+    // ── Array/tuple type assertions: `as [Type1, Type2][]`
+  r = r.replace(/\s+as\s+\[[^\]]*\](?:\[\])?/g, "");
+
+// ── Catch binding ──
   r = r.replace(/catch\s*\(\s*(\w+)\s*:\s*\w+\s*\)/g, "catch ($1)");
 
   // ── Access modifiers ──
@@ -125,6 +138,9 @@ function stripTypeAnnotations(line) {
   // ── `new X<Type>()` generics (handle nested <> with non-greedy match) ──
   // Match balanced angle brackets by matching everything between < and last >
   r = r.replace(/new\s+([A-Za-z_]\w*)\s*<[^>]*(?:>[^>]*)*>\s*(?=\()/g, "new $1");
+
+  // ── Non-null assertion `!.` ──
+  r = r.replace(/\!(?=[.\[)=\};,])/g, "");
 
   // ── Non-null assertion: `x!` in expressions ──
   // Strip `!` after identifiers, method calls, array accesses, etc.
