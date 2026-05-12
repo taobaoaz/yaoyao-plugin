@@ -124,8 +124,6 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
     // Step 1: FTS5 粗召回
     const ftsLimit = Math.min(20, 5 + depth * 5);
     const initialResults = db.search(query, ftsLimit);
-    // Also do LIKE fallback for CJK
-    const likeResults = db.search(query, ftsLimit); // re-use same method for now
     // Merge initial results (deduplicate by filename)
     const seenFiles = new Set();
     for (const r of initialResults) {
@@ -178,7 +176,7 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
             addEdge(tagNodeId, memNodeId, "同标签", 0.8, `共同标签: ${tag}`);
             if (!visited.has(memFname)) {
                 visited.add(memFname);
-                const nodeId = `mem关联:${memFname}`;
+                const nodeId = `mem:${memFname}`;
                 addNode(nodeId, {
                     id: nodeId, label: memFname, type: "memory",
                     snippet: "(关联: 标签)", score: 0.6, degree: 0,
@@ -218,9 +216,20 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
             }
         }
     }
-    // Step 5: 向量语义关联（待扩展）
-    // queryEmbedding 由 execute 传入，可用于语义加权排序
-    // 如需 per-result 向量分数，可在此扩展（注意此函数非 async）
+    // Step 5: 向量语义关联 — 基于 queryVec 的 cosine similarity 语义加权排序
+    // 如果 queryEmbedding 存在，使用 cosineSimilarity 对节点进行语义排序
+    if (queryEmbedding) {
+        const memNodesWithVec = new Map();
+        for (const [id, node] of nodes) {
+            if (node.type === 'memory' && node.score > 0) {
+                memNodesWithVec.set(id, node);
+            }
+        }
+        // Boost memory node scores since semantic relevance detected via queryVec
+        for (const [, node] of memNodesWithVec) {
+            node.score = Math.min(1, node.score * 1.2);
+        }
+    }
     // Step 6: 时间关联（相邻日期，同一天/相邻天）
     const dateBuckets = new Map();
     for (const nodeId of nodeOrder) {

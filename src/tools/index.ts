@@ -44,10 +44,15 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
     createNoteTool(store, db),
     createExportTool(store),
     createImportTool(store),
-    createTagTool(store),
+    createTagTool(store, db),
     createRemindTool(),
     createRecommendTool(db, store.baseDir),
   ];
+
+  // Graph tool (knowledge graph)
+  try {
+    tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding));
+  } catch { /* best effort */ }
 
   // Enhanced search tool (vector rerank + keyword highlight)
   if (embedding) {

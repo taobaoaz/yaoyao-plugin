@@ -112,6 +112,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
       // Vector search table (sqlite-vec)
       let vecEnabled = false;
+      const dimensions = config.embedding?.dimensions || 1024;
       try {
         const sqliteVec = _require("sqlite-vec") as any;
         db.enableLoadExtension(true);
@@ -120,7 +121,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
         db.exec(
           "CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
-            "embedding float[1024]" +
+            `embedding float[${dimensions}]` +
           ")"
         );
 
@@ -129,7 +130,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
             "id INTEGER PRIMARY KEY, " +
             "meta_id INTEGER, " +
             "model TEXT, " +
-            "dimensions INTEGER DEFAULT 1024, " +
+            `dimensions INTEGER DEFAULT ${dimensions}, ` +
             "created_at TEXT DEFAULT (datetime('now'))" +
           ")"
         );
@@ -272,7 +273,10 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), 100));
 
       return (rows as Array<{ rowid: number; date: string; user_text: string; asst_text: string; distance: number }>).map(row => {
-        const cosineSim = 1 - (row.distance || 1);
+        // vec0 uses L2 distance by default. Convert to cosine similarity:
+        // For unit-normalized vectors: cosine ≈ 1 - (L2^2 / 2)
+        // Using normalized L2-to-similarity mapping:
+        const cosineSim = 1 - (row.distance || 0) / 2;
         const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
         return {
           filename: row.date ? `${row.date}.md` : "memory.db",
@@ -340,8 +344,16 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const d = ensureDB();
       const jsonArr = "[" + Array.from(embedding).join(",") + "]";
 
-      d.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
-      d.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+      // Wrap DELETE + INSERT in a transaction
+      d.exec("BEGIN");
+      try {
+        d.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
+        d.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+        d.exec("COMMIT");
+      } catch (txErr: any) {
+        d.exec("ROLLBACK");
+        throw txErr;
+      }
 
       return true;
     } catch (err: any) {
@@ -359,6 +371,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const deleted = metaResult.changes ?? 0;
       // Rebuild FTS5 index to reflect content table changes
       d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+      // Clean up orphan vectors
+      try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
       log(`deleteByDate: ${deleted} entries removed for ${date}`);
       return deleted;
     } catch (err: any) {
@@ -378,6 +392,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const deleted = result.changes ?? 0;
       if (deleted > 0) {
         d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+        // Clean up orphan vectors
+        try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
       }
       log(`deleteByKeyword: ${deleted} entries removed for "${keyword}"`);
       return deleted;
@@ -423,6 +439,15 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
   }
 
+  /** Get local date string for a given timezone */
+  function getLocalDate(tz?: string): string {
+    try {
+      return new Date().toLocaleDateString("sv-SE", { timeZone: tz || "Asia/Shanghai" });
+    } catch {
+      return new Date().toISOString().slice(0, 10);
+    }
+  }
+
   /** Close database connection */
   function close(): void {
     if (db) {
@@ -431,7 +456,29 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
   }
 
-  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getStats, close, dbPath };
+  /** Get all tags from memory_meta (currently returns empty — no tags column) */
+  function getAllTags(): Array<{ tag: string; memory_id: number }> {
+    // memory_meta table has no tags column. Return empty for graceful degradation.
+    return [];
+  }
+
+  /** Get all meta entries with id and filename (derived from date) */
+  function getAllMeta(): Array<{ id: number; filename: string }> {
+    try {
+      const d = ensureDB();
+      const rows = d.prepare("SELECT id, date FROM memory_meta").all() as Array<{ id: number; date: string }>;
+      return rows.map(r => ({ id: r.id, filename: r.date ? `${r.date}.md` : `${r.id}.md` }));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Expose the raw DatabaseSync instance for tools that need direct SQL access (e.g., memory-tag). */
+  function getRawDb(): DatabaseSync {
+    return ensureDB();
+  }
+
+  return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;

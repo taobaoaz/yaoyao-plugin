@@ -40,6 +40,7 @@ export interface YaoyaoMemoryConfig {
     l0l1RetentionDays?: number;
     allowAggressiveCleanup?: boolean;
   };
+  tz?: string; // timezone for date formatting (e.g., "Asia/Shanghai")
   blockLabels?: string[];
   [key: string]: unknown; // allow additional fields
 }

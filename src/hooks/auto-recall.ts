@@ -44,9 +44,17 @@ function setCachedResults(key: string, results: SearchResult[]): void {
 // ── Enhancement 3: Session context accumulation ──
 // Maintains cross-turn keyword context per session to improve recall relevance.
 const sessionContext = new Map<string, Set<string>>();
+const MAX_SESSIONS = 1000;
 const MAX_CONTEXT_KEYWORDS = 20;
 
 function updateSessionContext(sessionKey: string, keywords: string[]): void {
+  // Evict oldest session if over limit
+  if (!sessionContext.has(sessionKey) && sessionContext.size >= MAX_SESSIONS) {
+    const firstKey = sessionContext.keys().next().value;
+    if (firstKey !== undefined) {
+      sessionContext.delete(firstKey);
+    }
+  }
   if (!sessionContext.has(sessionKey)) {
     sessionContext.set(sessionKey, new Set<string>());
   }
@@ -202,7 +210,17 @@ export function registerRecallHook(
 
       // Extract keywords for FTS5 query
       const keywords = extractKeywords(userMessage);
-      if (keywords.length === 0) return;
+      if (keywords.length === 0) {
+        // Fallback: return most recent memory when all input is stopwords
+        try {
+          const fallback = db.search("", 1);
+          if (fallback.length > 0) {
+            api.logger.debug?.("[yaoyao-memory:recall] No keywords, using most recent memory as fallback");
+            return buildHookResult(buildRecallContext(fallback), config);
+          }
+        } catch { /* best effort */ }
+        return;
+      }
 
       // ── Enrich with session context keywords (cross-turn carry-over) ──
       const ctxKeywords = getSessionContextKeywords(sessionKey);
@@ -215,7 +233,9 @@ export function registerRecallHook(
 
       const ftsQuery = enrichedKeywords.join(" ");
       const maxResults = config.recall?.maxResults ?? 3;
-      const cacheKey = `${ftsQuery}:${maxResults}`;
+      const hasVectorSearch = userMessage.toLowerCase().includes("tsne") || userMessage.toLowerCase().includes("向量") || userMessage.toLowerCase().includes("embedding") || userMessage.toLowerCase().includes("语义");
+const searchType = hasVectorSearch ? "hybrid" : (embedding ? "fts" : "fts");
+const cacheKey = `${searchType}:${ftsQuery}:${maxResults}`;
 
       // Check cache (30s TTL)
       const cached = getCachedResults(cacheKey);

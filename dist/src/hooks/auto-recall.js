@@ -183,11 +183,29 @@ export function registerRecallHook(api, db, config, embedding, personaState, fee
                         return buildHookResult(buildRecallContext(cachedFallback, guidance), config);
                     }
                 }
+                // Issue #20: All words are stopwords — fallback to most recent memory
+                try {
+                    const fallback = db.search("", 1);
+                    if (fallback.length > 0) {
+                        api.logger.debug?.("[yaoyao-memory:recall] No keywords, using most recent memory as fallback");
+                        let guidance = "";
+                        if (personaState && personaState.getState().confidence > 0.3) {
+                            try { guidance = personaState.getGuidanceText(); } catch { /* best effort */ }
+                        }
+                        return buildHookResult(buildRecallContext(fallback, guidance), config);
+                    }
+                } catch { /* best effort */ }
                 return;
             }
             const ftsQuery = keywords.join(" ");
             const maxResults = config.recall?.maxResults ?? 3;
-            const cacheKey = `${ftsQuery}:${maxResults}`;
+            // Issue #9: Include search type in cache key to avoid mixing vector/FTS results
+            const hasVectorSearch = userMessage.toLowerCase().includes("tsne") ||
+                userMessage.toLowerCase().includes("向量") ||
+                userMessage.toLowerCase().includes("embedding") ||
+                userMessage.toLowerCase().includes("语义");
+            const searchType = hasVectorSearch ? "hybrid" : (embedding ? "fts" : "fts");
+            const cacheKey = `${searchType}:${ftsQuery}:${maxResults}`;
             // Check cache (30s TTL)
             const cached = getCachedResults(cacheKey);
             if (cached) {

@@ -137,8 +137,13 @@ class S3Adapter {
     const credentialScope = `${dateStamp}/${this.region}/${service}/aws4_request`;
     headers["x-amz-date"] = amzDate;
     headers["x-amz-content-sha256"] = bodySha256;
+    const endpointHost = new URL(this.endpoint).host;
     if (this.bucket.includes(".")) {
-      headers["Host"] = new URL(this.endpoint).host;
+      // Path-style: bucket with dots can't be a valid virtual-hosted subdomain
+      headers["Host"] = endpointHost;
+    } else {
+      // Virtual-hosted-style: bucket in host header (clean bucket name)
+      headers["Host"] = `${this.bucket}.${endpointHost}`;
     }
     const signedHeaderKeys = Object.keys(headers).map(k => k.toLowerCase()).sort();
     const signedHeaders = signedHeaderKeys.join(";");
@@ -160,21 +165,36 @@ class S3Adapter {
     return `${this.endpoint}/${this.bucket}/${cleanKey}`;
   }
 
+  /**
+   * S3 request path — uses path-style or virtual-hosted style based on bucket name.
+   * Path-style: /bucket/key (for bucket names containing dots)
+   * Virtual-hosted-style: /key (for clean bucket names, bucket is in Host header)
+   */
   s3Path(key) {
     const cleanKey = key.startsWith("/") ? key.slice(1) : key;
-    return `/${this.bucket}/${cleanKey}`;
+    if (this.bucket.includes(".")) {
+      // Path-style: bucket in path
+      return `/${this.bucket}/${cleanKey}`;
+    }
+    // Virtual-hosted-style: bucket in host, key in path
+    return `/${cleanKey}`;
   }
 
   async doRequest(method, key, extraHeaders = {}, body) {
-    const urlStr = this.buildUrl(key);
-    const parsed = new URL(urlStr);
     const bodyData = body || Buffer.alloc(0);
     const bodySha256 = crypto.createHash("sha256").update(bodyData).digest("hex");
-    const headers = { Host: parsed.host, ...extraHeaders };
-    this.signRequest(method, this.s3Path(key), headers, bodySha256, new Date());
+    const endpointHost = new URL(this.endpoint).host;
+    const isPathStyle = this.bucket.includes(".");
+    // Determine the actual hostname to connect to
+    const targetHost = isPathStyle ? endpointHost : `${this.bucket}.${endpointHost}`;
+    const s3Path = this.s3Path(key);
+    const headers = { Host: targetHost, ...extraHeaders };
+    this.signRequest(method, s3Path, headers, bodySha256, new Date());
+    const parsedEndpoint = new URL(this.endpoint);
+    const port = parsedEndpoint.port || (parsedEndpoint.protocol === "https:" ? 443 : 80);
     return new Promise((resolve, reject) => {
-      const mod = parsed.protocol === "https:" ? https : http;
-      const opts = { method, hostname: parsed.hostname, port: parsed.port || (parsed.protocol === "https:" ? 443 : 80), path: parsed.pathname + parsed.search, headers };
+      const mod = parsedEndpoint.protocol === "https:" ? https : http;
+      const opts = { method, hostname: targetHost, port, path: s3Path, headers };
       const req = mod.request(opts, (res) => {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
@@ -207,16 +227,21 @@ class S3Adapter {
   async list(remotePath = "/") {
     try {
       const prefix = remotePath.startsWith("/") ? remotePath.slice(1) : remotePath;
-      const urlStr = this.buildUrl(prefix);
-      const parsed = new URL(urlStr);
-      parsed.search = "?list-type=2&prefix=" + encodeURIComponent(prefix);
       const bodySha256 = crypto.createHash("sha256").update("").digest("hex");
-      const s3Path = this.s3Path(prefix) + parsed.search;
-      const headers = { Host: parsed.host };
-      this.signRequest("GET", s3Path, headers, bodySha256, new Date());
+      const endpointHost = new URL(this.endpoint).host;
+      const isPathStyle = this.bucket.includes(".");
+      const targetHost = isPathStyle ? endpointHost : `${this.bucket}.${endpointHost}`;
+      // ListObjectsV2 — prefix only in query string, not in pathname
+      const query = "?list-type=2&prefix=" + encodeURIComponent(prefix);
+      // Path: /bucket?list-type=2... for path-style, or /?list-type=2... for virtual-hosted style
+      const listPath = isPathStyle ? `/${this.bucket}${query}` : `/${query}`;
+      const headers = { Host: targetHost };
+      this.signRequest("GET", listPath, headers, bodySha256, new Date());
       return new Promise((resolve, reject) => {
-        const mod = parsed.protocol === "https:" ? https : http;
-        const opts = { method: "GET", hostname: parsed.hostname, port: parsed.port || undefined, path: s3Path, headers };
+        const parsedEndpoint = new URL(this.endpoint);
+        const port = parsedEndpoint.port || (parsedEndpoint.protocol === "https:" ? 443 : 80);
+        const mod = parsedEndpoint.protocol === "https:" ? https : http;
+        const opts = { method: "GET", hostname: targetHost, port, path: listPath, headers };
         const req = mod.request(opts, (res) => {
           const chunks = [];
           res.on("data", (c) => chunks.push(c));

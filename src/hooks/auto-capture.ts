@@ -8,6 +8,7 @@
  * v1.5.0+: Removed psychological state tracking (moved to yaoyao-soul).
  *          Plugin now purely captures and indexes, without implicit tagging.
  */
+import fs from "node:fs";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
 import type { DBBridge } from "../utils/db-bridge.js";
@@ -72,7 +73,10 @@ export function registerCaptureHook(
 
       if (!lastUserMsg) return;
 
-      const date = new Date().toISOString().slice(0, 10);
+      // Issue #16: Use timezone-aware date if config.tz is set
+      const date = config.tz
+        ? new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" } as Intl.DateTimeFormatOptions).format(new Date())
+        : new Date().toISOString().slice(0, 10);
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
 
       const userContent = extractContent(lastUserMsg, 500);
@@ -83,10 +87,31 @@ export function registerCaptureHook(
 
       // Write to daily Markdown log (L0)
       const entry = `\n### ${timestamp}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
-      store.appendToDaily(date, entry);
 
-      // Index in FTS5 for search (L1 index)
-      db.indexTurn(userContent, asstContent, date);
+      // Issue #12: Make file append and DB index atomic — if index fails, undo file append
+      try {
+        store.appendToDaily(date, entry);
+        db.indexTurn(userContent, asstContent, date);
+      } catch (indexErr) {
+        // indexTurn failed; undo the file append by removing the last line we just added
+        try {
+          const fp = store.getDailyFile(date);
+          const content = store.readFile(fp);
+          if (content) {
+            // Remove the entry we just appended (last occurrence)
+            const idx = content.lastIndexOf(entry);
+            if (idx !== -1) {
+              const updated = content.slice(0, idx);
+              fs.writeFileSync(fp, updated, "utf-8");
+              api.logger.warn?.("[yaoyao-memory:capture] Rolled back daily file append after index failure");
+            }
+          }
+        } catch (rollbackErr) {
+          api.logger.error(`[yaoyao-memory:capture] Rollback failed: ${rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr)}`);
+        }
+        api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr instanceof Error ? indexErr.message : String(indexErr)}`);
+        return;
+      }
 
       // NOTE: Implicit observation tagging removed in v1.5.0.
       // If you want silent pattern extraction, install yaoyao-soul alongside this plugin.

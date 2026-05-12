@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { MemoryStore } from "../utils/memory-store.js";
+import type { DBBridge } from "../utils/db-bridge.js";
 import { withErrorHandling } from "./common.js";
 import type { ToolRegistration } from "./common.js";
 
@@ -46,7 +47,20 @@ function openDb(dbPath: string): any {
   return db;
 }
 
-export function createTagTool(store: MemoryStore): ToolRegistration {
+/**
+ * Get raw db instance — prefer DBBridge connection if available, fall back to opening a new one.
+ * This ensures connection reuse when possible, and still works without DBBridge.
+ */
+function getDb(store: MemoryStore, dbBridge?: DBBridge): { db: any; isOwned: boolean } {
+  if (dbBridge) {
+    return { db: dbBridge.getRawDb(), isOwned: false };
+  }
+  const dbPath = getDbPath(store);
+  const db = openDb(dbPath);
+  return { db, isOwned: true };
+}
+
+export function createTagTool(store: MemoryStore, dbBridge?: DBBridge): ToolRegistration {
   return {
     name: "memory_tag",
     label: "Tag Memories",
@@ -91,7 +105,7 @@ export function createTagTool(store: MemoryStore): ToolRegistration {
         return { content: [{ type: "text", text: "数据库中暂无数据，无法操作标签。" }] };
       }
 
-      const db = openDb(dbPath);
+      const { db, isOwned } = getDb(store, dbBridge);
       try {
         ensureTagTable(db);
 
@@ -217,7 +231,10 @@ export function createTagTool(store: MemoryStore): ToolRegistration {
         );
         return { content: [{ type: "text", text: `## 标签: #${tag}\n(${results.length} 条)\n\n${lines.join("\n")}` }] };
       } finally {
-        try { db.close(); } catch { /* ignore */ }
+        if (isOwned) {
+          try { db.close(); } catch { /* ignore */ }
+        }
+        // If db was from DBBridge, do NOT close it — the bridge owns the lifecycle
       }
     }),
   };

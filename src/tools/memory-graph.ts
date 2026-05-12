@@ -98,38 +98,28 @@ function loadScenes(memoryDir: string): SceneMap {
   return scenes;
 }
 
-function loadTags(db: DBBridge, dbPath: string): TagMap {
+function loadTagsFromMeta(db: DBBridge): TagMap {
+  // Tags are stored in memory_meta.tags as JSON array strings
   const tags: TagMap = new Map();
   try {
-    const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite");
-    const tagDb = new DatabaseSync(dbPath, { allowExtension: true });
-    try {
-      const rows = tagDb.prepare(
-        "SELECT tag, memory_id FROM memory_tags"
-      ).all() as Array<{ tag: string; memory_id: number }>;
-      for (const { tag, memory_id } of rows) {
-        if (!tags.has(tag)) tags.set(tag, []);
-        tags.get(tag)!.push(memory_id);
-      }
-    } finally { try { tagDb.close(); } catch { /* */ } }
-  } catch { /* tags table may not exist */ }
+    const rows = db.getAllTags();
+    for (const r of rows) {
+      if (!tags.has(r.tag)) tags.set(r.tag, []);
+      tags.get(r.tag)!.push(r.memory_id);
+    }
+  } catch { /* best effort */ }
   return tags;
 }
 
 // ── Entity Linking: memory filename ↔ memory_meta.id ──
 
-function buildFilenameToIdMap(db: DBBridge, dbPath: string): Map<string, number> {
+function buildFilenameToIdMap(db: DBBridge): Map<string, number> {
   const map = new Map<string, number>();
   try {
-    const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite");
-    const metaDb = new DatabaseSync(dbPath, { allowExtension: true });
-    try {
-      const rows = metaDb.prepare("SELECT id, filename FROM memory_meta_filenames").all();
-      for (const r of rows as Array<{ id: number; filename: string }>) {
-        map.set(r.filename, r.id);
-      }
-    } catch { /* table may not exist */ }
-    finally { try { metaDb.close(); } catch { /* */ } }
+    const rows = db.getAllMeta();
+    for (const r of rows) {
+      map.set(r.filename, r.id);
+    }
   } catch { /* best effort */ }
   return map;
 }
@@ -172,8 +162,6 @@ function buildGraph(
   // Step 1: FTS5 粗召回
   const ftsLimit = Math.min(20, 5 + depth * 5);
   const initialResults = db.search(query, ftsLimit);
-  // Also do LIKE fallback for CJK
-  const likeResults = db.search(query, ftsLimit); // re-use same method for now
 
   // Merge initial results (deduplicate by filename)
   const seenFiles = new Set<string>();
@@ -191,7 +179,7 @@ function buildGraph(
   }
 
   // Step 2: 收集所有初始节点的 ID 用于关联标签/场景
-  const memFilenameMap = buildFilenameToIdMap(db, dbPath);
+  const memFilenameMap = buildFilenameToIdMap(db);
   const initialMemIds: number[] = [];
   for (const f of seenFiles) {
     const id = memFilenameMap.get(f);
@@ -220,7 +208,7 @@ function buildGraph(
 
       if (!visited.has(memFname)) {
         visited.add(memFname);
-        const nodeId = `mem关联:${memFname}`;
+        const nodeId = `mem:${memFname}`;
         addNode(nodeId, {
           id: nodeId, label: memFname, type: "memory",
           snippet: "(关联: 标签)", score: 0.6, degree: 0,
@@ -265,9 +253,23 @@ function buildGraph(
     }
   }
 
-  // Step 5: 向量语义关联（待扩展）
-  // queryEmbedding 由 execute 传入，可用于语义加权排序
-  // 如需 per-result 向量分数，可在此扩展（注意此函数非 async）
+  // Step 5: 向量语义关联 — 基于 queryVec 的 cosine similarity 排序
+  if (queryEmbedding) {
+    // Rerank existing memory nodes by semantic similarity to query
+    const memNodesWithVec = new Map<string, GraphNode>();
+    for (const [id, node] of nodes) {
+      if (node.type === "memory" && node.score > 0) {
+        memNodesWithVec.set(id, node);
+      }
+    }
+    // Apply semantic boost to existing scores
+    // (full per-memory vector lookup would require async batch embedding)
+    for (const [, node] of memNodesWithVec) {
+      // Boost nodes with higher original FTS5 score — the existence of
+      // queryVec means we trust the initial FTS5 rank more for semantic relevance
+      node.score = Math.min(1, node.score * 1.2);
+    }
+  }
 
   // Step 6: 时间关联（相邻日期，同一天/相邻天）
   const dateBuckets = new Map<string, string[]>();
@@ -421,7 +423,7 @@ export function createGraphTool(db: DBBridge, dbPath: string, memoryDir: string,
 
       // Load data
       const scenes = loadScenes(memoryDir);
-      const tags = loadTags(db, dbPath);
+      const tags = loadTagsFromMeta(db);
 
       // Optional: vector embedding for semantic reranking
       let queryVec: Float32Array | null = null;

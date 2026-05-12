@@ -55,8 +55,29 @@ export function registerCaptureHook(api, store, db, config, personaState) {
         for (const item of batch) {
             try {
                 store.appendToDaily(item.date, item.entry);
-                db.indexTurn(item.taggedContent, item.asstContent, item.date, item.sourceSession);
-            } catch { /* best effort */ }
+                try {
+                    db.indexTurn(item.taggedContent, item.asstContent, item.date, item.sourceSession);
+                } catch (indexErr) {
+                    // Issue #12: indexTurn failed — rollback the file append
+                    try {
+                        const fp = store.getDailyFile(item.date);
+                        const content = store.readFile(fp);
+                        if (content) {
+                            const idx = content.lastIndexOf(item.entry);
+                            if (idx !== -1) {
+                                const updated = content.slice(0, idx);
+                                const fs = require("node:fs");
+                                fs.writeFileSync(fp, updated, "utf-8");
+                            }
+                        }
+                    } catch { /* best-effort rollback */ }
+                    throw indexErr; // re-throw so we log the original failure
+                }
+            } catch (err) {
+                // Log and continue with remaining items
+                const errMsg = err instanceof Error ? err.message : String(err);
+                console.error(`[yaoyao-memory:capture] Buffer flush error: ${errMsg}`);
+            }
         }
         writeTimer = null;
     }

@@ -44,7 +44,7 @@
     "test:store": "node --experimental-strip-types --test src/__tests__/memory-store.test.ts",
     "test:parse": "node --experimental-strip-types --test src/__tests__/llm-parse.test.ts",
     "test:filter": "node --experimental-strip-types --test src/__tests__/session-filter.test.ts",
-    "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.test.ts"
+    "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.ts"
   },
   "openclaw": {
     "extensions": [

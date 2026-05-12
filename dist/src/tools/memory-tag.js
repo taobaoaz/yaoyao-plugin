@@ -36,7 +36,19 @@ function openDb(dbPath) {
     db.exec("PRAGMA busy_timeout = 5000");
     return db;
 }
-export function createTagTool(store) {
+/**
+ * Get raw db instance — prefer DBBridge connection if available, fall back to opening a new one.
+ * This ensures connection reuse when possible, and still works without DBBridge.
+ */
+function getDb(store, dbBridge) {
+    if (dbBridge) {
+        return { db: dbBridge.getRawDb(), isOwned: false };
+    }
+    const dbPath = getDbPath(store);
+    const db = openDb(dbPath);
+    return { db, isOwned: true };
+}
+export function createTagTool(store, dbBridge) {
     return {
         name: "memory_tag",
         label: "Tag Memories",
@@ -82,7 +94,7 @@ export function createTagTool(store) {
             if (!fs.existsSync(dbPath)) {
                 return { content: [{ type: "text", text: "数据库中暂无数据，无法操作标签。" }] };
             }
-            const db = openDb(dbPath);
+            const { db, isOwned } = getDb(store, dbBridge);
             try {
                 ensureTagTable(db);
                 // ── Add tags ──
@@ -190,10 +202,13 @@ export function createTagTool(store) {
                 return { content: [{ type: "text", text: `## 标签: #${tag}\n(${results.length} 条)\n\n${lines.join("\n")}` }] };
             }
             finally {
-                try {
-                    db.close();
+                if (isOwned) {
+                    try {
+                        db.close();
+                    }
+                    catch { /* ignore */ }
                 }
-                catch { /* ignore */ }
+                // If db was from DBBridge, do NOT close it — the bridge owns the lifecycle
             }
         }),
     };

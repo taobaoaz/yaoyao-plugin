@@ -212,6 +212,8 @@ export function createDB(config, logger) {
      * Removes characters that can cause FTS5 syntax errors while keeping search terms readable.
      */
     function sanitizeFTSQuery(query) {
+        // Empty query: return empty string so search returns no results
+        if (!query || !query.trim()) return "";
         // FTS5 special chars that cause syntax errors if unescaped:
         //   "  - unmatched quote → syntax error
         //   *  - prefix operator in wrong position → syntax error
@@ -226,7 +228,7 @@ export function createDB(config, logger) {
             .trim()
             .slice(0, 200);
         if (!s)
-            return query.slice(0, 50).replace(/[^\w\u4e00-\u9fff]/g, " ").replace(/\s+/g, " ").trim() || "memory";
+            return ""; // return empty string instead of fallback "memory";
         return s;
     }
     /** FTS5 full-text search + LIKE fallback for Chinese (FTS5 unicode61 tokenizer doesn't segment CJK) */
@@ -234,6 +236,8 @@ export function createDB(config, logger) {
         try {
             const d = ensureDB();
             const safeQuery = sanitizeFTSQuery(query);
+            // Empty sanitized query → return no results (don't fallback to "memory")
+            if (!safeQuery) return [];
             // Try FTS5 first
             const stmt = d.prepare("SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
                 "FROM memory_fts WHERE memory_fts MATCH ? " +
@@ -384,7 +388,10 @@ export function createDB(config, logger) {
                 "WHERE v.embedding MATCH ? AND k = ?");
             const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), 100));
             return rows.map(row => {
-                const cosineSim = 1 - (row.distance || 1);
+                // vec0 uses L2 distance. Convert to cosine similarity
+                // For normalized vectors: cosine ~ 1 - (L2^2 / 2)
+                const rawDist = row.distance || 0;
+                const cosineSim = 1 - rawDist / 2;
                 const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
                 return {
                     filename: row.date ? `${row.date}.md` : "memory.db",
@@ -457,8 +464,16 @@ export function createDB(config, logger) {
         try {
             const d = ensureDB();
             const jsonArr = "[" + Array.from(embedding).join(",") + "]";
-            d.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
-            d.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+            // Wrap DELETE + INSERT in a transaction
+            d.exec("BEGIN");
+            try {
+                d.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
+                d.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+                d.exec("COMMIT");
+            } catch (txErr) {
+                d.exec("ROLLBACK");
+                throw txErr;
+            }
             return true;
         }
         catch (err) {
@@ -484,6 +499,8 @@ export function createDB(config, logger) {
             // 3. Delete from meta
             const metaResult = d.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
             const deleted = metaResult.changes ?? 0;
+            // Clean up orphan vectors
+            try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
             log(`deleteByDate: ${deleted} entries removed for ${date} (fts cleared: ${rows.length})`);
             return deleted;
         }
@@ -514,6 +531,8 @@ export function createDB(config, logger) {
                 "DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
             ).run(pattern, pattern);
             const deleted = result.changes ?? 0;
+            // Clean up orphan vectors
+            try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
             log(`deleteByKeyword: ${deleted} entries removed for "${keyword}" (fts cleared: ${rows.length})`);
             return deleted;
         }
@@ -615,6 +634,23 @@ export function createDB(config, logger) {
         }
     }
 
+    /** Get all tags from memory_meta (currently returns empty — no tags column) */
+    function getAllTags() {
+        // memory_meta table has no tags column. Return empty for graceful degradation.
+        return [];
+    }
+
+    /** Get all meta entries with id and filename (derived from date) */
+    function getAllMeta() {
+        try {
+            const d = ensureDB();
+            const rows = d.prepare("SELECT id, date FROM memory_meta").all();
+            return rows.map(r => ({ id: r.id, filename: r.date ? r.date + ".md" : r.id + ".md" }));
+        } catch {
+            return [];
+        }
+    }
+
     /** Close database connection */
     function close() {
         if (db) {
@@ -629,5 +665,9 @@ export function createDB(config, logger) {
             refCount = 0;
         }
     }
-    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, queryMeta, getStats, close, dbPath, getConfig, setConfig, getLocalDate };
+    /** Expose the raw DatabaseSync instance for tools that need direct SQL access (e.g., memory-tag). */
+    function getRawDb() {
+        return ensureDB();
+    }
+    return { init, indexTurn, search, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, queryMeta, getStats, close, dbPath, getConfig, setConfig, getLocalDate, getRawDb, getAllTags, getAllMeta };
 }
