@@ -1,8 +1,8 @@
-# Yaoyao Memory Plugin v1.5.0
+# Yaoyao Memory Plugin v1.5.1
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**34 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · L4 反馈学习 · 环境自适应 · 记忆接管 · 趋势分析 · 质量评估 · 云备份 · 反遗忘 · 90+ 单元测试**
+**27 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · 环境自适应 · 记忆接管 · 趋势分析 · 质量评估 · 云备份 · 反遗忘 · 90+ 单元测试**
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
@@ -30,37 +30,28 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 | `memory_list` | 📋 列出所有记忆文件（含类型、日期、大小信息） |
 | `memory_save` | 💾 手动记录一条记忆（tags 参数支持分类标记） |
 | `memory_stats` | 📊 记忆统计（支持 text/json 格式，basic/full 详细程度） |
-| `memory_mood` | 🎨 **分析情绪趋势** — Ekman 6 基本情绪分析 + 心情环可视化 |
-| `memory_timeline` | 📅 **时间线热力图** — ███ 密度条 |
-| `memory_search_timeline` | 🔍📅 **搜索 + 时间轴分组** |
-| `memory_backup` | 📦 **创建快照备份**（全量 / 增量） |
-| `memory_forget` | 🗑️ **按关键词或日期删除**（⚠️ 不可恢复） |
-| `memory_note` | 📌 **快捷笔记** — 轻量存储，适合临时想法 |
-| `memory_optimize` | 🧠 **L4 反馈学习** — 分析纠错模式生成优化建议 |
-| `memory_graph` | 🕸️ **记忆关联图谱** — 多维度关联（标签/场景/时间/语义） |
-| `memory_search_enhanced` | 🔍📈 **语义搜索增强** — 向量重排序 + 关键词高亮 + 混合加权 |
-| `memory_export` | 📤 **记忆导出** — JSONL 格式，支持跨设备迁移 |
-| `memory_import` | 📥 **记忆导入** — JSONL 格式 + 目录批量导入 md 文件 |
-| `memory_tag` | 🏷️ **记忆标签** — 打标签、按标签搜索、热门标签（中英文参数支持） |
-| `memory_remind` | ⏰ **记忆定时提醒** — 生成完整 cron 配置 JSON |
-| `memory_recommend` | 🎯 **记忆推荐** — 基于上下文 + 日期多样性 + 时间衰减 |
-| `memory_trends` | 📈 **趋势分析** — 话题频率变化趋势（无需 LLM，纯统计） |
-| `memory_quality` | ✅ **质量评估** — 记忆健康度、重复度、覆盖率多维评估 |
-| `memory_cloud_sync` | ☁️ **云备份同步** — WebDAV/S3/SFTP/Samba 多协议 |
-| `memory_unify` | 🔗 **统一记忆管理** — 跨后端搜索/去重/统计（OC + yaoyao + .dreams） |
-| `memory_import_oc` | 📦 **OC chunks 导入** — 从 OpenClaw 原生记忆增量导入，幂等安全 |
-| `memory_import_workspace` | 📂 **Workspace 导入** — 导入 MEMORY.md/USER.md 等 workspace 文件 |
-| `memory_retain` | 🧠 **记忆反遗忘** — 检测重要但长期未召回的记忆，支持手动刷新热度 |
-| `memory_unify` | 🔗 **统一记忆管理** — 跨后端搜索/去重/统计（OC + yaoyao + .dreams） |
-| `memory_trends` | 📈 **趋势分析** — 话题频率趋势统计，无需 LLM |
-| `memory_quality` | ✅ **质量评估** — 记忆健康度、重复度、覆盖率评估 |
-| `memory_cloud_sync` | ☁️ **云备份同步** — WebDAV/S3/SFTP/Samba 多协议 |
-| `memory_import_oc` | 📦 **OC chunks 导入** — 从 OpenClaw 原生记忆增量导入 |
-| `memory_import_workspace` | 📂 **Workspace 导入** — 导入 MEMORY.md/USER.md 等文件 |
-| `memory_suggest` | 💡 **记忆建议** — 基于上下文推荐记忆操作 |
-| `memory_summarize` | 📝 **记忆摘要** — 智能提取关键信息 |
-| `memory_archive` | 📚 **记忆归档** — 冷数据归档管理 |
-| `memory_diff` | 🔄 **记忆对比** — 差异分析 |
+| `memory_mood` | 🎨 分析情绪趋势 — Ekman 6 基本情绪分析 + 心情环可视化 |
+| `memory_timeline` | 📅 时间线热力图 — ███ 密度条 |
+| `memory_search_timeline` | 🔍📅 搜索 + 时间轴分组 |
+| `memory_backup` | 📦 创建快照备份（全量 / 增量） |
+| `memory_forget` | 🗑️ 按关键词或日期删除（⚠️ 不可恢复） |
+| `memory_note` | 📌 快捷笔记 — 轻量存储，适合临时想法 |
+| `memory_graph` | 🕸️ 记忆关联图谱 — 多维度关联（标签/场景/时间/语义） |
+| `memory_search_enhanced` | 🔍📈 语义搜索增强 — 向量重排序 + 关键词高亮 + 混合加权 |
+| `memory_export` | 📤 记忆导出 — JSONL 格式，支持跨设备迁移 |
+| `memory_import` | 📥 记忆导入 — JSONL 格式 + 目录批量导入 md 文件 |
+| `memory_tag` | 🏷️ 记忆标签 — 打标签、按标签搜索、热门标签 |
+| `memory_remind` | ⏰ 记忆定时提醒 — 生成完整 cron 配置 JSON |
+| `memory_recommend` | 🎯 记忆推荐 — 基于上下文 + 日期多样性 + 时间衰减 |
+| `memory_trends` | 📈 趋势分析 — 话题频率变化趋势（无需 LLM，纯统计） |
+| `memory_quality` | ✅ 质量评估 — 记忆健康度、重复度、覆盖率多维评估 |
+| `memory_cloud_sync` | ☁️ 云备份同步 — WebDAV/S3/SFTP/Samba 多协议 |
+| `memory_unify` | 🔗 统一记忆管理 — 跨后端搜索/去重/统计 |
+| `memory_import_oc` | 📦 OC chunks 导入 — 从 OpenClaw 原生记忆增量导入 |
+| `memory_import_workspace` | 📂 Workspace 导入 — 导入 MEMORY.md/USER.md 等文件 |
+| `memory_retain` | 🧠 记忆反遗忘 — 检测重要但长期未召回的活跃记忆 |
+| `memory_quality` | ✅ 质量评估 — 重复度、覆盖率健康度检查 |
+| `memory_optimize` | 🧠 L4 反馈学习 — 分析纠错模式生成优化建议 |
 
 ## Hook (3 个)
 
@@ -72,7 +63,25 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 
 ---
 
-## 🆕 v1.5.0 新特性
+## 🆕 v1.5.1 修复亮点
+
+### 安全加固
+- **路径遍历防护** — memory_import、memory_get 全部添加白名单校验
+- **命令注入消除** — SFTP/Samba/net use 全部改用参数数组或转义
+
+### 数据一致性
+- **向量残留清理** — deleteByDate/deleteByKeyword 自动清理孤儿向量
+- **余弦公式修正** — 1 - distance/2 正确映射 L2 → cosine
+- **时间衰减修复** — 使用 r.date 字段而非失效的 filename 解析
+- **向量状态真实** — getStats() 不再硬编码 vecEnabled: true
+
+### 连接与资源
+- **DB 连接复用** — 所有工具共享 DBBridge 连接，不再各自 new DatabaseSync()
+- **Session LRU** — auto-recall 的 sessionContext 和 resultCache 带上限和自动清理
+- **LLM 超时** — 所有 fetch 调用添加 30s AbortController 超时
+
+### 稳定性
+
 
 ### 环境自适应能力
 
@@ -247,7 +256,7 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.5.0  ·  34 Tools  ·  3 Hooks
+🎲    v1.5.1  ·  27 Tools  ·  3 Hooks
 🎲 能力: FTS5✅ Vec✅ LLM✅ Cloud⚪
 ```
 
