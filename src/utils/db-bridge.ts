@@ -111,7 +111,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       );
 
       // Vector search table (sqlite-vec)
-      let vecEnabled = false;
+      vecEnabled = false;
       const dimensions = config.embedding?.dimensions || 1024;
       try {
         const sqliteVec = _require("sqlite-vec") as any;
@@ -454,7 +454,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
         totalMemories: total,
         datesSummary: datesRaw.map(r => ({ date: r.date, count: r.c })),
         ftsEnabled: true,
-        vecEnabled: true,
+        vecEnabled,
         totalVectors: vecCount,
         dimensions,
       };
