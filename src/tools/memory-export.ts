@@ -28,7 +28,7 @@ export function createExportTool(store: MemoryStore, dbBridge?: DBBridge): ToolR
       properties: {
         limit: {
           type: "number",
-          description: "最大导出条数（1-1000，默认 100）",
+          description: "最大导出条数（1-5000，默认 100）",
           default: 100,
         },
         dateFrom: {
@@ -49,7 +49,7 @@ export function createExportTool(store: MemoryStore, dbBridge?: DBBridge): ToolR
       },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
-      const limit = Math.min(1000, Math.max(1, Number(params.limit) || 100));
+      const limit = clampNum(params.limit, 100, 1, 5000);
       const dateFrom = String(params.dateFrom || "");
       const dateTo = String(params.dateTo || "");
       const keyword = String(params.keyword || "");
@@ -70,6 +70,12 @@ export function createExportTool(store: MemoryStore, dbBridge?: DBBridge): ToolR
         if (dateFrom) { conditions.push("date >= ?"); bindParams.push(dateFrom); }
         if (dateTo) { conditions.push("date <= ?"); bindParams.push(dateTo); }
 
+        if (keyword) {
+          conditions.push("(user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\')");
+          const likeKw = `%${keyword.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+          bindParams.push(likeKw, likeKw);
+        }
+
         const whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
         const stmt = rawDb.prepare(
           `SELECT date, user_text, asst_text, created_at FROM memory_meta ${whereClause} ORDER BY date DESC, id DESC LIMIT ?`
@@ -77,25 +83,10 @@ export function createExportTool(store: MemoryStore, dbBridge?: DBBridge): ToolR
         const rows = stmt.all(...bindParams, limit) as Array<Record<string, unknown>>;
 
         if (rows.length === 0) {
-          return { content: [{ type: "text", text: "没有找到匹配的记忆。" }] };
+          return { content: [{ type: "text", text: keyword ? `没有找到包含"${keyword}"的记忆。` : "没有找到匹配的记忆。" }] };
         }
 
-        // 关键词后过滤
-        let filtered = rows;
-        if (keyword) {
-          const kw = keyword.toLowerCase();
-          filtered = rows.filter(r =>
-            String(r.user_text || "").toLowerCase().includes(kw) ||
-            String(r.asst_text || "").toLowerCase().includes(kw)
-          );
-        }
-
-        if (filtered.length === 0) {
-          return { content: [{ type: "text", text: `没有找到包含"${keyword}"的记忆。` }] };
-        }
-
-        // 构建 JSONL 格式输出
-        const jsonlLines = filtered.map(r => JSON.stringify({
+        const jsonlLines = rows.map(r => JSON.stringify({
           date: r.date,
           user_text: r.user_text,
           asst_text: r.asst_text,
@@ -104,7 +95,7 @@ export function createExportTool(store: MemoryStore, dbBridge?: DBBridge): ToolR
 
         const parts: string[] = [
           `## 记忆导出`,
-          `总条目: ${filtered.length}`,
+          `总条目: ${rows.length}`,
           `格式: JSONL（每行一条 JSON）`,
           ``,
           "```jsonl",

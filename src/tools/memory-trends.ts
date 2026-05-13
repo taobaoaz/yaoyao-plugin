@@ -6,6 +6,7 @@
  * direction by comparing early vs late halves of the period.
  */
 
+import { clampNum } from "../utils/clamp.js";
 import type { MemoryStore } from "../utils/memory-store.js";
 import { withErrorHandling } from "./common.js";
 import type { ToolRegistration } from "./common.js";
@@ -122,7 +123,7 @@ export function createTrendsTool(store: MemoryStore): ToolRegistration {
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const period = String(params.period || "30d");
-      const topN = Math.min(Math.max(Number(params.topN) || 10, 1), 50);
+      const topN = clampNum(params.topN, 10, 1, 50);
 
       // Determine cutoff date
       let cutoffDate: string | null = null;

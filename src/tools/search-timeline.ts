@@ -1,6 +1,7 @@
 /**
  * Search with Timeline Tool — groups search results by date.
  */
+import { clampNum } from "../utils/clamp.js";
 import type { DBBridge } from "../utils/db-bridge.js";
 import { detectSentiment } from "../utils/sentiment.js";
 import { withErrorHandling } from "./common.js";
@@ -21,7 +22,7 @@ export function createSearchTimelineTool(db: DBBridge): ToolRegistration {
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const query = String(params.query ?? "").trim();
-      const limit = Math.min(Math.max(Number(params.maxResults) || 10, 1), 50);
+      const limit = clampNum(params.maxResults, 10, 1, 50);
       if (!query) return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
 
       const results = db.search(query, limit);

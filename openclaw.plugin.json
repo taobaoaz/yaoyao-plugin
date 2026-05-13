@@ -1,7 +1,7 @@
 {
   "id": "yaoyao-memory",
   "name": "Yaoyao Memory",
-  "description": "4-layer AI memory system (FTS5 + sqlite-vec hybrid search + optional LLM pipeline) — auto-capture conversations, hybrid search, sentiment mood ring, memory timeline, scene management, user persona generation. Powered by Yaoyao Memory Engine.",
+  "description": "4-layer AI memory system (FTS5 + sqlite-vec hybrid search) — auto-capture conversations, hybrid search, memory timeline, cloud backup. Powered by Yaoyao Memory Engine. v1.5.0+: L1/L2/L3 LLM pipeline and persona/mood features moved to yaoyao-soul plugin.",
   "configSchema": {
     "type": "object",
     "additionalProperties": true,
@@ -14,6 +14,16 @@
             "type": "boolean",
             "default": true,
             "description": "是否启用自动对话捕获"
+          },
+          "maxContentLen": {
+            "type": "number",
+            "default": 500,
+            "description": "每条捕获内容的最大字符数（默认 500）"
+          },
+          "minContentLen": {
+            "type": "number",
+            "default": 3,
+            "description": "忽略过短的用户输入阈值（字符数，默认 3）"
           }
         }
       },
@@ -30,6 +40,41 @@
             "type": "number",
             "default": 3,
             "description": "召回最大结果数"
+          },
+          "cacheTTL": {
+            "type": "number",
+            "default": 30000,
+            "description": "搜索结果缓存有效期（毫秒，默认 30000）"
+          },
+          "maxCacheSize": {
+            "type": "number",
+            "default": 50,
+            "description": "搜索结果缓存最大条目数（默认 50）"
+          },
+          "halfLife": {
+            "type": "number",
+            "default": 30,
+            "description": "时间衰减半衰期（天，默认 30）"
+          },
+          "jaccardBase": {
+            "type": "number",
+            "default": 0.75,
+            "description": "多样化采样 Jaccard 基准阈值（默认 0.75）"
+          },
+          "jaccardMin": {
+            "type": "number",
+            "default": 0.5,
+            "description": "多样化采样 Jaccard 最小阈值（默认 0.5）"
+          },
+          "maxSessions": {
+            "type": "number",
+            "default": 1000,
+            "description": "跨会话上下文累积的最大会话数（默认 1000）"
+          },
+          "maxContextKeywords": {
+            "type": "number",
+            "default": 20,
+            "description": "跨会话上下文累积的最大关键词数（默认 20）"
           }
         }
       },
@@ -65,12 +110,38 @@
           "model": {
             "type": "string",
             "default": "",
-            "description": "嵌入模型名称"
+            "description": "嵌入模型名称（留空则根据 provider 自动选择，或从 providerModels 映射表中查找）"
           },
           "dimensions": {
             "type": "number",
             "default": 1024,
             "description": "向量维度"
+          },
+          "providerModels": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "default": {},
+            "description": "自定义 provider → 嵌入模型映射表。键为 provider 标识，值为模型名。覆盖内置默认值。"
+          },
+          "timeoutMs": {
+            "type": "number",
+            "default": 15000,
+            "description": "单次请求超时（毫秒，默认 15000）"
+          },
+          "retries": {
+            "type": "number",
+            "default": 1,
+            "description": "网络/超时错误时的重试次数（默认 1）"
+          },
+          "maxInputChars": {
+            "type": "number",
+            "default": 4000,
+            "description": "每次嵌入的最大输入字符数（默认 4000）"
+          },
+          "backoffBaseMs": {
+            "type": "number",
+            "default": 1000,
+            "description": "重试退避基数（毫秒，默认 1000，即第一次等 1s，第二次等 2s）"
           }
         }
       },
@@ -90,13 +161,19 @@
           },
           "baseUrl": {
             "type": "string",
-            "default": "https://api.deepseek.com",
+            "default": "",
             "description": "LLM API base URL（留空则自动检测 embedding 配置）"
           },
           "model": {
             "type": "string",
-            "default": "deepseek-chat",
-            "description": "LLM 模型名称（留空则根据 baseUrl 自动选择：Gitee→Qwen3-8B，DeepSeek→deepseek-chat，OpenAI→gpt-4o-mini）"
+            "default": "",
+            "description": "LLM 模型名称（留空则根据 baseUrl 自动选择，或从 providerModels 映射表中查找）"
+          },
+          "providerModels": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "default": {},
+            "description": "自定义 provider → model 映射表。键为 provider 标识（如 openai、deepseek、gitee），值为模型名。覆盖内置默认值。"
           }
         }
       },
@@ -118,8 +195,28 @@
             "type": "boolean",
             "default": false,
             "description": "是否允许激进清理（retentionDays=1或2）"
+          },
+          "maxBackups": {
+            "type": "number",
+            "default": 10,
+            "description": "保留的最大备份数量（默认 10）"
           }
         }
+      },
+      "snippetMaxLen": {
+        "type": "number",
+        "default": 500,
+        "description": "搜索结果片段最大字符数（默认 500）"
+      },
+      "searchMaxLimit": {
+        "type": "number",
+        "default": 100,
+        "description": "单次搜索绝对上限（默认 100）"
+      },
+      "likeFallbackScore": {
+        "type": "number",
+        "default": 0.5,
+        "description": "FTS5 降级到 LIKE 时的基础分数（默认 0.5）"
       },
       "blockLabels": {
         "type": "array",
@@ -164,6 +261,11 @@
             },
             "default": [],
             "description": "排除同步的文件名模式（如 [\"*.log\", \".tmp\"]）"
+          },
+          "cmdTimeoutMs": {
+            "type": "number",
+            "default": 30000,
+            "description": "云同步命令超时（毫秒，默认 30000）"
           }
         }
       }
@@ -171,7 +273,7 @@
   },
   "openclaw": {
     "compat": {
-      "pluginApi": ">=3"
+      "pluginApi": ">=2026.5.5"
     }
   },
   "extensions": {

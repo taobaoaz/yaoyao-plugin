@@ -1,6 +1,7 @@
 /**
  * Timeline Tool — visual heat-map of memory activity.
  */
+import { clampNum } from "../utils/clamp.js";
 import type { DBBridge } from "../utils/db-bridge.js";
 import { withErrorHandling } from "./common.js";
 import type { ToolRegistration } from "./common.js";
@@ -17,7 +18,7 @@ export function createTimelineTool(db: DBBridge): ToolRegistration {
       },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
-      const days = Math.min(Math.max(Number(params.days) || 14, 1), 90);
+      const days = clampNum(params.days, 14, 1, 90);
       const stats = db.getStats();
       const dates = stats.datesSummary || [];
       const now = new Date();

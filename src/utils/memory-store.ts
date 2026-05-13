@@ -28,6 +28,12 @@ export interface YaoyaoMemoryConfig {
     baseUrl?: string;
     model?: string;
     dimensions?: number;
+    provider?: string;
+    providerModels?: Record<string, string>;
+    timeoutMs?: number;
+    retries?: number;
+    maxInputChars?: number;
+    backoffBaseMs?: number;
   };
   llm?: {
     enabled?: boolean;
@@ -55,7 +61,10 @@ export interface MemoryEntry {
 }
 
 export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
-  const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+  let baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+  if (!path.isAbsolute(baseDir)) {
+    baseDir = path.resolve(baseDir);
+  }
 
   const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:store] ${msg}`);
 

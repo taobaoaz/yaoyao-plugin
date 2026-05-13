@@ -1,4 +1,5 @@
 import type { MemoryStore } from "../utils/memory-store.js";
+import { clampNum } from "../utils/clamp.js";
 import { withErrorHandling } from "./common.js";
 import type { ToolRegistration } from "./common.js";
 
@@ -15,7 +16,7 @@ export function createListTool(store: MemoryStore): ToolRegistration {
       },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
-      const limit = Math.min(Math.max(Number(params.limit) || 20, 1), 100);
+      const limit = clampNum(params.limit, 20, 1, 500);
       let files = store.listFiles();
       if (params.type && typeof params.type === "string") {
         files = files.filter(f => f.type === params.type);

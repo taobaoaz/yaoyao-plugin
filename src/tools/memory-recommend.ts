@@ -13,6 +13,7 @@
  */
 
 import fs from "node:fs";
+import { clampNum } from "../utils/clamp.js";
 import path from "node:path";
 import type { DBBridge } from "../utils/db-bridge.js";
 import type { DatabaseSync } from "node:sqlite";
@@ -54,13 +55,25 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
           description: "是否优先从不同场景中采样（默认 true）",
           default: true,
         },
+        recallMultiplier: {
+          type: "number",
+          description: "搜索召回超额倍数（默认 3，即取 limit*3）",
+          default: 3,
+        },
+        recallMax: {
+          type: "number",
+          description: "搜索召回绝对上限（默认 30）",
+          default: 30,
+        },
       },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const context = String(params.context || "").trim();
-      const limit = Math.min(20, Math.max(1, Number(params.limit) || 5));
-      const diversity = Math.min(1, Math.max(0, Number(params.diversity) || 0.3));
+      const limit = clampNum(params.limit, 5, 1, 20);
+      const diversity = clampNum(params.diversity, 0.3, 0, 1);
       const sceneDiversity = params.sceneDiversity !== false;
+      const recallMultiplier = clampNum(params.recallMultiplier, 3, 1, 10);
+      const recallMax = clampNum(params.recallMax, 30, 10, 200);
 
       if (!context) {
         // 无上下文时：推荐近期记忆（按日期降序）
@@ -80,7 +93,7 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
 
       // 有上下文时：混合相关度 + 多样化
       // 1. 从 DB 中检索（使用 LIKE，因为 context 可能是中文）
-      const rawResults = db.search(context, Math.min(limit * 3, 30));
+      const rawResults = db.search(context, Math.min(limit * recallMultiplier, recallMax));
       if (rawResults.length === 0) {
         // 降级到 LIKE
         const rawDb: DatabaseSync = db.getRawDb();
@@ -121,7 +134,7 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
       const scoredResults = rawResults.map(r => ({
         date: r.filename?.replace(".md", "") || "unknown",
         user_text: r.snippet || "",
-        asst_text: "",
+        asst_text: r.asst_text || "",
         score: r.score,
         source: "search",
       }));
@@ -159,7 +172,13 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
           }
           // 如果找不到多样化，可能都是同一个 scene
           if (!foundDiverse) {
-            pickIdx = Math.floor(Math.random() * pool.length);
+            const seed = params.randomSeed ? Number(params.randomSeed) : null;
+            if (seed != null && !Number.isNaN(seed)) {
+              const rand = Math.abs(Math.sin(seed + selected.length) * 10000) % 1;
+              pickIdx = Math.floor(rand * pool.length);
+            } else {
+              pickIdx = Math.floor(Math.random() * pool.length);
+            }
           }
         }
 

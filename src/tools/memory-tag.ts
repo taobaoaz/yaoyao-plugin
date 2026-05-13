@@ -13,6 +13,7 @@
  */
 
 import fs from "node:fs";
+import { clampNum } from "../utils/clamp.js";
 import path from "node:path";
 import { createRequire } from "node:module";
 import type { MemoryStore } from "../utils/memory-store.js";
@@ -98,7 +99,7 @@ export function createTagTool(store: MemoryStore, dbBridge?: DBBridge): ToolRegi
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const action = String(params.action || "search");
-      const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+      const limit = clampNum(params.limit, 20, 1, 500);
       const dbPath = getDbPath(store);
 
       if (!fs.existsSync(dbPath)) {
@@ -167,7 +168,9 @@ export function createTagTool(store: MemoryStore, dbBridge?: DBBridge): ToolRegi
           } else {
             // 移除所有标签
             const count = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as any;
+            db.exec("BEGIN");
             db.exec("DELETE FROM memory_tags");
+            db.exec("COMMIT");
             return { content: [{ type: "text", text: `✅ 已清除所有标签（${count.c} 条记录）` }] };
           }
         }

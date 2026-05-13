@@ -12,7 +12,7 @@ import https from "node:https";
 import http from "node:http";
 import { URL } from "node:url";
 import crypto from "node:crypto";
-import { execFile, execSync } from "node:child_process";
+import { execFile, execSync, execFileSync } from "node:child_process";
 import { loadSecrets, type Secrets } from "./secrets-loader.js";
 
 // ============================================================================
@@ -396,12 +396,14 @@ class SFTPAdapter implements CloudAdapter {
   private port: number;
   private username: string;
   private password: string;
+  private timeoutMs: number;
 
-  constructor(secrets: Secrets) {
+  constructor(secrets: Secrets, opts?: { timeoutMs?: number }) {
     this.host = secrets.SFTP_HOST || "";
     this.port = parseInt(secrets.SFTP_PORT || "22", 10);
     this.username = secrets.SFTP_USERNAME || "";
     this.password = secrets.SFTP_PASSWORD || "";
+    this.timeoutMs = Math.max(3_000, Math.min(120_000, opts?.timeoutMs ?? parseInt(secrets.SFTP_TIMEOUT_MS || "30000", 10)));
   }
 
   static isConfigured(s: Secrets): boolean {
@@ -432,7 +434,7 @@ class SFTPAdapter implements CloudAdapter {
         cmdArgs = [...args, `${this.username}@${this.host}`];
       }
 
-      const child = execFile(cmd, cmdArgs, { timeout: 30000, env: envOverride || process.env }, (err, stdout, stderr) => {
+      const child = execFile(cmd, cmdArgs, { timeout: this.timeoutMs, env: envOverride || process.env }, (err, stdout, stderr) => {
         if (err) {
           resolve({ ok: false, stdout: stderr || err.message });
         } else {
@@ -527,8 +529,11 @@ class SambaAdapter implements CloudAdapter {
   private share: string;
   private remotePath: string;
   private isWindows: boolean;
+  private smbTimeoutMs: number;
+  private mountCheckTimeoutMs: number;
+  private mountTimeoutMs: number;
 
-  constructor(secrets: Secrets) {
+  constructor(secrets: Secrets, opts?: { smbTimeoutMs?: number; mountCheckTimeoutMs?: number; mountTimeoutMs?: number }) {
     this.host = secrets.SAMBA_HOST || "";
     this.port = parseInt(secrets.SAMBA_PORT || "445", 10);
     this.username = secrets.SAMBA_USER || "";
@@ -536,6 +541,9 @@ class SambaAdapter implements CloudAdapter {
     this.share = secrets.SAMBA_SHARE || "memory";
     this.remotePath = (secrets.SAMBA_REMOTE_PATH || "/").replace(/^\/+|\/+$/g, "");
     this.isWindows = process.platform === "win32";
+    this.smbTimeoutMs = clampNum(opts?.smbTimeoutMs, 15_000, 3_000, 60_000);
+    this.mountCheckTimeoutMs = clampNum(opts?.mountCheckTimeoutMs, 5_000, 1_000, 30_000);
+    this.mountTimeoutMs = clampNum(opts?.mountTimeoutMs, 10_000, 3_000, 60_000);
   }
 
   static isConfigured(s: Secrets): boolean {
@@ -562,9 +570,8 @@ class SambaAdapter implements CloudAdapter {
       "-p", String(this.port),
       "-c", args.join(";"),
     ];
-    return execSync("smbclient", {
-      args: cmdArgs,
-      timeout: 15000,
+    return execFileSync("smbclient", cmdArgs, {
+      timeout: this.smbTimeoutMs,
       env: { ...process.env as Record<string, string>, PASSWD: this.password },
     });
   }
@@ -578,7 +585,7 @@ class SambaAdapter implements CloudAdapter {
 
     try {
       // Check if already mounted
-      const existing = execSync(`net use ${driveLetter}`, { encoding: "utf-8", timeout: 5000 });
+      const existing = execSync(`net use ${driveLetter}`, { encoding: "utf-8", timeout: this.mountCheckTimeoutMs });
       if (existing.includes(unc)) return driveLetter;
     } catch {
       // Not mounted, try to mount
@@ -587,7 +594,7 @@ class SambaAdapter implements CloudAdapter {
     try {
       execSync(`net use ${driveLetter} ${unc} /user:"${esc(this.username)}" /persistent:no`, {
         encoding: "utf-8",
-        timeout: 10000,
+        timeout: this.mountTimeoutMs,
         env: { ...process.env as Record<string, string>, PASSWD: this.password },
       });
       return driveLetter;
@@ -714,17 +721,24 @@ export interface AdapterFactoryResult {
   statuses: AdapterStatus[];
 }
 
-const PROVIDER_CHECKS: Array<{ name: string; check: (s: Secrets) => boolean; create: (s: Secrets) => CloudAdapter }> = [
+export interface AdapterFactoryOpts {
+  sftpTimeoutMs?: number;
+  sambaTimeoutMs?: number;
+  sambaMountCheckTimeoutMs?: number;
+  sambaMountTimeoutMs?: number;
+}
+
+const PROVIDER_CHECKS: Array<{ name: string; check: (s: Secrets) => boolean; create: (s: Secrets, opts?: AdapterFactoryOpts) => CloudAdapter }> = [
   { name: "webdav", check: WebDAVAdapter.isConfigured, create: (s) => new WebDAVAdapter(s) },
   { name: "s3", check: S3Adapter.isConfigured, create: (s) => new S3Adapter(s) },
-  { name: "sftp", check: SFTPAdapter.isConfigured, create: (s) => new SFTPAdapter(s) },
-  { name: "samba", check: SambaAdapter.isConfigured, create: (s) => new SambaAdapter(s) },
+  { name: "sftp", check: SFTPAdapter.isConfigured, create: (s, opts) => new SFTPAdapter(s, opts) },
+  { name: "samba", check: SambaAdapter.isConfigured, create: (s, opts) => new SambaAdapter(s, opts) },
 ];
 
 /**
  * Create all configured cloud adapters from secrets.env.
  */
-export function createAdapters(secretsPath?: string): AdapterFactoryResult {
+export function createAdapters(secretsPath?: string, opts?: AdapterFactoryOpts): AdapterFactoryResult {
   const secrets = loadSecrets(secretsPath);
   const adapters = new Map<string, CloudAdapter>();
   const statuses: AdapterStatus[] = [];
@@ -732,7 +746,7 @@ export function createAdapters(secretsPath?: string): AdapterFactoryResult {
   for (const { name, check, create } of PROVIDER_CHECKS) {
     if (check(secrets)) {
       try {
-        adapters.set(name, create(secrets));
+        adapters.set(name, create(secrets, opts));
         statuses.push({ provider: name, configured: true, message: "✅ 已配置" });
       } catch (err: any) {
         statuses.push({ provider: name, configured: false, message: `⚠️ 配置错误: ${err.message}` });
@@ -748,9 +762,9 @@ export function createAdapters(secretsPath?: string): AdapterFactoryResult {
 /**
  * Create a single adapter by provider name.
  */
-export function createAdapter(provider: string, secretsPath?: string): CloudAdapter | null {
+export function createAdapter(provider: string, secretsPath?: string, opts?: AdapterFactoryOpts): CloudAdapter | null {
   const secrets = loadSecrets(secretsPath);
   const entry = PROVIDER_CHECKS.find(p => p.name === provider);
   if (!entry || !entry.check(secrets)) return null;
-  return entry.create(secrets);
+  return entry.create(secrets, opts);
 }

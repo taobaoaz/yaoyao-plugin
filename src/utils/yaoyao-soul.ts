@@ -22,6 +22,9 @@
  * Target: ~20 KB compiled JS, ~0.5ms per call
  */
 
+import fs from "node:fs";
+import path from "node:path";
+
 // ──────────────────────────── Types ────────────────────────────
 
 export type EmotionLabel = "joy" | "sadness" | "anger" | "fear" | "surprise" | "disgust";
@@ -691,8 +694,6 @@ export class YaoyaoSoul {
 
   /** Persist state to disk. Optional — state is purely in-memory by default. */
   persistToDisk(): void {
-    const fs = require("node:fs");
-    const path = require("node:path");
     const state = this.getState();
     const fp = path.join(this.baseDir, ".yaoyao-soul-state.json");
     try {

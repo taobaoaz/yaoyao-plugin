@@ -60,8 +60,10 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
       // 从文件读取 — 安全校验：限制在 baseDir 或 dbPath 内
       if (!jsonlData && sourceFile) {
         const resolved = path.resolve(sourceFile);
-        const allowedDirs = [store.baseDir];
-        if (!allowedDirs.some(dir => resolved.startsWith(path.resolve(dir)))) {
+        const allowedDir = path.resolve(store.baseDir);
+        // 使用 path.relative 防止路径遍历（比 startsWith 更严谨）
+        const rel = path.relative(allowedDir, resolved);
+        if (rel.startsWith("..") || path.isAbsolute(rel)) {
           return { content: [{ type: "text", text: "⛔ 拒绝读取记忆目录之外的文件" }] };
         }
         if (!fs.existsSync(resolved)) {
@@ -128,7 +130,7 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
         return { content: [{ type: "text", text: parts.join("\n") }] };
       }
 
-      // 正式写入 DB
+      // 正式写入 DB（使用独立连接，避免与 db-bridge 的 WAL 连接冲突）
       const dbPath = path.join(store.baseDir, ".yaoyao.db");
       const db = new DatabaseSync(dbPath, { allowExtension: true });
       try {
@@ -162,13 +164,18 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
 
         let successCount = 0;
         db.exec("BEGIN TRANSACTION");
-        for (const entry of entries) {
-          const r = insertedMeta.run(entry.date, entry.user_text, entry.asst_text);
-          const rowId = Number(r.lastInsertRowid);
-          insertedFts.run(rowId, entry.date, entry.user_text, entry.asst_text);
-          successCount++;
+        try {
+          for (const entry of entries) {
+            const r = insertedMeta.run(entry.date, entry.user_text, entry.asst_text);
+            const rowId = Number(r.lastInsertRowid);
+            insertedFts.run(rowId, entry.date, entry.user_text, entry.asst_text);
+            successCount++;
+          }
+          db.exec("COMMIT");
+        } catch (txErr: any) {
+          try { db.exec("ROLLBACK"); } catch { /* ignore */ }
+          throw txErr;
         }
-        db.exec("COMMIT");
 
         const total = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as any;
         const parts = [

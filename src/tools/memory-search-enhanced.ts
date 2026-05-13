@@ -10,6 +10,7 @@
  */
 
 import type { DBBridge } from "../utils/db-bridge.js";
+import { clampNum } from "../utils/clamp.js";
 import type { EmbeddingService } from "../utils/embedding.js";
 import { detectSentiment } from "../utils/sentiment.js";
 import { withErrorHandling } from "./common.js";
@@ -110,44 +111,58 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
           default: true,
         },
       },
-      required: ["query"],
+        snippetMaxLen: {
+          type: "number",
+          description: "搜索结果片段最大长度（字符数，默认 500）",
+          default: 500,
+        },
+        ftsOverfetch: {
+          type: "number",
+          description: "FTS 粗召回超额倍数（默认 2，即取 limit*2）",
+          default: 2,
+        },
+        ftsOverfetchMax: {
+          type: "number",
+          description: "FTS 粗召回绝对上限（默认 30）",
+          default: 30,
+        },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const query = String(params.query ?? "").trim();
-      const limit = Math.min(Math.max(Number(params.maxResults) || 10, 1), 50);
+      const limit = clampNum(params.maxResults, 10, 1, 50);
       const format = String(params.format || "text");
       const doHighlight = params.highlight !== false;
+      const snippetMaxLen = clampNum(params.snippetMaxLen, 500, 50, 2000);
+      const ftsOverfetch = clampNum(params.ftsOverfetch, 2, 1, 10);
+      const ftsOverfetchMax = clampNum(params.ftsOverfetchMax, 30, 10, 200);
 
       if (!query) return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
 
       const keywords = extractKeywords(query);
 
       // Step 1: FTS5 粗召回（取更多结果用于重排）
-      const ftsLimit = embedding ? Math.min(limit * 2, 30) : limit;
+      const ftsLimit = embedding ? Math.min(limit * ftsOverfetch, ftsOverfetchMax) : limit;
       const ftsResults = db.search(query, ftsLimit);
 
       if (ftsResults.length === 0) {
         return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
       }
 
-      // Step 2: 如果有 embedding → 向量重排序
+      // Step 2: 如果有 embedding → 向量重排序（使用 embedBatch 避免 N+1 API 调用）
       if (embedding) {
         try {
           const queryVec = await embedding.embed(query);
-          // 为每个 FTS 结果计算向量相似度
-          const reranked = await Promise.all(ftsResults.map(async (r) => {
-            let vecScore = 0;
-            try {
-              // 用结果的 snippet 查询向量（需要 vectorSearch 支持）
-              const resultVec = await embedding.embed(r.snippet.slice(0, 500));
-              vecScore = cosineSimilarity(queryVec, resultVec);
-            } catch { /* best effort */ }
+          // Batch embed all snippets at once
+          const snippets = ftsResults.map(r => r.snippet.slice(0, snippetMaxLen));
+          const resultVecs = await embedding.embedBatch(snippets);
+
+          const reranked = ftsResults.map((r, i) => {
+            const vecScore = cosineSimilarity(queryVec, resultVecs[i]);
             // 混合评分：60% FTS5 + 40% 向量
             const hybridScore = (r.score * 0.6) + (vecScore * 0.4);
             return { ...r, vecScore, hybridScore };
-          }));
+          });
 
-          // 按混合分排序
           reranked.sort((a, b) => b.hybridScore - a.hybridScore);
           const top = reranked.slice(0, limit);
 

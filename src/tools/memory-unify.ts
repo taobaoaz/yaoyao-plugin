@@ -15,6 +15,10 @@ import { withErrorHandling } from "./common.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { createRequire } from "node:module";
+
+const _require = createRequire(import.meta.url);
+const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite");
 
 function getOpenClawMemoryDir() {
   return path.join(os.homedir(), ".openclaw", "memory");
@@ -26,9 +30,8 @@ function getWorkspaceMemoryDir(store) {
 
 function queryOpenClawDB(sql, params) {
   const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");
-  if (!fs.existsSync(dbPath)) return null;
+  try { if (!fs.existsSync(dbPath)) return null; } catch { return null; }
   try {
-    const { DatabaseSync } = require("node:sqlite");
     const db = new DatabaseSync(dbPath, { mode: "readonly" });
     const rows = db.prepare(sql).all(...(params || []));
     db.close();

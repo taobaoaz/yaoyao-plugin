@@ -13,10 +13,10 @@ import type { DBBridge } from "./db-bridge.js";
 export interface CleanerConfig {
   /** Retain daily logs for this many days (default: 30, 0 = never clean) */
   l0l1RetentionDays?: number;
-  /** Run cleanup at this HH:mm time (default: "03:00") */
-  cleanTime?: string;
   /** Allow aggressive cleanup (retention = 1 or 2 days) */
   allowAggressiveCleanup?: boolean;
+  /** Number of backups to keep (default: 10) */
+  maxBackups?: number;
 }
 
 type Logger = { info?: (s: string) => void; error?: (s: string) => void };
@@ -25,6 +25,7 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
   const cfg = {
     l0l1RetentionDays: config?.l0l1RetentionDays ?? 30,
     allowAggressiveCleanup: config?.allowAggressiveCleanup ?? false,
+    maxBackups: clampNum(config?.maxBackups, 10, 1, 50),
   };
 
   const log = (msg: string) => logger?.info?.(`[yaoyao-memory:cleaner] ${msg}`);
@@ -111,7 +112,7 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
         .filter(f => f.startsWith("memory-backup-"))
         .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
         .sort((a, b) => b.mtime - a.mtime);
-      for (const b of backups.slice(10)) {
+      for (const b of backups.slice(cfg.maxBackups)) {
         fs.rmSync(path.join(backupDir, b.name), { recursive: true, force: true });
       }
     }

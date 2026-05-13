@@ -273,14 +273,21 @@ async function handleDedup(store: MemoryStore, db: DBBridge): Promise<{ content:
   return { content: [{ type: "text", text: lines.join("\n") }] };
 }
 
-/** Compute Jaccard similarity on first N chars of two snippets */
+/** Compute Jaccard similarity on first N chars of two snippets using bigrams */
 function jaccardSnippet(a: string, b: string, chars: number = 100): number {
   const snippetA = a.slice(0, chars);
   const snippetB = b.slice(0, chars);
-  const setA = new Set<string>();
-  const setB = new Set<string>();
-  for (const ch of snippetA) setA.add(ch);
-  for (const ch of snippetB) setB.add(ch);
+
+  function getBigrams(text: string): Set<string> {
+    const set = new Set<string>();
+    for (let i = 0; i < text.length - 1; i++) {
+      set.add(text.slice(i, i + 2));
+    }
+    return set;
+  }
+
+  const setA = getBigrams(snippetA);
+  const setB = getBigrams(snippetB);
   const intersect = new Set<string>([...setA].filter((x) => setB.has(x)));
   const union = new Set<string>([...setA, ...setB]);
   return union.size > 0 ? intersect.size / union.size : 0;
