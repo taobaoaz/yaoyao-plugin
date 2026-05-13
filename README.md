@@ -409,6 +409,44 @@ openclaw gateway restart
 
 这属于 plugin 自身能力范围内，下一版本优先实现。
 
+### 5. 多设备分布式写入 + 集中整理（当前：不直接支持 → 需要外部编排）
+
+**需求**：多台设备各自运行 AI，分别产生记忆；由一台"中央节点"定期拉取所有设备的记忆，统一去重、索引、整理。
+
+**为什么当前架构不支持**：
+- `.yaoyao.db` 是 SQLite 二进制文件，两台设备的 DB 文件**无法合并**（没有 diff/merge 语义）
+- `memory/*.md` 文件名按日期生成（如 `2026-05-14.md`），多设备同一天写入会**互相覆盖**
+- `memory_cloud_sync` 是镜像备份，不是按设备分区的增量投递
+
+**最小可行方案（需外部工具配合）**：
+
+```
+设备 A                    云端                     中央整理节点
+  │  push md only         │                        │
+  ▼                       ▼                        ▼
+memory/2026-05-14.md  →  device-a/2026-05-14.md    │  rclone pull all
+                         device-b/2026-05-14.md    │  → memory_import
+                         device-c/2026-05-14.md    │  → 统一 .yaoyao.db
+```
+
+1. **各设备**：只通过 `memory_cloud_sync` 上传 `memory/*.md` 文本文件（排除 `.yaoyao.db`）
+2. **云端**：按设备分区存储（`device-a/`、`device-b/`、`device-c/`）
+3. **中央节点**：定期 `rclone sync` 拉取所有分区，用 `memory_import` 批量导入并按内容哈希去重
+4. **中央节点**：维护统一的 `.yaoyao.db`，作为"完整历史"的唯一真相源
+
+**当前能做到的**：
+
+| 场景 | 可行性 | 方案 |
+|------|--------|------|
+| 各设备只写自己的，彼此不共享 | ✅ | 每台设备独立运行 yaoyao-memory |
+| 各设备写自己的，中央节点统一整理后只在一台查 | ⚠️ 勉强 | 手动 rclone + `memory_import`，无自动化工具 |
+| 各设备写自己的，所有设备都能查全部 | ❌ | 需要把统一索引反向同步回各设备，回到"怎么合并 SQLite"的原点 |
+
+**计划**：P3 — 这不是 plugin 单点能优雅解决的。如果需求强烈，后续可能提供：
+- `memory_sync --mode=md-only` — 只同步 markdown，不上传 `.yaoyao.db`
+- `memory_import --device-prefix=device-a` — 导入时自动给来源打标签
+- 但"分布式索引合并"仍是 SQLite 生态的天花板， honest 承认 limitation。
+
 ---
 
 - **OpenClaw** >= 2026.5.5（`openclaw --version` 查看）
