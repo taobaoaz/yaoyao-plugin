@@ -13,6 +13,7 @@
 
 import { withErrorHandling } from "./common.js";
 import type { ToolRegistration } from "./common.js";
+import { clampNum } from "../utils/clamp.js";
 
 export function createRemindTool(): ToolRegistration {
   return {
@@ -96,7 +97,8 @@ export function createRemindTool(): ToolRegistration {
       // 如果提供了自然语言描述，转换为 cron 表达式
       let finalCron = cronExpr;
       if (timeDescription) {
-        finalCron = convertHumanToCron(timeDescription) || cronExpr;
+        const minuteOffset = clampNum(params.minuteOffset, 30, 0, 59);
+        finalCron = convertHumanToCron(timeDescription, minuteOffset) || cronExpr;
       }
 
       const finalMessage = message || (keyword
@@ -146,7 +148,7 @@ export function createRemindTool(): ToolRegistration {
  * 自然语言时间 → cron 表达式
  * 覆盖常用中文时间描述，自动提取小时和分钟
  */
-function convertHumanToCron(descr: string): string | null {
+function convertHumanToCron(descr: string, minuteOffset = 30): string | null {
   const lower = descr.toLowerCase().replace(/\s+/g, "");
 
   // 提取分钟和小时
@@ -156,6 +158,14 @@ function convertHumanToCron(descr: string): string | null {
   if (minMatch) minute = minMatch[1].padStart(2, "0");
   const hourMatch = lower.match(/(\d+)点/);
   if (hourMatch) hour = hourMatch[1].padStart(2, "0");
+
+  // 应用随机偏移（限制在 0-59 内）
+  const clampedOffset = Math.max(0, Math.min(59, minuteOffset));
+  let startMinute = Number(minute);
+  if (clampedOffset > 0) {
+    startMinute = (startMinute + Math.floor(Math.random() * (clampedOffset + 1))) % 60;
+  }
+  minute = String(startMinute).padStart(2, "0");
 
   // 上午/下午/晚上/中午转换
   if (/下午/.test(lower) || /晚上/.test(lower)) {

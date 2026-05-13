@@ -33,12 +33,34 @@ function extractContent(msg: unknown, maxLen?: number): string {
       .slice(0, limit);
   }
 
-  // Fallback: try JSON stringify
+  // Fallback: safe JSON stringify with depth limit
   try {
-    return JSON.stringify(content).slice(0, limit);
+    return safeStringify(content, limit);
   } catch {
     return "[unparseable content]";
   }
+}
+
+/** Depth-limited JSON stringify to avoid OOM on deeply nested / massive objects */
+function safeStringify(obj: unknown, maxLen: number): string {
+  const seen = new WeakSet<object>();
+  function walk(val: unknown, depth: number): string {
+    if (depth > 3) return "[...]";
+    if (val === null) return "null";
+    if (typeof val !== "object") return String(val).slice(0, maxLen);
+    if (seen.has(val as object)) return "[Circular]";
+    seen.add(val as object);
+    if (Array.isArray(val)) {
+      const items = val.slice(0, 10).map(v => walk(v, depth + 1));
+      const tail = val.length > 10 ? `,...${val.length - 10} more` : "";
+      return `[${items.join(",")}${tail}]`;
+    }
+    const entries = Object.entries(val as Record<string, unknown>).slice(0, 10);
+    const tail = Object.keys(val as Record<string, unknown>).length > 10 ? ",...}" : "}";
+    const pairs = entries.map(([k, v]) => `${k}:${walk(v, depth + 1)}`);
+    return `{${pairs.join(",")}${tail}`;
+  }
+  return walk(obj, 0).slice(0, maxLen);
 }
 
 export function registerCaptureHook(

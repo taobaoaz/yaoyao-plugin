@@ -36,14 +36,27 @@ export function parseSecretsEnv(content: string): Secrets {
   return result;
 }
 
+let _cachedSecrets: Secrets | null = null;
+let _cachedPath: string | null = null;
+let _cachedMtime = 0;
+
 /**
- * Load secrets from the default path. Returns empty object if file missing.
+ * Load secrets from the default path with in-memory caching (invalidated on file change).
+ * Returns empty object if file missing.
  */
 export function loadSecrets(filePath?: string): Secrets {
   const target = filePath || SECRETS_PATH;
   try {
     if (!fs.existsSync(target)) return {};
-    return parseSecretsEnv(fs.readFileSync(target, "utf-8"));
+    const stat = fs.statSync(target);
+    if (_cachedSecrets && _cachedPath === target && _cachedMtime === stat.mtimeMs) {
+      return _cachedSecrets;
+    }
+    const secrets = parseSecretsEnv(fs.readFileSync(target, "utf-8"));
+    _cachedSecrets = secrets;
+    _cachedPath = target;
+    _cachedMtime = stat.mtimeMs;
+    return secrets;
   } catch {
     return {};
   }

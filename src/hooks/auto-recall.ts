@@ -59,15 +59,15 @@ let cacheAccessCount = 0;
 
 function getCachedResults(key: string, cfg: RecallThresholds): SearchResult[] | null {
   cacheAccessCount++;
+  const now = Date.now();
   // Periodic expired-entry cleanup (every 100 accesses)
   if (cacheAccessCount % 100 === 0) {
-    const now = Date.now();
     for (const [k, v] of resultCache) {
       if (v.expires < now) resultCache.delete(k);
     }
   }
   const cached = resultCache.get(key);
-  if (cached && cached.expires > Date.now()) return cached.results;
+  if (cached && cached.expires > now) return cached.results;
   resultCache.delete(key);
   return null;
 }
@@ -75,8 +75,21 @@ function getCachedResults(key: string, cfg: RecallThresholds): SearchResult[] | 
 function setCachedResults(key: string, results: SearchResult[], cfg: RecallThresholds): void {
   if (resultCache.size >= cfg.maxCacheSize) {
     const now = Date.now();
+    // Phase 1: evict expired entries
     for (const [k, v] of resultCache) {
-      if (v.expires < now || resultCache.size > cfg.maxCacheSize * 1.5) resultCache.delete(k);
+      if (v.expires < now) resultCache.delete(k);
+    }
+    // Phase 2: if still full, evict oldest by expiration time
+    if (resultCache.size >= cfg.maxCacheSize) {
+      let oldestKey: string | null = null;
+      let oldestTime = Infinity;
+      for (const [k, v] of resultCache) {
+        if (v.expires < oldestTime) {
+          oldestTime = v.expires;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) resultCache.delete(oldestKey);
     }
   }
   resultCache.set(key, { results, expires: Date.now() + cfg.cacheTTL });
@@ -84,34 +97,47 @@ function setCachedResults(key: string, results: SearchResult[], cfg: RecallThres
 
 // ── Enhancement 3: Session context accumulation ──
 // Maintains cross-turn keyword context per session to improve recall relevance.
-const sessionContext = new Map<string, Set<string>>();
+// Entries are LRU-evicted when over maxSessions to prevent memory leaks.
+const sessionContext = new Map<string, { keywords: Set<string>; lastAccess: number }>();
 
 function updateSessionContext(sessionKey: string, keywords: string[], cfg: RecallThresholds): void {
-  // Evict oldest session if over limit
+  const now = Date.now();
+  // Evict oldest session by lastAccess if over limit
   if (!sessionContext.has(sessionKey) && sessionContext.size >= cfg.maxSessions) {
-    const firstKey = sessionContext.keys().next().value;
-    if (firstKey !== undefined) {
-      sessionContext.delete(firstKey);
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+    for (const [k, v] of sessionContext) {
+      if (v.lastAccess < oldestTime) {
+        oldestTime = v.lastAccess;
+        oldestKey = k;
+      }
     }
+    if (oldestKey) sessionContext.delete(oldestKey);
   }
-  if (!sessionContext.has(sessionKey)) {
-    sessionContext.set(sessionKey, new Set<string>());
+  let entry = sessionContext.get(sessionKey);
+  if (!entry) {
+    entry = { keywords: new Set<string>(), lastAccess: now };
+    sessionContext.set(sessionKey, entry);
   }
-  const ctx = sessionContext.get(sessionKey)!;
+  entry.lastAccess = now;
   for (const kw of keywords) {
-    ctx.add(kw);
+    entry.keywords.add(kw);
   }
   // Evict oldest when over limit
-  if (ctx.size > cfg.maxContextKeywords) {
-    const arr = Array.from(ctx);
-    const toRemove = arr.slice(0, ctx.size - cfg.maxContextKeywords);
-    for (const kw of toRemove) ctx.delete(kw);
+  if (entry.keywords.size > cfg.maxContextKeywords) {
+    const arr = Array.from(entry.keywords);
+    const toRemove = arr.slice(0, entry.keywords.size - cfg.maxContextKeywords);
+    for (const kw of toRemove) entry.keywords.delete(kw);
   }
 }
 
 function getSessionContextKeywords(sessionKey: string): string[] {
-  const ctx = sessionContext.get(sessionKey);
-  return ctx ? Array.from(ctx) : [];
+  const entry = sessionContext.get(sessionKey);
+  if (entry) {
+    entry.lastAccess = Date.now();
+    return Array.from(entry.keywords);
+  }
+  return [];
 }
 
 // ── Enhancement 1: Time decay scoring ──

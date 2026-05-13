@@ -579,9 +579,8 @@ class SambaAdapter implements CloudAdapter {
 
   private ensureMounted(): string | null {
     if (!this.isWindows) return null;
-    // dedicated letter for yaoyao-memory
     const driveLetter = "Z:";
-    const esc = (s) => s.replace(/"/g, '""');
+    const esc = (s: string) => s.replace(/[&|^$%`;]/g, "").replace(/"/g, '""');
     const unc = `\\\\${this.host}\\${this.share}`;
 
     try {

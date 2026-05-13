@@ -57,13 +57,14 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
       const sourceFile = String(params.source || "");
       const dryRun = params.dryRun === true;
 
-      // 从文件读取 — 安全校验：限制在 baseDir 或 dbPath 内
+      // 从文件读取 — 安全校验：限制在 baseDir 内
       if (!jsonlData && sourceFile) {
         const resolved = path.resolve(sourceFile);
         const allowedDir = path.resolve(store.baseDir);
-        // 使用 path.relative 防止路径遍历（比 startsWith 更严谨）
-        const rel = path.relative(allowedDir, resolved);
-        if (rel.startsWith("..") || path.isAbsolute(rel)) {
+        const normalizedResolved = path.normalize(resolved);
+        const normalizedAllowed = path.normalize(allowedDir);
+        // 严格校验：路径必须在 allowedDir 之下（含相等），不允许 ../ 跳出
+        if (!normalizedResolved.startsWith(normalizedAllowed + path.sep) && normalizedResolved !== normalizedAllowed) {
           return { content: [{ type: "text", text: "⛔ 拒绝读取记忆目录之外的文件" }] };
         }
         if (!fs.existsSync(resolved)) {

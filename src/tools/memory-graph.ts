@@ -147,7 +147,6 @@ function buildGraph(
 ): GraphResult {
   const nodes = new Map<string, GraphNode>();
   const edges = new Map<string, GraphEdge>();
-  const visited = new Set<string>();
   const nodeOrder: string[] = [];
 
   // Resolve weights with defaults
@@ -188,24 +187,23 @@ function buildGraph(
   const initialResults = db.search(query, ftsLimit);
 
   // Merge initial results (deduplicate by filename)
-  const seenFiles = new Set<string>();
+  const initialSeen = new Set<string>();
   for (const r of initialResults) {
-    if (!seenFiles.has(r.filename)) {
+    if (!initialSeen.has(r.filename)) {
       const nodeId = `mem:${r.filename}`;
       addNode(nodeId, {
         id: nodeId, label: r.filename, type: "memory",
         snippet: r.snippet.slice(0, 120), score: r.score,
         degree: 0, date: r.filename.replace(".md", ""),
       });
-      visited.add(r.filename);
-      seenFiles.add(r.filename);
+      initialSeen.add(r.filename);
     }
   }
 
   // Step 2: 收集所有初始节点的 ID 用于关联标签/场景
   const memFilenameMap = buildFilenameToIdMap(db);
   const initialMemIds: number[] = [];
-  for (const f of seenFiles) {
+  for (const f of initialSeen) {
     const id = memFilenameMap.get(f);
     if (id !== undefined) initialMemIds.push(id);
   }
@@ -230,21 +228,18 @@ function buildGraph(
       const memNodeId = `mem:${memFname}`;
       addEdge(tagNodeId, memNodeId, "同标签", w.tagEdge, `共同标签: ${tag}`);
 
-      if (!visited.has(memFname)) {
-        visited.add(memFname);
-        const nodeId = `mem:${memFname}`;
-        addNode(nodeId, {
-          id: nodeId, label: memFname, type: "memory",
-          snippet: "(关联: 标签)", score: w.orphanNode, degree: 0,
-          date: memFname.replace(".md", ""),
-        });
-      }
+      // Allow same memory to be reached through multiple paths — addNode deduplicates
+      addNode(memNodeId, {
+        id: memNodeId, label: memFname, type: "memory",
+        snippet: "(关联: 标签)", score: w.orphanNode, degree: 0,
+        date: memFname.replace(".md", ""),
+      });
     }
   }
 
   // Step 4: 场景关联
   for (const [sceneName, sceneData] of scenes) {
-    const matchedMems = sceneData.memories.filter(m => seenFiles.has(m));
+    const matchedMems = sceneData.memories.filter(m => initialSeen.has(m));
     if (matchedMems.length === 0) continue;
 
     const sceneNodeId = `scene:${sceneName}`;
@@ -258,18 +253,16 @@ function buildGraph(
       const memNodeId = `mem:${otherMem}`;
       addEdge(sceneNodeId, memNodeId, "同场景", w.sceneEdge, `场景: ${sceneName}`);
 
-      if (!visited.has(otherMem)) {
-        visited.add(otherMem);
-        addNode(memNodeId, {
-          id: memNodeId, label: otherMem, type: "memory",
-          snippet: "(关联: 场景)", score: w.unseenNode, degree: 0,
-          date: otherMem.replace(".md", ""),
-        });
-      }
+      // Allow same memory to be reached through multiple paths — addNode deduplicates
+      addNode(memNodeId, {
+        id: memNodeId, label: otherMem, type: "memory",
+        snippet: "(关联: 场景)", score: w.unseenNode, degree: 0,
+        date: otherMem.replace(".md", ""),
+      });
     }
 
-    // 场景内记忆互相连接
-    const sceneMems = sceneData.memories.filter(m => visited.has(m));
+    // 场景内记忆互相连接 (use nodes.has instead of visited to avoid cross-path blocking)
+    const sceneMems = sceneData.memories.filter(m => nodes.has(`mem:${m}`));
     for (let i = 0; i < sceneMems.length; i++) {
       for (let j = i + 1; j < sceneMems.length; j++) {
         addEdge(`mem:${sceneMems[i]}`, `mem:${sceneMems[j]}`, "同场景内", w.sceneInner, `均在场景: ${sceneName}`);

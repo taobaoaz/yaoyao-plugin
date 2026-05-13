@@ -384,7 +384,9 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
         norm += embedding[i] * embedding[i];
       }
       norm = Math.sqrt(norm);
-      const normalized = norm === 0 ? embedding : new Float32Array(embedding.map(v => v / norm));
+      const normalized = norm === 0
+        ? new Float32Array(embedding.length)  // zero vector for all-zero embeddings
+        : new Float32Array(embedding.map(v => v / norm));
 
       const jsonArr = "[" + Array.from(normalized).join(",") + "]";
 
@@ -406,15 +408,30 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
   }
 
+  let pendingRebuild = false;
+  let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function scheduleRebuild() {
+    if (pendingRebuild) return;
+    pendingRebuild = true;
+    if (rebuildTimer) clearTimeout(rebuildTimer);
+    rebuildTimer = setTimeout(() => {
+      try {
+        ensureDB().exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+      } catch { /* best effort */ }
+      pendingRebuild = false;
+      rebuildTimer = null;
+    }, 500);
+  }
+
   /** Delete memory entries from FTS5 and meta tables by date */
   function deleteByDate(date: string): number {
     try {
       const d = ensureDB();
-      // Delete from FTS5 (via content sync table)
       const metaResult = d.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
       const deleted = Number(metaResult.changes ?? 0);
-      // Rebuild FTS5 index to reflect content table changes
-      d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+      // Defer FTS5 rebuild to batch multiple deletions
+      scheduleRebuild();
       // Clean up orphan vectors
       try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
       log(`deleteByDate: ${deleted} entries removed for ${date}`);
@@ -435,8 +452,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       ).run(pattern, pattern);
       const deleted = Number(result.changes ?? 0);
       if (deleted > 0) {
-        d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
-        // Clean up orphan vectors
+        scheduleRebuild();
         try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
       }
       log(`deleteByKeyword: ${deleted} entries removed for "${keyword}"`);
