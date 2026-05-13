@@ -5,6 +5,8 @@
  *   clampNum(params.limit, 20, 1, 500)   // default=20, min=1, max=500
  */
 export function clampNum(val, defaultVal, min, max) {
+    if (val === null || val === undefined)
+        return defaultVal;
     const num = Number(val);
     if (Number.isNaN(num))
         return defaultVal;
