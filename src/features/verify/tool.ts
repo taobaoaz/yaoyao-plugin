@@ -50,8 +50,9 @@ export function createVerifyTool(db: DBBridge) {
         unconfirmed: "❓",
         contradicted: "⚠️",
       };
+      const emoji = emojiMap[verdict.verdict] ?? "❓";
 
-      let text = `${emojiMap[verdict.verdict]} **${verdict.verdict.toUpperCase()}**（置信度 ${(verdict.confidence * 100).toFixed(0)}%）\n\n`;
+      let text = `${emoji} **${verdict.verdict.toUpperCase()}**（置信度 ${(verdict.confidence * 100).toFixed(0)}%）\n\n`;
       text += `**说法**：${claim}\n\n`;
       text += `**理由**：${verdict.reasoning}\n`;
 

@@ -25,11 +25,17 @@ export const CORRECTION_MARKERS = [
 ];
 
 /** Detect speculative language in text */
-export function detectSpeculative(text: string): {
+export function detectSpeculative(text: unknown): {
   isSpeculative: boolean;
   markers: string[];
   confidence: "high" | "medium" | "low";
 } {
+  if (typeof text !== "string") {
+    return { isSpeculative: false, markers: [], confidence: "high" };
+  }
+  if (text.length === 0) {
+    return { isSpeculative: false, markers: [], confidence: "high" };
+  }
   const lower = text.toLowerCase();
   const found = SPECULATIVE_MARKERS.filter(m => lower.includes(m.toLowerCase()));
 
@@ -47,10 +53,16 @@ export function detectSpeculative(text: string): {
 }
 
 /** Detect user corrections that dispute AI claims */
-export function detectCorrection(text: string): {
+export function detectCorrection(text: unknown): {
   isCorrection: boolean;
   markers: string[];
 } {
+  if (typeof text !== "string") {
+    return { isCorrection: false, markers: [] };
+  }
+  if (text.length === 0) {
+    return { isCorrection: false, markers: [] };
+  }
   const lower = text.toLowerCase();
   const found = CORRECTION_MARKERS.filter(m => lower.includes(m.toLowerCase()));
   return {
@@ -61,15 +73,35 @@ export function detectCorrection(text: string): {
 
 /** Score how well a claim is supported by memory snippets */
 export function scoreEvidence(
-  claim: string,
-  snippets: Array<{ snippet: string; filename: string }>,
+  claim: unknown,
+  snippets: unknown,
 ): {
   verdict: "confirmed" | "partial" | "unconfirmed" | "contradicted";
   confidence: number;
   evidence: Array<{ snippet: string; filename: string; overlap: number }>;
   reasoning: string;
 } {
-  if (snippets.length === 0) {
+  if (typeof claim !== "string" || claim.length === 0) {
+    return {
+      verdict: "unconfirmed",
+      confidence: 0,
+      evidence: [],
+      reasoning: "待验证的说法为空或无效。",
+    };
+  }
+
+  // Defensive: validate snippets array structure
+  let validSnippets: Array<{ snippet: string; filename: string }> = [];
+  if (Array.isArray(snippets)) {
+    validSnippets = snippets.filter(
+      (s): s is { snippet: string; filename: string } =>
+        s != null &&
+        typeof (s as Record<string, unknown>).snippet === "string" &&
+        typeof (s as Record<string, unknown>).filename === "string"
+    );
+  }
+
+  if (validSnippets.length === 0) {
     return {
       verdict: "unconfirmed",
       confidence: 0,
@@ -78,7 +110,7 @@ export function scoreEvidence(
     };
   }
 
-  const scored = snippets.map(s => {
+  const scored = validSnippets.map(s => {
     const overlap = hybridOverlap(claim, s.snippet);
     return { ...s, overlap };
   }).sort((a, b) => b.overlap - a.overlap);

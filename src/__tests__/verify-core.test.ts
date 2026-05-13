@@ -36,6 +36,28 @@ describe("detectSpeculative", () => {
     assert.strictEqual(result.isSpeculative, true);
     assert.strictEqual(result.confidence, "low");
   });
+
+  it("handles null/undefined input gracefully", () => {
+    const r1 = detectSpeculative(null);
+    const r2 = detectSpeculative(undefined);
+    assert.strictEqual(r1.isSpeculative, false);
+    assert.strictEqual(r2.isSpeculative, false);
+    assert.deepStrictEqual(r1.markers, []);
+    assert.deepStrictEqual(r2.markers, []);
+  });
+
+  it("handles empty string", () => {
+    const result = detectSpeculative("");
+    assert.strictEqual(result.isSpeculative, false);
+    assert.strictEqual(result.confidence, "high");
+  });
+
+  it("handles very long text without crashing", () => {
+    const long = "可能".repeat(5000);
+    const result = detectSpeculative(long);
+    assert.strictEqual(result.isSpeculative, true);
+    assert.ok(result.markers.length >= 1);
+  });
 });
 
 describe("detectCorrection", () => {
@@ -55,6 +77,21 @@ describe("detectCorrection", () => {
   it("returns false for normal text", () => {
     const result = detectCorrection("好的，我明白了。");
     assert.strictEqual(result.isCorrection, false);
+  });
+
+  it("handles null/undefined input gracefully", () => {
+    const r1 = detectCorrection(null);
+    const r2 = detectCorrection(undefined);
+    assert.strictEqual(r1.isCorrection, false);
+    assert.strictEqual(r2.isCorrection, false);
+    assert.deepStrictEqual(r1.markers, []);
+    assert.deepStrictEqual(r2.markers, []);
+  });
+
+  it("handles empty string", () => {
+    const result = detectCorrection("");
+    assert.strictEqual(result.isCorrection, false);
+    assert.deepStrictEqual(result.markers, []);
   });
 });
 
@@ -97,5 +134,45 @@ describe("scoreEvidence", () => {
     }));
     const result = scoreEvidence("测试", snippets);
     assert.strictEqual(result.evidence.length, 3);
+  });
+
+  it("handles null claim gracefully", () => {
+    const result = scoreEvidence(null, [{ snippet: "test", filename: "a.md" }]);
+    assert.strictEqual(result.verdict, "unconfirmed");
+    assert.strictEqual(result.confidence, 0);
+    assert.ok(result.reasoning.includes("空"));
+  });
+
+  it("handles empty claim string", () => {
+    const result = scoreEvidence("", [{ snippet: "test", filename: "a.md" }]);
+    assert.strictEqual(result.verdict, "unconfirmed");
+    assert.strictEqual(result.confidence, 0);
+  });
+
+  it("handles invalid snippets array", () => {
+    const result = scoreEvidence("测试", "not an array" as unknown as Array<{ snippet: string; filename: string }>);
+    assert.strictEqual(result.verdict, "unconfirmed");
+    assert.strictEqual(result.confidence, 0);
+  });
+
+  it("filters malformed snippet objects", () => {
+    const snippets = [
+      { snippet: "有效片段", filename: "valid.md" },
+      { snippet: 123, filename: "invalid.md" } as unknown as { snippet: string; filename: string },
+      null as unknown as { snippet: string; filename: string },
+    ];
+    const result = scoreEvidence("测试", snippets);
+    // Should still work with the one valid snippet
+    assert.strictEqual(result.evidence.length, 1);
+    assert.strictEqual(result.evidence[0].filename, "valid.md");
+  });
+
+  it("handles empty snippet strings", () => {
+    const snippets = [
+      { snippet: "", filename: "empty.md" },
+    ];
+    const result = scoreEvidence("用户养猫", snippets);
+    // Empty snippet means zero overlap, should be unconfirmed
+    assert.strictEqual(result.verdict, "unconfirmed");
   });
 });
