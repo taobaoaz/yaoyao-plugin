@@ -81,7 +81,7 @@ export function registerCaptureHook(
         : new Date().toISOString().slice(0, 10);
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
 
-      const captureCfg = (config as Record<string, unknown>).capture || {} as Record<string, unknown>;
+      const captureCfg = ((config as Record<string, unknown>).capture || {}) as Record<string, unknown>;
       const captureMaxLen = clampNum(captureCfg.maxContentLen, 500, 50, 5000);
       const minContentLen = clampNum(captureCfg.minContentLen, 3, 0, 100);
 

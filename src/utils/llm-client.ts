@@ -123,7 +123,7 @@ export function createLLMClient(
 }
 
 export class LLMClient {
-  private config: LLMConfig;
+  public config: LLMConfig;
 
   constructor(config: LLMConfig) {
     this.config = config;

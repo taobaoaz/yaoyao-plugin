@@ -412,7 +412,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const d = ensureDB();
       // Delete from FTS5 (via content sync table)
       const metaResult = d.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
-      const deleted = metaResult.changes ?? 0;
+      const deleted = Number(metaResult.changes ?? 0);
       // Rebuild FTS5 index to reflect content table changes
       d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
       // Clean up orphan vectors
@@ -433,7 +433,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const result = d.prepare(
         "DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
       ).run(pattern, pattern);
-      const deleted = result.changes ?? 0;
+      const deleted = Number(result.changes ?? 0);
       if (deleted > 0) {
         d.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
         // Clean up orphan vectors
@@ -534,7 +534,31 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     return searchAll(limit);
   }
 
-  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate };
+  /** Simple key-value config store (for import checkpoints, etc.) */
+  function getConfig(key: string, defaultValue?: string | null): string | null {
+    try {
+      const d = ensureDB();
+      const tableExists = d.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_config'").get() as { name: string } | undefined;
+      if (!tableExists) {
+        d.exec("CREATE TABLE IF NOT EXISTS memory_config (key TEXT PRIMARY KEY, value TEXT)");
+        return defaultValue ?? null;
+      }
+      const row = d.prepare("SELECT value FROM memory_config WHERE key = ?").get(key) as { value: string } | undefined;
+      return row ? row.value : (defaultValue ?? null);
+    } catch {
+      return defaultValue ?? null;
+    }
+  }
+
+  function setConfig(key: string, value: string): void {
+    try {
+      const d = ensureDB();
+      d.exec("CREATE TABLE IF NOT EXISTS memory_config (key TEXT PRIMARY KEY, value TEXT)");
+      d.prepare("INSERT OR REPLACE INTO memory_config (key, value) VALUES (?, ?)").run(key, value);
+    } catch { /* best effort */ }
+  }
+
+  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;

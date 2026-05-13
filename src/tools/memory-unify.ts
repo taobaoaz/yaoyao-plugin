@@ -28,14 +28,14 @@ function getWorkspaceMemoryDir(store) {
   return store.baseDir;
 }
 
-function queryOpenClawDB(sql, params) {
+function queryOpenClawDB(sql: string, params?: any[]) {
   const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");
   try { if (!fs.existsSync(dbPath)) return null; } catch { return null; }
   try {
-    const db = new DatabaseSync(dbPath, { mode: "readonly" });
+    const db = new DatabaseSync(dbPath, { mode: "readonly" } as any);
     const rows = db.prepare(sql).all(...(params || []));
     db.close();
-    return rows;
+    return rows as any[];
   } catch {
     return null;
   }

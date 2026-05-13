@@ -19,7 +19,7 @@ const DEFAULT_EMBED_MODELS = {
     mistral: "mistral-embed",
     fireworks: "nomic-embed-text-v1.5",
 };
-function detectEmbedModel(provider, customMap) {
+export function detectEmbedModel(provider, customMap) {
     const p = provider.toLowerCase().trim();
     if (customMap && customMap[p])
         return customMap[p];

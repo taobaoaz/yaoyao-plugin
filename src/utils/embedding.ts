@@ -37,7 +37,7 @@ const DEFAULT_EMBED_MODELS: Record<string, string> = {
   fireworks: "nomic-embed-text-v1.5",
 };
 
-function detectEmbedModel(provider: string, customMap?: Record<string, string>): string {
+export function detectEmbedModel(provider: string, customMap?: Record<string, string>): string {
   const p = provider.toLowerCase().trim();
   if (customMap && customMap[p]) return customMap[p];
   return DEFAULT_EMBED_MODELS[p] || "";

@@ -723,10 +723,10 @@ export interface AdapterFactoryResult {
 }
 
 export interface AdapterFactoryOpts {
-  sftpTimeoutMs?: number;
-  sambaTimeoutMs?: number;
-  sambaMountCheckTimeoutMs?: number;
-  sambaMountTimeoutMs?: number;
+  timeoutMs?: number;
+  smbTimeoutMs?: number;
+  mountCheckTimeoutMs?: number;
+  mountTimeoutMs?: number;
 }
 
 const PROVIDER_CHECKS: Array<{ name: string; check: (s: Secrets) => boolean; create: (s: Secrets, opts?: AdapterFactoryOpts) => CloudAdapter }> = [

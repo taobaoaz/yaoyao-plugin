@@ -166,9 +166,9 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
         db.exec("BEGIN TRANSACTION");
         try {
           for (const entry of entries) {
-            const r = insertedMeta.run(entry.date, entry.user_text, entry.asst_text);
+            const r = insertedMeta.run(entry.date as any, entry.user_text as any, entry.asst_text as any);
             const rowId = Number(r.lastInsertRowid);
-            insertedFts.run(rowId, entry.date, entry.user_text, entry.asst_text);
+            insertedFts.run(rowId, entry.date as any, entry.user_text as any, entry.asst_text as any);
             successCount++;
           }
           db.exec("COMMIT");

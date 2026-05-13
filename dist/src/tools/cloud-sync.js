@@ -268,7 +268,7 @@ export function createCloudSyncTool(store) {
             const dryRun = !!params.dryRun;
             const cmdTimeoutMs = clampNum(params.cmdTimeoutMs, 30_000, 3_000, 120_000);
             const conflictPolicy = String(params.conflictPolicy || "newer");
-            const adapterOpts = { sftpTimeoutMs: cmdTimeoutMs, sambaTimeoutMs: cmdTimeoutMs, sambaMountTimeoutMs: cmdTimeoutMs, sambaMountCheckTimeoutMs: Math.max(1_000, Math.min(30_000, cmdTimeoutMs / 3)) };
+            const adapterOpts = { timeoutMs: cmdTimeoutMs, smbTimeoutMs: cmdTimeoutMs, mountTimeoutMs: cmdTimeoutMs, mountCheckTimeoutMs: Math.max(1_000, Math.min(30_000, cmdTimeoutMs / 3)) };
             // --- status ---
             if (action === "status") {
                 const { statuses } = createAdapters(undefined, adapterOpts);

@@ -66,7 +66,7 @@ export function registerCaptureHook(api, store, db, config) {
                 ? new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
                 : new Date().toISOString().slice(0, 10);
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-            const captureCfg = config.capture || {};
+            const captureCfg = (config.capture || {});
             const captureMaxLen = clampNum(captureCfg.maxContentLen, 500, 50, 5000);
             const minContentLen = clampNum(captureCfg.minContentLen, 3, 0, 100);
             const userContent = extractContent(lastUserMsg, captureMaxLen);

@@ -81,7 +81,7 @@ export function createExportTool(store: MemoryStore, dbBridge?: DBBridge): ToolR
         const stmt = rawDb.prepare(
           `SELECT date, user_text, asst_text, created_at FROM memory_meta ${whereClause} ORDER BY date DESC, id DESC LIMIT ?`
         );
-        const rows = stmt.all(...bindParams, limit) as Array<Record<string, unknown>>;
+        const rows = stmt.all(...(bindParams as any[]), limit) as Array<Record<string, unknown>>;
 
         if (rows.length === 0) {
           return { content: [{ type: "text", text: keyword ? `没有找到包含"${keyword}"的记忆。` : "没有找到匹配的记忆。" }] };
