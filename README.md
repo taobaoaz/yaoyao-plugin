@@ -2,9 +2,11 @@
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**27 个工具 · 3 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 心理学模型 · 环境自适应 · 记忆接管 · 趋势分析 · 质量评估 · 云备份 · 反遗忘 · 90+ 单元测试**
+**24 个工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 环境自适应 · 记忆接管 · 趋势分析 · 质量评估 · 云备份 · 反遗忘 · 175+ 单元测试**
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
+
+> ⚠️ v1.5.0+ 架构已拆分：心理学模型、情绪追踪、L4 反馈学习已移至 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul) 插件。本插件专注于**记忆存储、搜索、索引与数据管理**。
 
 ---
 
@@ -13,25 +15,23 @@
 ```
 L0 — 每日对话日志        (memory/YYYY-MM-DD.md)     ← 自动捕获 (agent_end)
 L1 — 结构化记忆索引      (.yaoyao.db FTS5 + vec)    ← 混合搜索 (before_prompt_build)
-L2 — 场景分组            (scene_blocks/)             ← LLM 管线
-L3 — 用户画像            (persona.md)                ← LLM 提炼
-     ├─ PersonaStateMachine — mood/energy/trust 计算
-     ├─ Mood 趋势预测 + 置信度衰减
-     ├─ 自适应引导 (tone/verbosity/autonomy)
-     └─ L4 反馈学习层 (FeedbackTracker)
+L2 — 场景分组            (scene_blocks/)             ← 关联图谱
+L3 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无需 LLM
 ```
 
-## 工具 (34 个)
+> 💡 v1.4.x 中的 **心理学模型**（PersonaStateMachine、情绪追踪、L4 反馈学习）已拆分为独立插件 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul)。安装后可与本插件协同工作。
+
+## 工具 (24 个)
 
 | 工具 | 用途 |
 |------|------|
 | `memory_search` | 🔍 FTS5 全文搜索 + CJK 模糊降级，支持中文、英文、混合查询 |
-| `memory_get` | 📖 读取指定记忆文件（支持相对路径和绝对路径） |
+| `memory_get` | 📖 读取指定记忆文件 |
 | `memory_list` | 📋 列出所有记忆文件（含类型、日期、大小信息） |
 | `memory_save` | 💾 手动记录一条记忆（tags 参数支持分类标记） |
 | `memory_stats` | 📊 记忆统计（支持 text/json 格式，basic/full 详细程度） |
 | `memory_mood` | 🎨 分析情绪趋势 — Ekman 6 基本情绪分析 + 心情环可视化 |
-| `memory_timeline` | 📅 时间线热力图 — ███ 密度条 |
+| `memory_timeline` | 📅 时间线热力图 |
 | `memory_search_timeline` | 🔍📅 搜索 + 时间轴分组 |
 | `memory_backup` | 📦 创建快照备份（全量 / 增量） |
 | `memory_forget` | 🗑️ 按关键词或日期删除（⚠️ 不可恢复） |
@@ -50,33 +50,39 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 | `memory_import_oc` | 📦 OC chunks 导入 — 从 OpenClaw 原生记忆增量导入 |
 | `memory_import_workspace` | 📂 Workspace 导入 — 导入 MEMORY.md/USER.md 等文件 |
 | `memory_retain` | 🧠 记忆反遗忘 — 检测重要但长期未召回的活跃记忆 |
-| `memory_quality` | ✅ 质量评估 — 重复度、覆盖率健康度检查 |
-| `memory_optimize` | 🧠 L4 反馈学习 — 分析纠错模式生成优化建议 |
 
-## Hook (3 个)
+## Hook (2 个)
 
 | Hook | 触发时机 | 作用 |
 |------|----------|------|
 | `agent_end` | 每次对话结束 | 自动捕获对话内容写入 L0 每日日志 + FTS5 索引 |
 | `before_prompt_build` | 每次对话开始 | 自动从 L1 索引召回相关记忆注入上下文 |
-| `gateway_stop` | 插件/网关关闭 | WAL checkpoint + 资源清理 + 缓存持久化 |
 
 ---
 
 ## 🆕 v1.5.1 修复亮点
 
-### 安全加固
-- **路径遍历防护** — memory_import、memory_get 全部添加白名单校验
-- **命令注入消除** — SFTP/Samba/net use 全部改用参数数组或转义
+### 安全加固（P0/P1）
+- **文件权限收紧** — memory 目录 `0o700`（仅 owner 可访问），DB/日志文件 `0o600`
+- **路径遍历防护** — `memoryDir` 配置禁止 `..` 和相对路径，防止文件系统越界
+- **API Key 脱敏** — 日志中所有 `apiKey`/`token`/`password` 自动掩码（`***` 格式），防止凭证泄露
+- **SSRF 防护** — embedding/LLM 请求禁止访问 localhost/127.0.0.1/192.168/10.x/172.x 等内网地址
+- **供应链攻击面归零** — v1.4.x 迁移检测不再自动 `git clone` 远程代码，改为仅提示手动安装
+- **FTS5 安全边界** — 明确 `sanitizeFTSQuery` 为语法清洗（防 FTS5 语法错误），非 SQL 注入防御；所有 SQL 均使用参数化查询
+
+### 防御性编程加固（Phase 11）
+- **DB 层叠降级** — `node:sqlite` 崩溃 → `better-sqlite3` 顶 → 也崩溃 → `file-db` 纯文件兜底
+- **网络故障隔离** — embedding/LLM fetch 失败不阻断主流程，自动降级到纯 FTS5 搜索
+- **类型系统 100% 严格** — 消灭全部 114+ 处 `any`，`catch (e: any)` → `catch (e: unknown)`
 
 ### 数据一致性
-- **向量残留清理** — deleteByDate/deleteByKeyword 自动清理孤儿向量
-- **余弦公式修正** — 1 - distance/2 正确映射 L2 → cosine
-- **时间衰减修复** — 使用 r.date 字段而非失效的 filename 解析
-- **向量状态真实** — getStats() 不再硬编码 vecEnabled: true
+- **向量残留清理** — `deleteByDate`/`deleteByKeyword` 自动清理孤儿向量
+- **余弦公式修正** — `1 - distance/2` 正确映射 L2 → cosine
+- **时间衰减修复** — 使用 `r.date` 字段而非失效的 filename 解析
+- **向量状态真实** — `getStats()` 不再硬编码 `vecEnabled: true`
 
 ### 连接与资源
-- **DB 连接复用** — 所有工具共享 DBBridge 连接，不再各自 new DatabaseSync()
+- **DB 连接复用** — 所有工具共享 DBBridge 连接，不再各自 `new DatabaseSync()`
 - **Session LRU** — auto-recall 的 sessionContext 和 resultCache 带上限和自动清理
 - **LLM 超时** — 所有 fetch 调用添加 30s AbortController 超时
 
@@ -160,37 +166,13 @@ L3 — 用户画像            (persona.md)                ← LLM 提炼
 
 ---
 
-## 心理学模型
-
-插件内置 AI 状态计算引擎 **PersonaStateMachine**，自动追踪用户的交互状态：
-
-| 维度 | 计算方式 | 作用 |
-|------|----------|------|
-| **Mood** (情绪) | 情感分析 + 滚动窗口 + 历史混合 | 调整语气：positive→温馨，negative→柔和 |
-| **Energy** (能量) | 消息长度 + 交互频率 + 时段 | 调整回复篇幅：high→精简，low→详细 |
-| **Trust** (信任) | 指数移动平均 + 早期保护 | 调整自主权：high→主动推荐，low→谨慎确认 |
-| **Confidence** (置信度) | 长期空闲时自动衰减 | 长时间无交互后降低推断力度 |
-| **MoodTrend** (趋势) | 最近 5 次 delta 判断 | rising→可扩展，falling→更支持 |
-| **Mood 预测** | 线性外推 + 方差阻尼 | 提前适配下一轮语气 |
-
-全部 try-catch 兜底，失效不影响主流程。
-
-## L4 反馈学习层
-
-自动监听用户纠错，记录到 `.feedback.jsonl`：
-
-- **纠错检测**：`"不对"/"不是"/"错了"/"太啰嗦"/"语气不对"` 等模式匹配
-- **反馈统计**：按标签分组（memory / tone / relevance / timing）
-- **`memory_optimize` 工具**：手动触发分析，输出优化建议
-- **`FeedbackTracker.learn()`**：自动从历史反馈中学习模式
-
 ## 测试
 
-**90+ 单元测试 · 全原生运行 · 仅 sqlite-vec（外部 npm 依赖）**
+**175+ 单元测试 · 全原生运行 · 仅 sqlite-vec（外部 npm 依赖）**
 
-覆盖 14 个测试模块：情感分析、存储读写、LLM 解析、session 过滤、FTS5/向量/混合搜索、PersonaStateMachine、FeedbackTracker、导入导出、标签、图谱、增强搜索等。
+覆盖 17 个测试模块：情感分析、存储读写、session 过滤、FTS5/向量/混合搜索、导入导出、标签、图谱、增强搜索、质量评估、趋势分析、cron 提醒、反遗忘、推荐系统等。
 
-运行：`node --test test/*.test.mjs`
+运行：`npm test`
 
 ## 性能基准
 
@@ -256,7 +238,7 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.5.1  ·  27 Tools  ·  3 Hooks
+🎲    v1.5.1  ·  24 Tools  ·  2 Hooks
 🎲 能力: FTS5✅ Vec✅ LLM✅ Cloud⚪
 ```
 
@@ -339,16 +321,15 @@ openclaw gateway restart
 | 路径 | 格式 |
 |------|------|
 | `memory/YYYY-MM-DD.md` | 每日对话日志 |
-| `memory/persona.md` | 用户画像文件 |
 | `memory/.yaoyao.db` | FTS5 + sqlite-vec 索引 |
 | `memory/.backups/` | 时间戳快照备份（全量/增量） |
 | `memory/.backups/.last-backup.json` | 增量备份时间戳标记 |
-| `memory/.pipeline/` | L1→L3 管线检查点 |
-| `memory/.feedback.jsonl` | L4 反馈学习记录 |
 | `memory/scene_blocks/` | 场景分组数据 |
 | `memory/.archive/` | 已清理的旧日志 |
 | `memory/.sync-source` | 云同步来源标记 |
 | `memory/.write-fallback.jsonl` | 写入失败 fallback 记录（自动恢复） |
+
+> 💡 `persona.md` / `.feedback.jsonl` / `.pipeline/` 在 v1.5.0+ 已由 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul) 插件接管，本插件保留这些文件作为只读/兼容用途。
 
 ## 特性
 
@@ -356,13 +337,15 @@ openclaw gateway restart
 - **环境自适应** — 自动探测 FTS5/向量/LLM/云同步能力，优雅降级
 - **记忆接管** — 一键导入 OC 原生记忆、workspace 文件、旧 daily md
 - **心情环** — 情感分析引擎，多语言支持（中/英/日/韩 + emoji 降级）
-- **心理学模型** — 状态追踪 + 趋势分析 + 自适应引导
-- **L4 反馈学习** — 自动监听纠错、统计模式、生成优化建议
+- **安全加固** — 文件权限收紧、路径遍历防护、SSRF 黑名单、API Key 脱敏、供应链归零
+- **防御性降级** — DB 层叠 fallback（node:sqlite → better-sqlite3 → file-db），网络故障隔离
 - **云备份** — WebDAV/S3/SFTP/Samba 多云同步
 - **趋势分析** — 话题频率变化趋势洞察
 - **反遗忘** — 检测重要记忆遗忘风险，主动提醒
 - **极小依赖** — 仅 sqlite-vec（node:sqlite 内置），无 Python 无额外运行时
-- **90+ 测试全绿** — 原生运行
+- **175+ 测试全绿** — 原生运行
+
+> 💡 **心理学模型**（PersonaStateMachine、情绪追踪、L4 反馈学习）在 v1.5.0+ 已拆分为独立插件 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul)。安装后可与本插件协同工作。
 
 ## 要求
 

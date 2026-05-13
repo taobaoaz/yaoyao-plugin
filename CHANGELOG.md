@@ -1,6 +1,40 @@
 # Changelog
 
-## v1.5.1 (2026-05-12)
+## v1.5.1 (2026-05-14)
+
+### 🔒 Security Hardening (Phase 12 — P0/P1)
+
+**File System Security**
+- `memory-store.ts`: directory creation with `0o700` (owner-only), file writes followed by `chmodSync(fp, 0o600)`
+- `memory-store.ts`: `validateMemoryDir()` enforces absolute paths and rejects `..` segments (path traversal prevention)
+
+**Credential Protection**
+- `mask-config.ts` (new): `maskSensitive()` recursively masks apiKey/token/password/secret in config objects; `maskAuthHeader()` masks `Authorization: Bearer <token>` headers
+- `entry/index.ts`: startup embedding config logs now go through `maskSensitive()` before output
+
+**SSRF Prevention**
+- `embedding.ts`: `isForbiddenHost()` blocks localhost/127.0.0.1/0.0.0.0/::1/169.254/192.168/10./172./fc00/fe80; throws `SecurityError` on match
+- `llm-client.ts`: identical SSRF guard applied to explicit LLM configs and embedding-auto fallback paths
+
+**Supply-Chain Risk Elimination**
+- `entry/migration.ts`: removed `execSync("git clone https://github.com/taobaoaz/yaoyao-soul.git")` and `execSync` import entirely
+- Migration now detects legacy state and prints manual-install instructions only; no automatic remote code execution
+
+**SQL/FTS5 Safety Clarification**
+- `db-bridge.ts`: added inline comments clarifying `sanitizeFTSQuery` is **syntax safety** (prevents FTS5 parse errors), NOT SQL injection defense; actual injection defense is `prepare()` + parameterized queries
+
+### 🛡️ Defensive Programming (Phase 11)
+
+**DB Layered Degradation**
+- `platform/db/compat.ts`: native → npm → file-db cascading fallback; any single backend crash auto-downgrades without killing the plugin
+
+**Network Fault Isolation**
+- `utils/embedding.ts`: `embed`/`embedBatch` wrapped in try/catch; timeouts produce graceful errors instead of crashing the session
+- `utils/llm-client.ts`: `chat()` fetch wrapped with `AbortError` detection
+
+**Type System Hardening**
+- Eliminated 114+ `any` types across codebase; all `catch (e: any)` → `catch (e: unknown)` with safe `(e as Error).message` access
+- SQL result types explicitly mapped: `SQLiteRow[]` instead of implicit `any`
 
 ### 🐛 Bug Fixes (42 audit findings + 1 self-found)
 
