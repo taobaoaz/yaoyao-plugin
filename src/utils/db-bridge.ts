@@ -9,10 +9,10 @@
 import { getProp } from "./config.js";
 import { clampNum } from "./clamp.js";
 import { createRequire } from "node:module";
-import type { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import { createCompatDB, type UnifiedDB, type DBCompatResult } from "../platform/db/compat.js";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "./memory-store.js";
 
@@ -21,6 +21,7 @@ const _require = createRequire(import.meta.url);
 // ──────────────────────────── Types ────────────────────────────
 
 export interface SearchResult {
+  id?: number;
   filename: string;
   snippet: string;
   score: number;
@@ -67,46 +68,64 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   const likeFallbackScore = clampNum(getProp(config, "likeFallbackScore", 0.5), 0.5, 0.1, 1);
 
   const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
-  let db: DatabaseSync | null = null;
+  let db: UnifiedDB | null = null;
   let initFailed = false; // fail-fast guard: once init fails, skip retries
+  let dbBackend: DBCompatResult | null = null;
 
   /** Initialize database — create tables if not exist */
   function init(): boolean {
     try {
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
-      const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite");
-      db = new DatabaseSync(dbPath, { allowExtension: true });
+      dbBackend = createCompatDB(dbPath, { allowExtension: true }, logger);
+      db = dbBackend.db;
 
-      // Handle stale WAL/shm files from previous crash
-      try {
-        db.exec("PRAGMA journal_mode = WAL");
-      } catch (e: any) {
-        // disk I/O error → stale WAL files, clean up and retry
-        if (e.message?.includes("disk I/O")) {
-          log("Stale WAL files detected, cleaning up");
-          try { db.close(); } catch { /* ignore */ }
-          db = null;
-          // Remove only WAL journal files that may be corrupt (not the main db)
-          for (const ext of ["-wal", "-shm"]) {
-            try { fs.unlinkSync(dbPath + ext); } catch { /* ignore */ }
-          }
-          db = new DatabaseSync(dbPath, { allowExtension: true });
+      const backend = dbBackend.backend;
+      const supportsWAL = dbBackend.supportsWAL;
+      const supportsFTS5 = dbBackend.supportsFTS5;
+      const supportsExtensions = dbBackend.supportsExtensions;
+
+      // Handle WAL setup only for real SQLite backends
+      if (backend !== "file-db") {
+        try {
           db.exec("PRAGMA journal_mode = WAL");
-        } else {
-          throw e;
+          const mode = db.prepare("PRAGMA journal_mode").get() as Record<string, unknown> | undefined;
+          const walEnabled = String(mode?.journal_mode) === "wal" || String(mode) === "wal";
+          if (!walEnabled) {
+            log("WAL mode not supported by filesystem, continuing with default journal mode");
+          }
+        } catch (e: unknown) {
+          if ((e as Error).message?.includes("disk I/O")) {
+            log("Stale WAL files detected, cleaning up");
+            try { db.close(); } catch { /* ignore */ }
+            db = null;
+            for (const ext of ["-wal", "-shm"]) {
+              try { fs.unlinkSync(dbPath + ext); } catch { /* ignore */ }
+            }
+            dbBackend = createCompatDB(dbPath, { allowExtension: true }, logger);
+            db = dbBackend.db;
+            try {
+              db.exec("PRAGMA journal_mode = WAL");
+            } catch {
+              log("WAL recovery failed, continuing with default journal mode");
+            }
+          } else {
+            log(`WAL setup failed: ${(e as Error).message}, continuing with default journal mode`);
+          }
         }
+        db.exec("PRAGMA busy_timeout = 5000");
+        db.exec("PRAGMA cache_size = -65536");
       }
-      db.exec("PRAGMA busy_timeout = 5000");
-      db.exec("PRAGMA cache_size = -65536");
 
-      // FTS5 table for full-text search
-      db.exec(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
-          "date, user_text, asst_text, " +
-          "tokenize='unicode61'" +
-        ")"
-      );
+      // FTS5 table for full-text search (only if backend supports it)
+      if (supportsFTS5) {
+        db.exec(
+          "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+            "date, user_text, asst_text, " +
+            "tokenize='unicode61'" +
+          ")"
+        );
+      }
 
       // Metadata table for L1 memories
       db.exec(
@@ -119,48 +138,52 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
         ")"
       );
 
-      // Vector search table (sqlite-vec)
+      // Vector search table (sqlite-vec) — only with native SQLite + extensions
       vecEnabled = false;
       const dimensions = config.embedding?.dimensions ?? 1024;
-      try {
-        const sqliteVec = _require("sqlite-vec") as any;
-        db.enableLoadExtension(true);
-        sqliteVec.load(db);
-        vecEnabled = true;
+      if (supportsExtensions) {
+        try {
+          const sqliteVec = _require("sqlite-vec") as Record<string, unknown>;
+          if (db.enableLoadExtension) {
+            db.enableLoadExtension(true);
+            (sqliteVec.load as (raw: unknown) => void)(db._raw || db);
+          }
+          vecEnabled = true;
 
-        db.exec(
-          "CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
-            `embedding float[${dimensions}]` +
-          ")"
-        );
+          db.exec(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
+              `embedding float[${dimensions}]` +
+            ")"
+          );
 
-        db.exec(
-          "CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
-            "id INTEGER PRIMARY KEY, " +
-            "meta_id INTEGER, " +
-            "model TEXT, " +
-            `dimensions INTEGER DEFAULT ${dimensions}, ` +
-            "created_at TEXT DEFAULT (datetime('now'))" +
-          ")"
-        );
+          db.exec(
+            "CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
+              "id INTEGER PRIMARY KEY, " +
+              "meta_id INTEGER, " +
+              "model TEXT, " +
+              `dimensions INTEGER DEFAULT ${dimensions}, ` +
+              "created_at TEXT DEFAULT (datetime('now'))" +
+            ")"
+          );
 
-        log("sqlite-vec loaded successfully");
-      } catch (e: any) {
-        log(`sqlite-vec not available: ${e.message}`);
-        vecEnabled = false;
+          log("sqlite-vec loaded successfully");
+        } catch (e: unknown) {
+          log(`sqlite-vec not available: ${(e as Error).message}`);
+          vecEnabled = false;
+        }
       }
 
-      log(`DB initialized: ${dbPath} (vec=${vecEnabled})`);
+      log(`DB initialized: ${dbPath} (backend=${backend}, fts5=${supportsFTS5}, vec=${vecEnabled})`);
       return true;
-    } catch (err: any) {
-      logger?.error?.(`[yaoyao-memory:db] Init failed: ${err.message}`);
+    } catch (err: unknown) {
+      logger?.error?.(`[yaoyao-memory:db] Init failed: ${(err as Error).message}`);
       initFailed = true;
       return false;
     }
   }
 
   /** Ensure DB is initialized */
-  function ensureDB(): DatabaseSync {
+  function ensureDB(): UnifiedDB {
     if (!db && !initFailed) {
       init();
     }
@@ -186,14 +209,18 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       stmt2.run(rowId, date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
 
       return rowId;
-    } catch (err: any) {
-      log(`indexTurn error: ${err.message}`);
+    } catch (err: unknown) {
+      log(`indexTurn error: ${(err as Error).message}`);
       return -1;
     }
   }
 
   /** Sanitize query string for FTS5 MATCH syntax.
    * Removes characters that can cause FTS5 syntax errors while keeping search terms readable.
+   * 
+   * ⚠️ Security note: this is "sanitization for syntax safety", not a security boundary.
+   * FTS5 MATCH uses prepared statements (parametric `?` binding), so SQL injection is not possible.
+   * This function prevents FTS5 syntax errors (e.g. unmatched quotes) that would crash the query.
    */
   function sanitizeFTSQuery(query: string): string {
     // FTS5 special chars that cause syntax errors if unescaped:
@@ -226,7 +253,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
       // Try FTS5 first
       const stmt = d.prepare(
-        "SELECT date, user_text, asst_text, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
+        "SELECT rowid, date, user_text, asst_text, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
         "FROM memory_fts WHERE memory_fts MATCH ? " +
         "ORDER BY rank LIMIT ?"
       );
@@ -234,7 +261,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
       // FTS5 returns results, use them
       if (rows.length > 0) {
-        return (rows as Array<{ date: string; user_text: string; asst_text: string; snippet: string; rank: number }>).map(row => ({
+        return (rows as Array<{ rowid: number; date: string; user_text: string; asst_text: string; snippet: string; rank: number }>).map(row => ({
+          id: row.rowid,
           filename: row.date ? `${row.date}.md` : "memory.db",
           snippet: (row.snippet || "").slice(0, snippetMaxLen),
           score: computeScore(row.rank),
@@ -247,7 +275,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       // FTS5 unicode61 tokenizer treats each Chinese character as a separate token,
       // so multi-character words like "天气" or "今天" fail to match.
       // LIKE is character-based and handles CJK correctly.
-      const likeQuery = `%${query.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+      const safeLikeQuery = query.slice(0, 200);
+      const likeQuery = `%${safeLikeQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
       const likeStmt = d.prepare(
         "SELECT id, date, user_text, asst_text FROM memory_meta " +
         "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
@@ -258,6 +287,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       if (likeRows.length > 0) {
         log(`FTS5 miss → LIKE fallback found ${likeRows.length} results for "${query.slice(0, 30)}"`);
         return (likeRows as Array<{ id: number; date: string; user_text: string; asst_text: string }>).map(row => ({
+          id: row.id,
           filename: row.date ? `${row.date}.md` : "memory.db",
           snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, snippetMaxLen),
           score: likeFallbackScore,
@@ -268,8 +298,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
       // Empty across the board
       return [];
-    } catch (err: any) {
-      log(`search error: ${err.message}`);
+    } catch (err: unknown) {
+      log(`search error: ${(err as Error).message}`);
       return [];
     }
   }
@@ -279,9 +309,10 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     try {
       const d = ensureDB();
       const rows = d.prepare(
-        "SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?"
-      ).all(Math.min(Math.max(limit, 1), searchMaxLimit)) as Array<{ date: string; user_text: string | null; asst_text: string | null }>;
+        "SELECT id, date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?"
+      ).all(Math.min(Math.max(limit, 1), searchMaxLimit)) as Array<{ id: number; date: string; user_text: string | null; asst_text: string | null }>;
       return rows.map(r => ({
+        id: r.id,
         filename: r.date ? `${r.date}.md` : "memory.db",
         snippet: (r.user_text || r.asst_text || "").slice(0, snippetMaxLen),
         score: 1.0,
@@ -314,6 +345,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
         const cosineSim = 1 - (row.distance || 0) / 2;
         const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
         return {
+          id: row.rowid,
           filename: row.date ? `${row.date}.md` : "memory.db",
           snippet: snippet.slice(0, snippetMaxLen),
           score: Math.max(0, cosineSim),
@@ -323,8 +355,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
           hybridScore: Math.max(0, cosineSim),
         };
       });
-    } catch (err: any) {
-      log(`vectorSearch error: ${err.message}`);
+    } catch (err: unknown) {
+      log(`vectorSearch error: ${(err as Error).message}`);
       return [];
     }
   }
@@ -346,7 +378,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     const merged = new Map<string, EmbeddedSearchResult>();
 
     for (const r of ftsResults) {
-      merged.set(`${r.date}|${r.snippet}`, {
+      merged.set(`${r.date}|${r.snippet}|${r.id}`, {
         ...r,
         vectorScore: 0,
         hybridScore: r.score * 0.6,
@@ -354,7 +386,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
 
     for (const r of vecResults) {
-      const key = `${r.date}|${r.snippet}`;
+      const key = `${r.date}|${r.snippet}|${r.id}`;
       if (merged.has(key)) {
         const existing = merged.get(key)!;
         existing.vectorScore = r.vectorScore;
@@ -397,14 +429,14 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
         d.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
         d.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
         d.exec("COMMIT");
-      } catch (txErr: any) {
+      } catch (txErr: unknown) {
         d.exec("ROLLBACK");
         throw txErr;
       }
 
       return true;
-    } catch (err: any) {
-      log(`storeVector error: ${err.message}`);
+    } catch (err: unknown) {
+      log(`storeVector error: ${(err as Error).message}`);
       return false;
     }
   }
@@ -434,11 +466,11 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       // Defer FTS5 rebuild to batch multiple deletions
       scheduleRebuild();
       // Clean up orphan vectors
-      try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
+      try { d.exec("DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)"); } catch { /* best effort */ }
       log(`deleteByDate: ${deleted} entries removed for ${date}`);
       return deleted;
-    } catch (err: any) {
-      log(`deleteByDate error: ${err.message}`);
+    } catch (err: unknown) {
+      log(`deleteByDate error: ${(err as Error).message}`);
       return 0;
     }
   }
@@ -454,12 +486,12 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const deleted = Number(result.changes ?? 0);
       if (deleted > 0) {
         scheduleRebuild();
-        try { d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)"); } catch { /* best effort */ }
+        try { d.exec("DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)"); } catch { /* best effort */ }
       }
       log(`deleteByKeyword: ${deleted} entries removed for "${keyword}"`);
       return deleted;
-    } catch (err: any) {
-      log(`deleteByKeyword error: ${err.message}`);
+    } catch (err: unknown) {
+      log(`deleteByKeyword error: ${(err as Error).message}`);
       return 0;
     }
   }
@@ -496,8 +528,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
         totalVectors: vecCount,
         dimensions,
       };
-    } catch (err: any) {
-      log(`getStats error: ${err.message}`);
+    } catch (err: unknown) {
+      log(`getStats error: ${(err as Error).message}`);
       return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
     }
   }
@@ -541,8 +573,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
   }
 
-  /** Expose the raw DatabaseSync instance for tools that need direct SQL access (e.g., memory-tag). */
-  function getRawDb(): DatabaseSync {
+  /** Expose the raw DB instance for tools that need direct SQL access (e.g., memory-tag). */
+  function getRawDb(): UnifiedDB {
     return ensureDB();
   }
 

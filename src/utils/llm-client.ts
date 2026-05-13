@@ -74,6 +74,22 @@ export interface CreateLLMClientResult {
  * 2. Embedding fallback (if `embedding` section has apiKey) → auto-detect
  * 3. Nothing → return null
  */
+/** SSRF protection: block internal / link-local / private IP ranges */
+const FORBIDDEN_HOSTS = [
+  "localhost", "127.0.0.1", "0.0.0.0", "::1",
+  "169.254", "192.168", "10.", "172.", "fc00", "fe80",
+];
+
+function isForbiddenHost(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    const host = url.hostname.toLowerCase();
+    return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
+  } catch {
+    return true; // malformed URL is also forbidden
+  }
+}
+
 export function createLLMClient(
   config: Record<string, unknown> | undefined,
   embeddingConfig?: Record<string, unknown> | null
@@ -94,6 +110,9 @@ export function createLLMClient(
       // apiKey present but baseUrl missing — can't create a valid client
       return result;
     }
+    if (isForbiddenHost(baseUrl)) {
+      return result; // SSRF protection: reject internal/private URLs
+    }
     const model = String(llmSection.model || detectModel(baseUrl, providerModels));
     if (!model) {
       // baseUrl valid but model unknown and not user-configured
@@ -111,6 +130,7 @@ export function createLLMClient(
     if (embeddingApiKey && embeddingEnabled) {
       const baseUrl = String(embeddingConfig.baseUrl || "").trim();
       if (!baseUrl) return result;
+      if (isForbiddenHost(baseUrl)) return result;
       const model = detectModel(baseUrl, providerModels);
       if (!model) return result;
       result.client = new LLMClient({ apiKey: embeddingApiKey, baseUrl, model });
@@ -171,12 +191,19 @@ export class LLMClient {
         throw new Error(`LLM API error ${res.status}: ${text.slice(0, 200)}`);
       }
 
-      const data = await res.json() as any;
+      const data = await res.json() as Record<string, unknown>;
+      const firstChoice = (data.choices as Array<Record<string, unknown>>)?.[0] as Record<string, unknown> | undefined;
+      const message = firstChoice?.message as Record<string, unknown> | undefined;
       return {
-        content: data.choices?.[0]?.message?.content || "",
-        model: data.model || this.config.model,
-        usage: data.usage || { prompt: 0, completion: 0, total: 0 },
+        content: (message?.content as string) || "",
+        model: (data.model as string) || this.config.model,
+        usage: (data.usage as { prompt: number; completion: number; total: number }) || { prompt: 0, completion: 0, total: 0 },
       };
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error("LLM request timed out after 30s");
+      }
+      throw err;
     } finally {
       clearTimeout(timeout);
     }

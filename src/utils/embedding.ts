@@ -45,8 +45,28 @@ export function detectEmbedModel(provider: string, customMap?: Record<string, st
   return DEFAULT_EMBED_MODELS[p] || "";
 }
 
+/** SSRF protection: block internal / link-local / private IP ranges */
+const FORBIDDEN_HOSTS = [
+  "localhost", "127.0.0.1", "0.0.0.0", "::1",
+  "169.254", "192.168", "10.", "172.", "fc00", "fe80",
+];
+
+function isForbiddenHost(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    const host = url.hostname.toLowerCase();
+    return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
+  } catch {
+    return true; // malformed URL is also forbidden
+  }
+}
+
 export function createEmbeddingService(config: EmbeddingConfig) {
   const baseUrl = config.baseUrl.replace(/\/$/, "");
+
+  if (isForbiddenHost(baseUrl)) {
+    throw new Error(`Embedding baseUrl "${baseUrl}" is forbidden (SSRF protection)`);
+  }
 
   // Resolve tunables with defaults
   const timeoutMs = clampNum(config.timeoutMs, 15_000, 3_000, 120_000);
@@ -77,11 +97,11 @@ export function createEmbeddingService(config: EmbeddingConfig) {
           throw new Error(`HTTP ${res.status}`);
         }
         return res;
-      } catch (err: any) {
+      } catch (err: unknown) {
         const isLast = attempt === _retries;
         if (isLast) throw err;
         // Retry on all network errors (timeout, ECONNREFUSED, ETIMEDOUT, system errors) and HTTP 5xx
-        if (err.name === "AbortError" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.type === "system" || err.message?.startsWith("HTTP 5")) {
+        if ((err as Error).name === "AbortError" || (err as { code?: string }).code === "ECONNREFUSED" || (err as { code?: string }).code === "ETIMEDOUT" || (err as { type?: string }).type === "system" || (err as Error).message?.startsWith("HTTP 5")) {
           await new Promise(r => setTimeout(r, backoffBaseMs * (attempt + 1))); // backoff
           continue;
         }
@@ -99,30 +119,37 @@ export function createEmbeddingService(config: EmbeddingConfig) {
     // Handle baseUrl that already contains /v1 prefix (e.g. https://ai.gitee.com/v1)
     const path = baseUrl.endsWith("/v1") ? "" : "/v1";
     const url = `${baseUrl}${path}/embeddings`;
-    const res = await fetchWithRetry(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        input: text.slice(0, maxInputChars),
-        model: config.model,
-      }),
-    });
+    try {
+      const res = await fetchWithRetry(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          input: text.slice(0, maxInputChars),
+          model: config.model,
+        }),
+      });
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "unknown");
-      throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "unknown");
+        throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+      }
+
+      const data = await res.json() as Record<string, unknown>;
+      const embedding = (data.data as Array<{embedding: number[]}> | undefined)?.[0]?.embedding;
+      if (!embedding || !Array.isArray(embedding)) {
+        throw new Error("Invalid embedding response");
+      }
+
+      return new Float32Array(embedding);
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error("Embedding request timed out");
+      }
+      throw err;
     }
-
-    const data = await res.json() as any;
-    const embedding = data?.data?.[0]?.embedding;
-    if (!embedding || !Array.isArray(embedding)) {
-      throw new Error("Invalid embedding response");
-    }
-
-    return new Float32Array(embedding);
   }
 
   /**
@@ -136,30 +163,37 @@ export function createEmbeddingService(config: EmbeddingConfig) {
 
     for (let i = 0; i < texts.length; i += batchSize) {
       const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
-      const res = await fetchWithRetry(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          input: chunk,
-          model: config.model,
-        }),
-      });
+      try {
+        const res = await fetchWithRetry(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify({
+            input: chunk,
+            model: config.model,
+          }),
+        });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "unknown");
-        throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "unknown");
+          throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+        }
+
+        const data = await res.json() as Record<string, unknown>;
+        const dataArr = data.data as Array<{ embedding: number[] }> | undefined;
+        if (!dataArr || !Array.isArray(dataArr)) {
+          throw new Error("Invalid embedding batch response");
+        }
+
+        results.push(...dataArr.map((d: { embedding: number[] }) => new Float32Array(d.embedding)));
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
+          throw new Error("Embedding batch request timed out");
+        }
+        throw err;
       }
-
-      const data = await res.json() as any;
-      const dataArr = data?.data as Array<{ embedding: number[] }> | undefined;
-      if (!dataArr || !Array.isArray(dataArr)) {
-        throw new Error("Invalid embedding batch response");
-      }
-
-      results.push(...dataArr.map((d: { embedding: number[] }) => new Float32Array(d.embedding)));
     }
     return results;
   }

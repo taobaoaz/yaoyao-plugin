@@ -107,8 +107,8 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
 
       log(`Backup created: ${backupName} (${fileCount} files, ${mode})`);
       return backupName;
-    } catch (err: any) {
-      logger?.error?.(`[yaoyao-memory:backup] Create failed: ${err.message}`);
+    } catch (err: unknown) {
+      logger?.error?.(`[yaoyao-memory:backup] Create failed: ${(err as Error).message}`);
       return null;
     }
   }
@@ -163,8 +163,8 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
 
       log(`Restored from ${backupName} (snapshot: ${preDir})`);
       return true;
-    } catch (err: any) {
-      logger?.error?.(`[yaoyao-memory:backup] Restore failed: ${err.message}`);
+    } catch (err: unknown) {
+      logger?.error?.(`[yaoyao-memory:backup] Restore failed: ${(err as Error).message}`);
       return false;
     }
   }

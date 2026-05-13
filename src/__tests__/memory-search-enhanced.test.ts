@@ -86,7 +86,7 @@ function highlightKeywords(text: string, keywords: string[]): string {
 }
 
 describe("语义搜索增强 (DB 层)", { concurrency: 1 }, () => {
-  let db: any;
+  let db: unknown;
 
   before(() => {
     db = createDbAndSeed();

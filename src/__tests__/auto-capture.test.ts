@@ -55,7 +55,7 @@ describe("safeStringify", () => {
   });
 
   it("handles circular reference", () => {
-    const obj: any = { a: 1 };
+    const obj: unknown = { a: 1 };
     obj.self = obj;
     const result = safeStringify(obj, 200);
     assert.ok(result.includes("a:1"));

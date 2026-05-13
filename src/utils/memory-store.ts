@@ -1,6 +1,11 @@
 /**
  * Memory store — core storage abstraction.
  * Wraps the OpenClaw workspace memory/ directory with file I/O.
+ * 
+ * Security hardening (v1.5.1+):
+ *   - baseDir 创建时权限 0o700（仅 owner 可访问）
+ *   - memoryDir 配置禁止 .. 和相对路径
+ *   - daily 文件写入后 chmod 0o600
  */
 
 import path from "node:path";
@@ -51,6 +56,19 @@ export interface YaoyaoMemoryConfig {
   [key: string]: unknown; // allow additional fields
 }
 
+/** Validate memoryDir config to prevent path traversal */
+function validateMemoryDir(rawDir: string | undefined): string {
+  if (!rawDir) {
+    return path.join(os.homedir(), ".openclaw", "workspace", "memory");
+  }
+  const resolved = path.resolve(rawDir);
+  // Reject parent directory references
+  if (rawDir.includes("..") || !path.isAbsolute(resolved)) {
+    throw new Error(`Invalid memoryDir "${rawDir}": must be absolute and not contain parent references`);
+  }
+  return resolved;
+}
+
 export interface MemoryEntry {
   type: "daily" | "memory" | "archive";
   path: string;
@@ -61,17 +79,16 @@ export interface MemoryEntry {
 }
 
 export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
-  let baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
-  if (!path.isAbsolute(baseDir)) {
-    baseDir = path.resolve(baseDir);
-  }
+  let baseDir = validateMemoryDir(config.memoryDir);
 
   const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:store] ${msg}`);
 
   function ensureDir(dir: string) {
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       log(`Created directory: ${dir}`);
+    } else {
+      try { fs.chmodSync(dir, 0o700); } catch { /* ignore on Windows or restricted fs */ }
     }
   }
 
@@ -95,6 +112,7 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
       const d = date || new Date().toISOString().slice(0, 10);
       const header = `# ${d} 记忆\n\n> 每日对话记录\n\n---\n\n_此文件由 yaoyao-memory 插件自动维护_\n`;
       fs.writeFileSync(fp, header, "utf-8");
+      try { fs.chmodSync(fp, 0o600); } catch { /* ignore on Windows */ }
       log(`Created daily file: ${fp}`);
     }
     return fp;
@@ -104,6 +122,7 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
   function appendToDaily(date: string | undefined, content: string): void {
     const fp = getDailyFile(date);
     fs.appendFileSync(fp, content, "utf-8");
+    try { fs.chmodSync(fp, 0o600); } catch { /* ignore on Windows */ }
   }
 
   /** List all memory files in the directory. */

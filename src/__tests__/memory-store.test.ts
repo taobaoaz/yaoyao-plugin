@@ -15,7 +15,7 @@ let store: ReturnType<typeof createMemoryStore>;
 
 before(() => {
   baseDir = fs.mkdtempSync(path.join(os.tmpdir(), "memory-store-test-"));
-  store = createMemoryStore({ memoryDir: baseDir } as any, console as any);
+  store = createMemoryStore({ memoryDir: baseDir } as unknown, console as unknown);
 });
 
 after(() => {
@@ -24,7 +24,7 @@ after(() => {
 
 describe("createMemoryStore", () => {
   it("initializes with default baseDir", () => {
-    const s = createMemoryStore({} as any);
+    const s = createMemoryStore({} as unknown);
     assert(s.baseDir.length > 0);
   });
 
@@ -52,7 +52,7 @@ describe("appendToDaily", () => {
 
   it("creates files in correct subdir when memoryDir is set", () => {
     const subDir = path.join(baseDir, "sub");
-    const s = createMemoryStore({ memoryDir: subDir } as any, console as any);
+    const s = createMemoryStore({ memoryDir: subDir } as unknown, console as unknown);
     s.appendToDaily("2026-06-01", "\ndata\n");
     assert(fs.existsSync(path.join(subDir, "2026-06-01.md")));
     fs.rmSync(subDir, { recursive: true, force: true });

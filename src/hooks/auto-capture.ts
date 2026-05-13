@@ -49,7 +49,7 @@ export function safeStringify(obj: unknown, maxLen: number): string {
   function walk(val: unknown, depth: number): string {
     if (depth > 3) return "[...]";
     if (val === null) return "null";
-    if (typeof val !== "object") return String(val).slice(0, maxLen);
+    if (typeof val !== "object") return String(val);
     if (seen.has(val as object)) return "[Circular]";
     seen.add(val as object);
     if (Array.isArray(val)) {
@@ -91,18 +91,26 @@ export function registerCaptureHook(
         return;
       }
 
-      const messages = (e.messages as unknown[]) ?? [];
+      const messages = ((e as Record<string, unknown>).messages as unknown[]) ?? [];
       if (messages.length === 0) return;
 
-      const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
-      const lastAsstMsg = [...messages].reverse().find((m: any) => m.role === "assistant");
+      const lastUserMsg = [...messages].reverse().find((m: Record<string, unknown>) => (m as Record<string, unknown>).role === "user");
+      const lastAsstMsg = [...messages].reverse().find((m: Record<string, unknown>) => (m as Record<string, unknown>).role === "assistant");
 
       if (!lastUserMsg) return;
 
       // Issue #16: Use timezone-aware date if config.tz is set
-      const date = config.tz
-        ? new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" } as Intl.DateTimeFormatOptions).format(new Date())
-        : new Date().toISOString().slice(0, 10);
+      let date: string;
+      if (config.tz) {
+        try {
+          date = new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" } as Intl.DateTimeFormatOptions).format(new Date());
+        } catch {
+          api.logger.warn?.(`[yaoyao-memory:capture] Invalid timezone "${config.tz}", falling back to UTC date`);
+          date = new Date().toISOString().slice(0, 10);
+        }
+      } else {
+        date = new Date().toISOString().slice(0, 10);
+      }
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
 
       const captureCfg = getObj(config, "capture") || {};
@@ -130,8 +138,8 @@ export function registerCaptureHook(
       try {
         store.appendToDaily(date, entry);
         db.indexTurn(userContent, indexableAsst, date);
-      } catch (indexErr: any) {
-        api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr.message || String(indexErr)}`);
+      } catch (indexErr: unknown) {
+        api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr instanceof Error ? indexErr.message : String(indexErr)}`);
         // Note: daily file already has the entry; next DB rebuild (startup check) will catch it.
         return;
       }

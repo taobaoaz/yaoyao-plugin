@@ -19,7 +19,7 @@ const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite")
 // Check if sqlite-vec is available
 let VEC_AVAILABLE = false;
 try {
-  const sqliteVec = _require("sqlite-vec") as any;
+  const sqliteVec = _require("sqlite-vec") as unknown;
   const d = new DatabaseSync(":memory:", { allowExtension: true });
   sqliteVec.load(d);
   d.exec("CREATE VIRTUAL TABLE IF NOT EXISTS test_vec_check USING vec0(embedding float[4])");
@@ -62,7 +62,7 @@ function createTestDB(): { db: any; dbPath: string } {
   // Vec table
   if (VEC_AVAILABLE) {
     try {
-      const sqliteVec = _require("sqlite-vec") as any;
+      const sqliteVec = _require("sqlite-vec") as unknown;
       db.enableLoadExtension(true);
       sqliteVec.load(db);
       db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(embedding float[1024])");
@@ -83,7 +83,7 @@ function createTestDB(): { db: any; dbPath: string } {
 let testDir: string;
 
 describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
-  let db: any;
+  let db: unknown;
   let dbPath: string;
 
   before(() => {
@@ -125,7 +125,7 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
 
     it("counts total entries", () => {
       const row = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get();
-      assert.ok((row as any).c >= 6);
+      assert.ok((row as unknown).c >= 6);
     });
 
     it("FTS5 search with English query returns results", () => {
@@ -144,7 +144,7 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
         "FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank LIMIT 5"
       );
       // For FTS5, MATCH treats consecutive words as AND by default
-      const rows = stmt.all("birthday you") as any[];
+      const rows = stmt.all("birthday you") as unknown[];
       // May or may not find results depending on tokenization
       // The key is it doesn't crash
       assert.ok(Array.isArray(rows));
@@ -227,12 +227,12 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
       db.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
       try {
         db.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
-        const row = db.prepare("SELECT rowid, embedding FROM memory_vec WHERE rowid = ?").get(metaId) as any;
+        const row = db.prepare("SELECT rowid, embedding FROM memory_vec WHERE rowid = ?").get(metaId) as unknown;
         assert.ok(row, "vector should exist after insert");
         assert.strictEqual(row.rowid, metaId);
-      } catch (e: any) {
+      } catch (e: unknown) {
         // vec0 version constraints vary; skip gracefully
-        console.log("  ⚠️  vec insert skipped: " + e.message.slice(0, 60));
+        console.log("  ⚠️  vec insert skipped: " + (e as Error).message.slice(0, 60));
       }
     });
   });

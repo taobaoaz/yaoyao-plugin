@@ -43,8 +43,7 @@
     "test:db": "node --experimental-strip-types --test src/__tests__/db-bridge.test.ts",
     "test:sentiment": "node --experimental-strip-types --test src/__tests__/sentiment.test.ts",
     "test:store": "node --experimental-strip-types --test src/__tests__/memory-store.test.ts",
-    "test:parse": "node --experimental-strip-types --test src/__tests__/llm-parse.test.ts",
-    "test:filter": "node --experimental-strip-types --test src/__tests__/session-filter.test.ts",
+    "test:core": "node --test src/__tests__/remind-cron.test.ts src/__tests__/trends-core.test.ts src/__tests__/quality-core.test.ts src/__tests__/recommend-core.test.ts src/__tests__/retain-core.test.ts",
     "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.ts"
   },
   "openclaw": {

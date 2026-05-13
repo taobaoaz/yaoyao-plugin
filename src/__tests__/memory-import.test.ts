@@ -76,7 +76,7 @@ describe("记忆导入 (DB 层)", { concurrency: 1 }, () => {
     }
     db.exec("COMMIT");
 
-    const total = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as any;
+    const total = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as unknown;
     assert.strictEqual(total.c, 3);
     assert.strictEqual(count, 3);
     db.close();
@@ -98,8 +98,8 @@ describe("记忆导入 (DB 层)", { concurrency: 1 }, () => {
         const parsed = JSON.parse(lines[i]);
         if (!parsed.date) throw new Error("missing date");
         entries.push({ date: parsed.date, user_text: String(parsed.user_text || ""), asst_text: String(parsed.asst_text || "") });
-      } catch (e: any) {
-        errors.push(`line ${i + 1}: ${e.message}`);
+      } catch (e: unknown) {
+        errors.push(`line ${i + 1}: ${(e as Error).message}`);
       }
     }
 
@@ -125,8 +125,8 @@ describe("记忆导入 (DB 层)", { concurrency: 1 }, () => {
         if (!parsed.date) { errors.push(`line ${i + 1}: missing date`); continue; }
         if (!parsed.user_text && !parsed.asst_text) { errors.push(`line ${i + 1}: need user_text or asst_text`); continue; }
         entries.push({ date: parsed.date, user_text: String(parsed.user_text || ""), asst_text: String(parsed.asst_text || "") });
-      } catch (e: any) {
-        errors.push(`line ${i + 1}: ${e.message}`);
+      } catch (e: unknown) {
+        errors.push(`line ${i + 1}: ${(e as Error).message}`);
       }
     }
 

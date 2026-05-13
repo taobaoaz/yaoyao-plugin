@@ -14,7 +14,7 @@ const _require = createRequire(import.meta.url);
 const { DatabaseSync } = _require("node:sqlite") as typeof import("node:sqlite");
 
 let VEC_AVAILABLE = false;
-let sqliteVecModule: any = null;
+let sqliteVecModule: unknown = null;
 try {
   sqliteVecModule = _require("sqlite-vec");
   const d = new DatabaseSync(":memory:", { allowExtension: true });
@@ -50,7 +50,7 @@ function createTestDB(): { db: any; dbPath: string } {
 }
 
 describe("Hybrid Search", { concurrency: 1 }, () => {
-  let db: any;
+  let db: unknown;
   let testDir: string;
 
   before(() => {
@@ -112,9 +112,9 @@ describe("Hybrid Search", { concurrency: 1 }, () => {
       "SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
       "FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank LIMIT ?"
     );
-    const rows3 = stmt.all("天", 3) as any[];
+    const rows3 = stmt.all("天", 3) as unknown[];
     assert.ok(rows3.length <= 3);
-    const rows5 = stmt.all("天", 5) as any[];
+    const rows5 = stmt.all("天", 5) as unknown[];
     assert.ok(rows5.length <= 5);
   });
 

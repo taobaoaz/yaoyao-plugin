@@ -443,7 +443,7 @@ class SFTPAdapter implements CloudAdapter {
 
       const child = execFile(cmd, cmdArgs, { timeout: this.timeoutMs, env: envOverride || process.env }, (err, stdout, stderr) => {
         if (err) {
-          resolve({ ok: false, stdout: stderr || err.message });
+          resolve({ ok: false, stdout: stderr || (err as Error).message });
         } else {
           resolve({ ok: true, stdout: stdout || "" });
         }
@@ -753,8 +753,8 @@ export function createAdapters(secretsPath?: string, opts?: AdapterFactoryOpts):
       try {
         adapters.set(name, create(secrets, opts));
         statuses.push({ provider: name, configured: true, message: "✅ 已配置" });
-      } catch (err: any) {
-        statuses.push({ provider: name, configured: false, message: `⚠️ 配置错误: ${err.message}` });
+      } catch (err: unknown) {
+        statuses.push({ provider: name, configured: false, message: `⚠️ 配置错误: ${(err as Error).message}` });
       }
     } else {
       statuses.push({ provider: name, configured: false, message: "— 未配置" });

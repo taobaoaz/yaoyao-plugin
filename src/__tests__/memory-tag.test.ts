@@ -46,7 +46,7 @@ function createDb() {
   return db;
 }
 
-function seed(db: any) {
+function seed(db: unknown) {
   const insert = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
   const entries = [
     { date: "2026-05-01", user: "项目A的架构设计", asst: "完成" },
@@ -64,7 +64,7 @@ function seed(db: any) {
 }
 
 describe("记忆标签系统 (DB 层)", { concurrency: 1 }, () => {
-  let db: any;
+  let db: unknown;
   let ids: number[];
 
   before(() => {
@@ -84,7 +84,7 @@ describe("记忆标签系统 (DB 层)", { concurrency: 1 }, () => {
     insertTag.run(ids[1], "项目");
     insertTag.run(ids[1], "工作");
 
-    const count = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as any;
+    const count = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as unknown;
     assert.strictEqual(count.c, 4);
   });
 
@@ -102,7 +102,7 @@ describe("记忆标签系统 (DB 层)", { concurrency: 1 }, () => {
   it("移除标签", () => {
     const del = db.prepare("DELETE FROM memory_tags WHERE tag = ?");
     del.run("工作");
-    const count = db.prepare("SELECT COUNT(*) as c FROM memory_tags WHERE tag = '工作'").get() as any;
+    const count = db.prepare("SELECT COUNT(*) as c FROM memory_tags WHERE tag = '工作'").get() as unknown;
     assert.strictEqual(count.c, 0);
   });
 
@@ -118,25 +118,25 @@ describe("记忆标签系统 (DB 层)", { concurrency: 1 }, () => {
   it("清理孤立标签", () => {
     // 创建一个孤立标签
     db.prepare("INSERT INTO memory_tags (memory_id, tag) VALUES (999, '幽灵')").run();
-    const before = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as any;
+    const before = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as unknown;
 
     db.prepare("DELETE FROM memory_tags WHERE memory_id NOT IN (SELECT id FROM memory_meta)").run();
-    const after = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as any;
+    const after = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as unknown;
 
     assert.ok(after.c < before.c, "Orphan tag should be removed");
-    const ghost = db.prepare("SELECT COUNT(*) as c FROM memory_tags WHERE tag = '幽灵'").get() as any;
+    const ghost = db.prepare("SELECT COUNT(*) as c FROM memory_tags WHERE tag = '幽灵'").get() as unknown;
     assert.strictEqual(ghost.c, 0);
   });
 
   it("不区分大小写", () => {
     db.prepare("INSERT INTO memory_tags (memory_id, tag) VALUES (?, ?)").run(ids[2], "TestTag");
-    const search = db.prepare("SELECT COUNT(*) as c FROM memory_tags WHERE tag = ?").get("testtag") as any;
+    const search = db.prepare("SELECT COUNT(*) as c FROM memory_tags WHERE tag = ?").get("testtag") as unknown;
     assert.ok(search.c > 0, "Tag search should be case-insensitive");
   });
 
   it("移除所有标签", () => {
     db.exec("DELETE FROM memory_tags");
-    const count = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as any;
+    const count = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as unknown;
     assert.strictEqual(count.c, 0);
   });
 });

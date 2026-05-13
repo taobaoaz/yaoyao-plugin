@@ -11,8 +11,8 @@ export function withErrorHandling(handler: ToolHandler): ToolHandler {
   return async (id, params) => {
     try {
       return await handler(id, params);
-    } catch (err: any) {
-      return { content: [{ type: "text", text: `❌ 记忆操作出错: ${err.message || "未知错误"}` }] };
+    } catch (err: unknown) {
+      return { content: [{ type: "text", text: `❌ 记忆操作出错: ${(err as Error).message || "未知错误"}` }] };
     }
   };
 }

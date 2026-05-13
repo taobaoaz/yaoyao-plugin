@@ -63,7 +63,7 @@ describe("createEmbeddingService", () => {
     setupFetch([{ status: 200, body: { data: [{ embedding: [0.1, 0.2, 0.3, 0.4] }] } }]);
     const svc = createEmbeddingService({
       apiKey: "test-key",
-      baseUrl: "http://localhost/v1",
+      baseUrl: "https://api.openai.com/v1",
       model: "m",
       dimensions: 4,
     });
@@ -82,7 +82,7 @@ describe("createEmbeddingService", () => {
     ]);
     const svc = createEmbeddingService({
       apiKey: "k",
-      baseUrl: "http://localhost",
+      baseUrl: "https://api.openai.com",
       model: "m",
       dimensions: 1,
       batchSize: 2,
@@ -103,7 +103,7 @@ describe("createEmbeddingService", () => {
     ]);
     const svc = createEmbeddingService({
       apiKey: "k",
-      baseUrl: "http://localhost",
+      baseUrl: "https://api.openai.com",
       model: "m",
       dimensions: 1,
       retries: 1,
@@ -117,7 +117,7 @@ describe("createEmbeddingService", () => {
     setupFetch([{ status: 200, body: { data: [{ embedding: [0.1] }] } }]);
     const svc = createEmbeddingService({
       apiKey: "k",
-      baseUrl: "http://localhost",
+      baseUrl: "https://api.openai.com",
       model: "m",
       dimensions: 1,
       maxInputChars: 600,
@@ -132,7 +132,7 @@ describe("createEmbeddingService", () => {
     setupFetch([{ status: 200, body: { data: [{ embedding: [0.1] }] } }]);
     const svc = createEmbeddingService({
       apiKey: "k",
-      baseUrl: "http://localhost",
+      baseUrl: "https://api.openai.com",
       model: "m",
       dimensions: 1,
     });
@@ -144,7 +144,7 @@ describe("createEmbeddingService", () => {
     setupFetch([{ status: 200, body: { data: [{ embedding: [0.1] }] } }]);
     const svc = createEmbeddingService({
       apiKey: "k",
-      baseUrl: "http://localhost/v1",
+      baseUrl: "https://api.openai.com/v1",
       model: "m",
       dimensions: 1,
     });
@@ -157,7 +157,7 @@ describe("createEmbeddingService", () => {
     setupFetch([{ status: 500, body: { error: "boom" } }]);
     const svc = createEmbeddingService({
       apiKey: "k",
-      baseUrl: "http://localhost",
+      baseUrl: "https://api.openai.com",
       model: "m",
       dimensions: 1,
       retries: 0,
@@ -169,7 +169,7 @@ describe("createEmbeddingService", () => {
     setupFetch([{ status: 200, body: { data: [] } }]);
     const svc = createEmbeddingService({
       apiKey: "k",
-      baseUrl: "http://localhost",
+      baseUrl: "https://api.openai.com",
       model: "m",
       dimensions: 1,
       retries: 0,

@@ -37,7 +37,7 @@ function createDb() {
   return db;
 }
 
-function seed(db: any) {
+function seed(db: unknown) {
   const insertMeta = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
   const insertFts = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
   const entries = [
@@ -55,7 +55,7 @@ function seed(db: any) {
 }
 
 describe("记忆导出/导入 (DB 层)", { concurrency: 1 }, () => {
-  let db: any;
+  let db: unknown;
 
   before(() => {
     db = createDb();
@@ -119,7 +119,7 @@ describe("记忆导出/导入 (DB 层)", { concurrency: 1 }, () => {
     for (const e of entries) {
       insert.run(e.date, e.user, e.asst);
     }
-    const count = importDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as any;
+    const count = importDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as unknown;
     assert.strictEqual(count.c, 2);
     importDb.close();
   });
