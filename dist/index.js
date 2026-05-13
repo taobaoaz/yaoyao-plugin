@@ -30,6 +30,7 @@ import { createEmbeddingService, detectEmbedModel } from "./src/utils/embedding.
 import { registerMemoryTools } from "./src/tools/index.js";
 import { registerCaptureHook } from "./src/hooks/auto-capture.js";
 import { registerRecallHook } from "./src/hooks/auto-recall.js";
+import { getBool, getProp } from "./src/utils/config.js";
 import { createMemoryCleaner } from "./src/utils/memory-cleaner.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -89,11 +90,11 @@ export default definePluginEntry({
             const legacyTraces = [];
             const workspaceDir = api.baseDir || ".";
             // Check for old config keys
-            if (config.psychology === true)
+            if (getBool(config, "psychology", false))
                 legacyTraces.push("config.psychology=true");
-            if (config.intervention === true)
+            if (getBool(config, "intervention", false))
                 legacyTraces.push("config.intervention=true");
-            if (config.moodTracking === true)
+            if (getBool(config, "moodTracking", false))
                 legacyTraces.push("config.moodTracking=true");
             // Check for legacy data files that v1.4.x would have created
             const legacyFiles = [
@@ -111,7 +112,7 @@ export default definePluginEntry({
                     const pluginsDir = path.dirname(path.dirname(require.resolve("openclaw/plugin-sdk/plugin-entry"))) || path.join(workspaceDir, "plugins");
                     const soulDir = path.join(pluginsDir, "yaoyao-soul");
                     if (!fs.existsSync(soulDir)) {
-                        execSync("git clone https://github.com/taobaoaz/yaoyao-soul.git yaoyao-soul", { cwd: pluginsDir, stdio: "pipe", timeout: Math.max(5_000, Math.min(120_000, Number(config.migrationGitTimeoutMs) || 30_000)) });
+                        execSync("git clone https://github.com/taobaoaz/yaoyao-soul.git yaoyao-soul", { cwd: pluginsDir, stdio: "pipe", timeout: Math.max(5_000, Math.min(120_000, Number(getProp(config, "migrationGitTimeoutMs", 30_000)))) });
                         autoMigrated = true;
                     }
                     else {

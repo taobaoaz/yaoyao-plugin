@@ -5,7 +5,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-const SECRETS_PATH = path.join(os.homedir(), ".openclaw", "credentials", "secrets.env");
+const DEFAULT_SECRETS_PATH = path.join(os.homedir(), ".openclaw", "credentials", "secrets.env");
+function resolveSecretsPath() {
+    const env = process.env.YAOYAO_SECRETS_PATH;
+    if (env)
+        return path.resolve(env);
+    return DEFAULT_SECRETS_PATH;
+}
 /**
  * Parse secrets.env content into a key-value map.
  */
@@ -29,15 +35,27 @@ export function parseSecretsEnv(content) {
     }
     return result;
 }
+let _cachedSecrets = null;
+let _cachedPath = null;
+let _cachedMtime = 0;
 /**
- * Load secrets from the default path. Returns empty object if file missing.
+ * Load secrets from the default path with in-memory caching (invalidated on file change).
+ * Returns empty object if file missing.
  */
 export function loadSecrets(filePath) {
-    const target = filePath || SECRETS_PATH;
+    const target = filePath || resolveSecretsPath();
     try {
         if (!fs.existsSync(target))
             return {};
-        return parseSecretsEnv(fs.readFileSync(target, "utf-8"));
+        const stat = fs.statSync(target);
+        if (_cachedSecrets && _cachedPath === target && _cachedMtime === stat.mtimeMs) {
+            return _cachedSecrets;
+        }
+        const secrets = parseSecretsEnv(fs.readFileSync(target, "utf-8"));
+        _cachedSecrets = secrets;
+        _cachedPath = target;
+        _cachedMtime = stat.mtimeMs;
+        return secrets;
     }
     catch {
         return {};
@@ -47,5 +65,5 @@ export function loadSecrets(filePath) {
  * Get the secrets file path.
  */
 export function getSecretsPath() {
-    return SECRETS_PATH;
+    return resolveSecretsPath();
 }

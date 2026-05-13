@@ -33,9 +33,11 @@ interface RecallThresholds {
 
 import { clampNum } from "../utils/clamp.js";
 
+import { getBool, getProp } from "../utils/config.js";
+
 // ── Config helper: read from flat config keys with range clamping ──
 function cfgVal(config: YaoyaoMemoryConfig, key: string, defaultVal: number, min: number, max: number): number {
-  return clampNum((config as Record<string, unknown>)[key], defaultVal, min, max);
+  return clampNum(getProp(config, key, defaultVal), defaultVal, min, max);
 }
 
 function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
@@ -252,7 +254,7 @@ function buildPrependRules(config: YaoyaoMemoryConfig): string | undefined {
   const rules: string[] = [];
 
   // 多模态记忆指令：开启 autoSaveImage 后，AI 自动将图片理解结果存入记忆
-  const autoSaveImage = (config as Record<string, unknown>).autoSaveImage === true;
+  const autoSaveImage = getBool(config, "autoSaveImage", false);
   if (autoSaveImage) {
     rules.push(
       "## 行为规则\n\n当用户发送图片或你通过任何方式获取到图片内容后，在回复用户之前，请调用 memory_save 工具，以 `[图片] 图片描述` 的格式将图片描述保存到记忆中。图片描述应为简洁的中文完整句子。",

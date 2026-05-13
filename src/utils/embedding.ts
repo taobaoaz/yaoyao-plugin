@@ -20,6 +20,8 @@ export interface EmbeddingConfig {
   maxInputChars?: number;
   /** Backoff base in milliseconds (default: 1000) */
   backoffBaseMs?: number;
+  /** Max batch size for embedBatch (default: 100, max 500) */
+  batchSize?: number;
 }
 
 /** Provider → default embedding model mapping (overridable via config.providerModels) */
@@ -51,6 +53,7 @@ export function createEmbeddingService(config: EmbeddingConfig) {
   const retries = clampNum(config.retries, 1, 0, 5);
   const maxInputChars = clampNum(config.maxInputChars, 4_000, 500, 32_000);
   const backoffBaseMs = clampNum(config.backoffBaseMs, 1_000, 100, 30_000);
+  const batchSize = clampNum(config.batchSize, 100, 1, 500);
 
   /** Fetch with AbortSignal timeout */
   async function fetchWithTimeout(url: string, init: RequestInit & { timeoutMs?: number }): Promise<Response> {
@@ -120,35 +123,41 @@ export function createEmbeddingService(config: EmbeddingConfig) {
 
   /**
    * Generate embeddings for multiple texts in a batch.
+   * Automatically chunks large arrays to avoid OOM / timeout.
    */
   async function embedBatch(texts: string[]): Promise<Float32Array[]> {
+    const results: Float32Array[] = [];
     const path = baseUrl.endsWith("/v1") ? "" : "/v1";
     const url = `${baseUrl}${path}/embeddings`;
-    const inputs = texts.map(t => t.slice(0, maxInputChars));
-    const res = await fetchWithRetry(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.apiKey}`,
-      },
-      body: JSON.stringify({
-        input: inputs,
-        model: config.model,
-      }),
-    });
 
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "unknown");
-      throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
+      const res = await fetchWithRetry(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          input: chunk,
+          model: config.model,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "unknown");
+        throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+      }
+
+      const data = await res.json() as any;
+      const dataArr = data?.data as Array<{ embedding: number[] }> | undefined;
+      if (!dataArr || !Array.isArray(dataArr)) {
+        throw new Error("Invalid embedding batch response");
+      }
+
+      results.push(...dataArr.map((d: { embedding: number[] }) => new Float32Array(d.embedding)));
     }
-
-    const data = await res.json() as any;
-    const dataArr = data?.data as Array<{ embedding: number[] }> | undefined;
-    if (!dataArr || !Array.isArray(dataArr)) {
-      throw new Error("Invalid embedding batch response");
-    }
-
-    return dataArr.map((d: { embedding: number[] }) => new Float32Array(d.embedding));
+    return results;
   }
 
   return { embed, embedBatch, config };

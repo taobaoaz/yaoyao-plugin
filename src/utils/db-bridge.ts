@@ -6,6 +6,7 @@
  * Stores both FTS5 index and vector embeddings in a single .yaoyao.db file.
  */
 
+import { getProp } from "./config.js";
 import { clampNum } from "./clamp.js";
 import { createRequire } from "node:module";
 import type { DatabaseSync } from "node:sqlite";
@@ -61,9 +62,9 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   let vecEnabled = false;
 
   // Configurable limits (not hardcoded)
-  const snippetMaxLen = clampNum((config as Record<string, unknown>).snippetMaxLen, 500, 100, 5000);
-  const searchMaxLimit = clampNum((config as Record<string, unknown>).searchMaxLimit, 100, 10, 1000);
-  const likeFallbackScore = clampNum((config as Record<string, unknown>).likeFallbackScore, 0.5, 0.1, 1);
+  const snippetMaxLen = clampNum(getProp(config, "snippetMaxLen", 500), 500, 100, 5000);
+  const searchMaxLimit = clampNum(getProp(config, "searchMaxLimit", 100), 100, 10, 1000);
+  const likeFallbackScore = clampNum(getProp(config, "likeFallbackScore", 0.5), 0.5, 0.1, 1);
 
   const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
   let db: DatabaseSync | null = null;

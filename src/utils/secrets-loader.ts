@@ -6,7 +6,13 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const SECRETS_PATH = path.join(os.homedir(), ".openclaw", "credentials", "secrets.env");
+const DEFAULT_SECRETS_PATH = path.join(os.homedir(), ".openclaw", "credentials", "secrets.env");
+
+function resolveSecretsPath(): string {
+  const env = process.env.YAOYAO_SECRETS_PATH;
+  if (env) return path.resolve(env);
+  return DEFAULT_SECRETS_PATH;
+}
 
 export interface Secrets {
   [key: string]: string;
@@ -45,7 +51,7 @@ let _cachedMtime = 0;
  * Returns empty object if file missing.
  */
 export function loadSecrets(filePath?: string): Secrets {
-  const target = filePath || SECRETS_PATH;
+  const target = filePath || resolveSecretsPath();
   try {
     if (!fs.existsSync(target)) return {};
     const stat = fs.statSync(target);
@@ -66,5 +72,5 @@ export function loadSecrets(filePath?: string): Secrets {
  * Get the secrets file path.
  */
 export function getSecretsPath(): string {
-  return SECRETS_PATH;
+  return resolveSecretsPath();
 }

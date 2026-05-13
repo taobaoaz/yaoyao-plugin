@@ -13,6 +13,7 @@ import fs from "node:fs";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
 import type { DBBridge } from "../utils/db-bridge.js";
+import { getObj, getProp } from "../utils/config.js";
 import { createSessionFilter } from "../utils/session-filter.js";
 
 /** Safely extract text content from a message, handling string/array/object formats */
@@ -103,9 +104,9 @@ export function registerCaptureHook(
         : new Date().toISOString().slice(0, 10);
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
 
-      const captureCfg = ((config as Record<string, unknown>).capture || {}) as Record<string, unknown>;
-      const captureMaxLen = clampNum(captureCfg.maxContentLen, 500, 50, 5000);
-      const minContentLen = clampNum(captureCfg.minContentLen, 3, 0, 100);
+      const captureCfg = getObj(config, "capture") || {};
+      const captureMaxLen = clampNum(getProp(captureCfg, "maxContentLen", 500), 500, 50, 5000);
+      const minContentLen = clampNum(getProp(captureCfg, "minContentLen", 3), 3, 0, 100);
 
       const userContent = extractContent(lastUserMsg, captureMaxLen);
       const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, captureMaxLen) : "(no response)";

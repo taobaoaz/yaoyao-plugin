@@ -9,6 +9,7 @@
  *          Plugin now purely captures and indexes, without implicit tagging.
  */
 import { clampNum } from "../utils/clamp.js";
+import { getObj, getProp } from "../utils/config.js";
 import { createSessionFilter } from "../utils/session-filter.js";
 /** Safely extract text content from a message, handling string/array/object formats */
 function extractContent(msg, maxLen) {
@@ -28,13 +29,38 @@ function extractContent(msg, maxLen) {
             .join(" ")
             .slice(0, limit);
     }
-    // Fallback: try JSON stringify
+    // Fallback: safe JSON stringify with depth limit
     try {
-        return JSON.stringify(content).slice(0, limit);
+        return safeStringify(content, limit);
     }
     catch {
         return "[unparseable content]";
     }
+}
+/** Depth-limited JSON stringify to avoid OOM on deeply nested / massive objects */
+function safeStringify(obj, maxLen) {
+    const seen = new WeakSet();
+    function walk(val, depth) {
+        if (depth > 3)
+            return "[...]";
+        if (val === null)
+            return "null";
+        if (typeof val !== "object")
+            return String(val).slice(0, maxLen);
+        if (seen.has(val))
+            return "[Circular]";
+        seen.add(val);
+        if (Array.isArray(val)) {
+            const items = val.slice(0, 10).map(v => walk(v, depth + 1));
+            const tail = val.length > 10 ? `,...${val.length - 10} more` : "";
+            return `[${items.join(",")}${tail}]`;
+        }
+        const entries = Object.entries(val).slice(0, 10);
+        const tail = Object.keys(val).length > 10 ? ",...}" : "}";
+        const pairs = entries.map(([k, v]) => `${k}:${walk(v, depth + 1)}`);
+        return `{${pairs.join(",")}${tail}`;
+    }
+    return walk(obj, 0).slice(0, maxLen);
 }
 export function registerCaptureHook(api, store, db, config) {
     api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
@@ -66,9 +92,9 @@ export function registerCaptureHook(api, store, db, config) {
                 ? new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
                 : new Date().toISOString().slice(0, 10);
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-            const captureCfg = (config.capture || {});
-            const captureMaxLen = clampNum(captureCfg.maxContentLen, 500, 50, 5000);
-            const minContentLen = clampNum(captureCfg.minContentLen, 3, 0, 100);
+            const captureCfg = getObj(config, "capture") || {};
+            const captureMaxLen = clampNum(getProp(captureCfg, "maxContentLen", 500), 500, 50, 5000);
+            const minContentLen = clampNum(getProp(captureCfg, "minContentLen", 3), 3, 0, 100);
             const userContent = extractContent(lastUserMsg, captureMaxLen);
             const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, captureMaxLen) : "(no response)";
             // Skip trivial entries

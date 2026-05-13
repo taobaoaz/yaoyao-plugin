@@ -1,9 +1,10 @@
 import { detectSentiment } from "../utils/sentiment.js";
 import { createSessionFilter } from "../utils/session-filter.js";
 import { clampNum } from "../utils/clamp.js";
+import { getBool, getProp } from "../utils/config.js";
 // ── Config helper: read from flat config keys with range clamping ──
 function cfgVal(config, key, defaultVal, min, max) {
-    return clampNum(config[key], defaultVal, min, max);
+    return clampNum(getProp(config, key, defaultVal), defaultVal, min, max);
 }
 function getRecallConfig(config) {
     return {
@@ -23,16 +24,16 @@ const resultCache = new Map();
 let cacheAccessCount = 0;
 function getCachedResults(key, cfg) {
     cacheAccessCount++;
+    const now = Date.now();
     // Periodic expired-entry cleanup (every 100 accesses)
     if (cacheAccessCount % 100 === 0) {
-        const now = Date.now();
         for (const [k, v] of resultCache) {
             if (v.expires < now)
                 resultCache.delete(k);
         }
     }
     const cached = resultCache.get(key);
-    if (cached && cached.expires > Date.now())
+    if (cached && cached.expires > now)
         return cached.results;
     resultCache.delete(key);
     return null;
@@ -40,42 +41,70 @@ function getCachedResults(key, cfg) {
 function setCachedResults(key, results, cfg) {
     if (resultCache.size >= cfg.maxCacheSize) {
         const now = Date.now();
+        // Phase 1: evict expired entries
         for (const [k, v] of resultCache) {
-            if (v.expires < now || resultCache.size > cfg.maxCacheSize * 1.5)
+            if (v.expires < now)
                 resultCache.delete(k);
+        }
+        // Phase 2: if still full, evict oldest by expiration time
+        if (resultCache.size >= cfg.maxCacheSize) {
+            let oldestKey = null;
+            let oldestTime = Infinity;
+            for (const [k, v] of resultCache) {
+                if (v.expires < oldestTime) {
+                    oldestTime = v.expires;
+                    oldestKey = k;
+                }
+            }
+            if (oldestKey)
+                resultCache.delete(oldestKey);
         }
     }
     resultCache.set(key, { results, expires: Date.now() + cfg.cacheTTL });
 }
 // ── Enhancement 3: Session context accumulation ──
 // Maintains cross-turn keyword context per session to improve recall relevance.
+// Entries are LRU-evicted when over maxSessions to prevent memory leaks.
 const sessionContext = new Map();
 function updateSessionContext(sessionKey, keywords, cfg) {
-    // Evict oldest session if over limit
+    const now = Date.now();
+    // Evict oldest session by lastAccess if over limit
     if (!sessionContext.has(sessionKey) && sessionContext.size >= cfg.maxSessions) {
-        const firstKey = sessionContext.keys().next().value;
-        if (firstKey !== undefined) {
-            sessionContext.delete(firstKey);
+        let oldestKey = null;
+        let oldestTime = Infinity;
+        for (const [k, v] of sessionContext) {
+            if (v.lastAccess < oldestTime) {
+                oldestTime = v.lastAccess;
+                oldestKey = k;
+            }
         }
+        if (oldestKey)
+            sessionContext.delete(oldestKey);
     }
-    if (!sessionContext.has(sessionKey)) {
-        sessionContext.set(sessionKey, new Set());
+    let entry = sessionContext.get(sessionKey);
+    if (!entry) {
+        entry = { keywords: new Set(), lastAccess: now };
+        sessionContext.set(sessionKey, entry);
     }
-    const ctx = sessionContext.get(sessionKey);
+    entry.lastAccess = now;
     for (const kw of keywords) {
-        ctx.add(kw);
+        entry.keywords.add(kw);
     }
     // Evict oldest when over limit
-    if (ctx.size > cfg.maxContextKeywords) {
-        const arr = Array.from(ctx);
-        const toRemove = arr.slice(0, ctx.size - cfg.maxContextKeywords);
+    if (entry.keywords.size > cfg.maxContextKeywords) {
+        const arr = Array.from(entry.keywords);
+        const toRemove = arr.slice(0, entry.keywords.size - cfg.maxContextKeywords);
         for (const kw of toRemove)
-            ctx.delete(kw);
+            entry.keywords.delete(kw);
     }
 }
 function getSessionContextKeywords(sessionKey) {
-    const ctx = sessionContext.get(sessionKey);
-    return ctx ? Array.from(ctx) : [];
+    const entry = sessionContext.get(sessionKey);
+    if (entry) {
+        entry.lastAccess = Date.now();
+        return Array.from(entry.keywords);
+    }
+    return [];
 }
 // ── Enhancement 1: Time decay scoring ──
 // Applies exponential decay based on age: score *= exp(-daysAgo / halfLife)
@@ -173,7 +202,7 @@ function buildRecallContext(results) {
 function buildPrependRules(config) {
     const rules = [];
     // 多模态记忆指令：开启 autoSaveImage 后，AI 自动将图片理解结果存入记忆
-    const autoSaveImage = config.autoSaveImage === true;
+    const autoSaveImage = getBool(config, "autoSaveImage", false);
     if (autoSaveImage) {
         rules.push("## 行为规则\n\n当用户发送图片或你通过任何方式获取到图片内容后，在回复用户之前，请调用 memory_save 工具，以 `[图片] 图片描述` 的格式将图片描述保存到记忆中。图片描述应为简洁的中文完整句子。");
     }

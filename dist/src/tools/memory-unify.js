@@ -152,7 +152,7 @@ async function handleBackends(store) {
     if (files && files.length > 0) {
         lines.push("", "| 文件 | 来源 | 大小 |", "|------|------|------|");
         files.forEach(f => {
-            lines.push(`| ${f.path} | ${f.source} | ${(f.size / 1024).toFixed(1)} KB |`);
+            lines.push(`| ${f.path} | ${f.source} | ${((f.size ?? 0) / 1024).toFixed(1)} KB |`);
         });
     }
     else {

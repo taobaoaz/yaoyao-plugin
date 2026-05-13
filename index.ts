@@ -33,6 +33,7 @@ import type { EmbeddingConfig } from "./src/utils/embedding.js";
 import { registerMemoryTools } from "./src/tools/index.js";
 import { registerCaptureHook } from "./src/hooks/auto-capture.js";
 import { registerRecallHook } from "./src/hooks/auto-recall.js";
+import { getBool, getProp } from "./src/utils/config.js";
 import { createMemoryCleaner } from "./src/utils/memory-cleaner.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -100,9 +101,9 @@ export default definePluginEntry({
     const workspaceDir = api.baseDir || ".";
 
     // Check for old config keys
-    if ((config as unknown as Record<string, unknown>).psychology === true) legacyTraces.push("config.psychology=true");
-    if ((config as Record<string, unknown>).intervention === true) legacyTraces.push("config.intervention=true");
-    if ((config as Record<string, unknown>).moodTracking === true) legacyTraces.push("config.moodTracking=true");
+    if (getBool(config, "psychology", false)) legacyTraces.push("config.psychology=true");
+    if (getBool(config, "intervention", false)) legacyTraces.push("config.intervention=true");
+    if (getBool(config, "moodTracking", false)) legacyTraces.push("config.moodTracking=true");
 
     // Check for legacy data files that v1.4.x would have created
     const legacyFiles = [
@@ -122,7 +123,7 @@ export default definePluginEntry({
         if (!fs.existsSync(soulDir)) {
           execSync(
             "git clone https://github.com/taobaoaz/yaoyao-soul.git yaoyao-soul",
-            { cwd: pluginsDir, stdio: "pipe", timeout: Math.max(5_000, Math.min(120_000, Number((config as Record<string, unknown>).migrationGitTimeoutMs) || 30_000)) }
+            { cwd: pluginsDir, stdio: "pipe", timeout: Math.max(5_000, Math.min(120_000, Number(getProp(config, "migrationGitTimeoutMs", 30_000)))) }
           );
           autoMigrated = true;
         } else {

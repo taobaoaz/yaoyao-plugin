@@ -120,7 +120,16 @@ function loadTagsFromMeta(db: DBBridge): TagMap {
 
 // ── Entity Linking: memory filename ↔ memory_meta.id ──
 
+// ── Filename → id cache (invalidated by DB row count) ──
+let _filenameIdCache: Map<string, number> | null = null;
+let _filenameIdCacheVersion = -1;
+
 function buildFilenameToIdMap(db: DBBridge): Map<string, number> {
+  const stats = db.getStats();
+  const version = stats.totalMemories;
+  if (_filenameIdCache && _filenameIdCacheVersion === version) {
+    return _filenameIdCache;
+  }
   const map = new Map<string, number>();
   try {
     const rows = db.getAllMeta();
@@ -128,6 +137,8 @@ function buildFilenameToIdMap(db: DBBridge): Map<string, number> {
       map.set(r.filename, r.id);
     }
   } catch { /* best effort */ }
+  _filenameIdCache = map;
+  _filenameIdCacheVersion = version;
   return map;
 }
 

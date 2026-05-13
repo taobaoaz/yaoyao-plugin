@@ -11,6 +11,7 @@
  * ⚠️ 此模块完全独立。底层依赖 openclaw cron 子系统。
  */
 import { withErrorHandling } from "./common.js";
+import { clampNum } from "../utils/clamp.js";
 export function createRemindTool() {
     return {
         name: "memory_remind",
@@ -89,7 +90,8 @@ export function createRemindTool() {
             // 如果提供了自然语言描述，转换为 cron 表达式
             let finalCron = cronExpr;
             if (timeDescription) {
-                finalCron = convertHumanToCron(timeDescription) || cronExpr;
+                const minuteOffset = clampNum(params.minuteOffset, 30, 0, 59);
+                finalCron = convertHumanToCron(timeDescription, minuteOffset) || cronExpr;
             }
             const finalMessage = message || (keyword
                 ? `⏰ 记忆提醒：关于"${keyword}"的记忆\n\n请使用 memory_search_enhanced / yaoyao_memory_search 搜索 "${keyword}" 来查看相关记忆。`
@@ -134,7 +136,7 @@ export function createRemindTool() {
  * 自然语言时间 → cron 表达式
  * 覆盖常用中文时间描述，自动提取小时和分钟
  */
-function convertHumanToCron(descr) {
+function convertHumanToCron(descr, minuteOffset = 30) {
     const lower = descr.toLowerCase().replace(/\s+/g, "");
     // 提取分钟和小时
     let hour = "09";
@@ -145,6 +147,13 @@ function convertHumanToCron(descr) {
     const hourMatch = lower.match(/(\d+)点/);
     if (hourMatch)
         hour = hourMatch[1].padStart(2, "0");
+    // 应用随机偏移（限制在 0-59 内）
+    const clampedOffset = Math.max(0, Math.min(59, minuteOffset));
+    let startMinute = Number(minute);
+    if (clampedOffset > 0) {
+        startMinute = (startMinute + Math.floor(Math.random() * (clampedOffset + 1))) % 60;
+    }
+    minute = String(startMinute).padStart(2, "0");
     // 上午/下午/晚上/中午转换
     if (/下午/.test(lower) || /晚上/.test(lower)) {
         const h = Number(hour);

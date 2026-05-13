@@ -1,4 +1,9 @@
 /**
+ * LLM Client — lightweight OpenAI-compatible API caller.
+ * Accepts raw plugin config and looks for llm/embedding fields.
+ */
+import { getObj } from "./config.js";
+/**
  * Default provider → model mapping.
  * Exposed as a module-level constant so it can be overridden by user config.
  */
@@ -48,7 +53,7 @@ export function createLLMClient(config, embeddingConfig) {
     if (!config || typeof config !== "object")
         return result;
     // User-configured provider → model override map (if any)
-    const llmSection = (config.llm || {});
+    const llmSection = getObj(config, "llm") || {};
     const providerModels = (llmSection.providerModels || {});
     // Priority 1: explicit llm config
     const llmApiKey = String(llmSection.apiKey || "");
