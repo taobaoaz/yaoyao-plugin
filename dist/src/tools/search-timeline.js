@@ -1,3 +1,7 @@
+/**
+ * Search with Timeline Tool — groups search results by date.
+ */
+import { clampNum } from "../utils/clamp.js";
 import { detectSentiment } from "../utils/sentiment.js";
 import { withErrorHandling } from "./common.js";
 export function createSearchTimelineTool(db) {
@@ -15,7 +19,7 @@ export function createSearchTimelineTool(db) {
         },
         execute: withErrorHandling(async (_id, params) => {
             const query = String(params.query ?? "").trim();
-            const limit = Math.min(Math.max(Number(params.maxResults) || 10, 1), 50);
+            const limit = clampNum(params.maxResults, 10, 1, 50);
             if (!query)
                 return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
             const results = db.search(query, limit);

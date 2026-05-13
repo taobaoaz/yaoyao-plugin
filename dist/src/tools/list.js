@@ -1,3 +1,4 @@
+import { clampNum } from "../utils/clamp.js";
 import { withErrorHandling } from "./common.js";
 export function createListTool(store) {
     return {
@@ -12,7 +13,7 @@ export function createListTool(store) {
             },
         },
         execute: withErrorHandling(async (_id, params) => {
-            const limit = Math.min(Math.max(Number(params.limit) || 20, 1), 100);
+            const limit = clampNum(params.limit, 20, 1, 500);
             let files = store.listFiles();
             if (params.type && typeof params.type === "string") {
                 files = files.filter(f => f.type === params.type);

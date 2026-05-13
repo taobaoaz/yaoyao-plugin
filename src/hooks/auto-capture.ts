@@ -8,6 +8,7 @@
  * v1.5.0+: Removed psychological state tracking (moved to yaoyao-soul).
  *          Plugin now purely captures and indexes, without implicit tagging.
  */
+import { clampNum } from "../utils/clamp.js";
 import fs from "node:fs";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";

@@ -10,8 +10,8 @@ import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 
 /**
  * Full configuration type that matches plugin's actual consumption.
- * Fields are consumed by: index.ts, auto-capture, auto-recall, pipeline-manager,
- * memory-cleaner, embedding, LLM client.
+ * Fields are consumed by: index.ts, auto-capture, auto-recall,
+ * memory-cleaner, embedding, LLM client, cloud-adapter, db-bridge.
  */
 export interface YaoyaoMemoryConfig {
   capture?: {

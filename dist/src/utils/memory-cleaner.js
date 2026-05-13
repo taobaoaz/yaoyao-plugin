@@ -6,12 +6,14 @@
  * - Optionally archives before deletion
  * - Evicts cold session checkpoints
  */
+import { clampNum } from "./clamp.js";
 import path from "node:path";
 import fs from "node:fs";
 export function createMemoryCleaner(baseDir, db, config, logger) {
     const cfg = {
         l0l1RetentionDays: config?.l0l1RetentionDays ?? 30,
         allowAggressiveCleanup: config?.allowAggressiveCleanup ?? false,
+        maxBackups: clampNum(config?.maxBackups, 10, 1, 50),
     };
     const log = (msg) => logger?.info?.(`[yaoyao-memory:cleaner] ${msg}`);
     /** Validate retention config */
@@ -94,7 +96,7 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
                 .filter(f => f.startsWith("memory-backup-"))
                 .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
                 .sort((a, b) => b.mtime - a.mtime);
-            for (const b of backups.slice(10)) {
+            for (const b of backups.slice(cfg.maxBackups)) {
                 fs.rmSync(path.join(backupDir, b.name), { recursive: true, force: true });
             }
         }

@@ -1,3 +1,4 @@
+import { clampNum } from "../utils/clamp.js";
 import { withErrorHandling } from "./common.js";
 export function createNoteTool(store, db) {
     return {
@@ -7,12 +8,18 @@ export function createNoteTool(store, db) {
         parameters: {
             type: "object",
             properties: {
-                note: { type: "string", description: "The note content (max 500 chars)" },
+                note: { type: "string", description: "The note content" },
+                maxLen: {
+                    type: "number",
+                    description: "Max note length in chars (default 500)",
+                    default: 500,
+                },
             },
             required: ["note"],
         },
         execute: withErrorHandling(async (_id, params) => {
-            const note = String(params.note ?? "").trim().slice(0, 500);
+            const maxLen = clampNum(params.maxLen, 500, 50, 2000);
+            const note = String(params.note ?? "").trim().slice(0, maxLen);
             if (!note)
                 return { content: [{ type: "text", text: "请输入笔记内容。" }] };
             const date = new Date().toISOString().slice(0, 10);

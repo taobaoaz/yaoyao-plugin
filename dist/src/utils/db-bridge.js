@@ -5,6 +5,7 @@
  *
  * Stores both FTS5 index and vector embeddings in a single .yaoyao.db file.
  */
+import { clampNum } from "./clamp.js";
 import { createRequire } from "node:module";
 import path from "node:path";
 import fs from "node:fs";
@@ -22,6 +23,11 @@ function computeScore(rank) {
 export function createDB(config, logger) {
     const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
     const dbPath = path.join(baseDir, ".yaoyao.db");
+    let vecEnabled = false;
+    // Configurable limits (not hardcoded)
+    const snippetMaxLen = clampNum(config.snippetMaxLen, 500, 100, 5000);
+    const searchMaxLimit = clampNum(config.searchMaxLimit, 100, 10, 1000);
+    const likeFallbackScore = clampNum(config.likeFallbackScore, 0.5, 0.1, 1);
     const log = (msg) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
     let db = null;
     let initFailed = false; // fail-fast guard: once init fails, skip retries
@@ -75,7 +81,7 @@ export function createDB(config, logger) {
                 ")");
             // Vector search table (sqlite-vec)
             vecEnabled = false;
-            const dimensions = config.embedding?.dimensions || 1024;
+            const dimensions = config.embedding?.dimensions ?? 1024;
             try {
                 const sqliteVec = _require("sqlite-vec");
                 db.enableLoadExtension(true);
@@ -121,10 +127,10 @@ export function createDB(config, logger) {
         try {
             const d = ensureDB();
             const stmt = d.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-            const result = stmt.run(date, userText.slice(0, 500), asstText.slice(0, 500));
+            const result = stmt.run(date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
             const rowId = Number(result.lastInsertRowid);
             const stmt2 = d.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
-            stmt2.run(rowId, date, userText.slice(0, 500), asstText.slice(0, 500));
+            stmt2.run(rowId, date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
             return rowId;
         }
         catch (err) {
@@ -163,17 +169,18 @@ export function createDB(config, logger) {
                 return searchAll(limit);
             }
             // Try FTS5 first
-            const stmt = d.prepare("SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
+            const stmt = d.prepare("SELECT date, user_text, asst_text, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
                 "FROM memory_fts WHERE memory_fts MATCH ? " +
                 "ORDER BY rank LIMIT ?");
-            const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), 100));
+            const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), searchMaxLimit));
             // FTS5 returns results, use them
             if (rows.length > 0) {
                 return rows.map(row => ({
                     filename: row.date ? `${row.date}.md` : "memory.db",
-                    snippet: (row.snippet || "").slice(0, 500),
+                    snippet: (row.snippet || "").slice(0, snippetMaxLen),
                     score: computeScore(row.rank),
                     date: row.date || "",
+                    asst_text: (row.asst_text || "").slice(0, snippetMaxLen),
                 }));
             }
             // ── FTS5 returned nothing → try LIKE fallback for CJK text ──
@@ -184,14 +191,15 @@ export function createDB(config, logger) {
             const likeStmt = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
                 "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
                 "ORDER BY id DESC LIMIT ?");
-            const likeRows = likeStmt.all(likeQuery, likeQuery, Math.min(Math.max(limit, 1), 100));
+            const likeRows = likeStmt.all(likeQuery, likeQuery, Math.min(Math.max(limit, 1), searchMaxLimit));
             if (likeRows.length > 0) {
                 log(`FTS5 miss → LIKE fallback found ${likeRows.length} results for "${query.slice(0, 30)}"`);
                 return likeRows.map(row => ({
                     filename: row.date ? `${row.date}.md` : "memory.db",
-                    snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, 500),
-                    score: 0.5,
+                    snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, snippetMaxLen),
+                    score: likeFallbackScore,
                     date: row.date || "",
+                    asst_text: (row.asst_text || "").slice(0, snippetMaxLen),
                 }));
             }
             // Empty across the board
@@ -206,12 +214,13 @@ export function createDB(config, logger) {
     function searchAll(limit) {
         try {
             const d = ensureDB();
-            const rows = d.prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(Math.min(Math.max(limit, 1), 100));
+            const rows = d.prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(Math.min(Math.max(limit, 1), searchMaxLimit));
             return rows.map(r => ({
                 filename: r.date ? `${r.date}.md` : "memory.db",
-                snippet: (r.user_text || r.asst_text || "").slice(0, 500),
+                snippet: (r.user_text || r.asst_text || "").slice(0, snippetMaxLen),
                 score: 1.0,
                 date: r.date || "",
+                asst_text: (r.asst_text || "").slice(0, snippetMaxLen),
             }));
         }
         catch {
@@ -227,7 +236,7 @@ export function createDB(config, logger) {
                 "FROM memory_vec v " +
                 "JOIN memory_meta m ON v.rowid = m.id " +
                 "WHERE v.embedding MATCH ? AND k = ?");
-            const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), 100));
+            const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), searchMaxLimit));
             return rows.map(row => {
                 // vec0 uses L2 distance by default. Convert to cosine similarity:
                 // For unit-normalized vectors: cosine ≈ 1 - (L2^2 / 2)
@@ -236,9 +245,10 @@ export function createDB(config, logger) {
                 const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
                 return {
                     filename: row.date ? `${row.date}.md` : "memory.db",
-                    snippet: snippet.slice(0, 500),
+                    snippet: snippet.slice(0, snippetMaxLen),
                     score: Math.max(0, cosineSim),
                     date: row.date || "",
+                    asst_text: (row.asst_text || "").slice(0, snippetMaxLen),
                     vectorScore: Math.max(0, cosineSim),
                     hybridScore: Math.max(0, cosineSim),
                 };
@@ -287,13 +297,20 @@ export function createDB(config, logger) {
             .sort((a, b) => b.hybridScore - a.hybridScore)
             .slice(0, limit);
     }
-    /** Store a vector embedding for a memory record */
+    /** Store a vector embedding for a memory record. Normalizes to unit length before storage. */
     function storeVector(metaId, embedding) {
         if (metaId <= 0)
             return false; // reject orphan vectors
         try {
             const d = ensureDB();
-            const jsonArr = "[" + Array.from(embedding).join(",") + "]";
+            // Normalize to unit length for correct cosine similarity from L2 distance
+            let norm = 0;
+            for (let i = 0; i < embedding.length; i++) {
+                norm += embedding[i] * embedding[i];
+            }
+            norm = Math.sqrt(norm);
+            const normalized = norm === 0 ? embedding : new Float32Array(embedding.map(v => v / norm));
+            const jsonArr = "[" + Array.from(normalized).join(",") + "]";
             // Wrap DELETE + INSERT in a transaction
             d.exec("BEGIN");
             try {
@@ -369,9 +386,9 @@ export function createDB(config, logger) {
             try {
                 const vecRow = d.prepare("SELECT COUNT(*) as c FROM memory_vec").get();
                 vecCount = vecRow?.c ?? 0;
-                // Try to read actual dimensions from vec_meta; fallback to config or 1024
+                // Try to read actual dimensions from vec_meta; fallback to config or 0 (unknown)
                 const actualDim = d.prepare("SELECT dimensions FROM memory_vec_meta LIMIT 1").get();
-                dimensions = actualDim?.dimensions ?? config.embedding?.dimensions ?? 1024;
+                dimensions = actualDim?.dimensions ?? config.embedding?.dimensions ?? 0;
             }
             catch {
                 // vec table may not exist
@@ -409,10 +426,16 @@ export function createDB(config, logger) {
             db = null;
         }
     }
-    /** Get all tags from memory_meta (currently returns empty — no tags column) */
+    /** Get all tags from memory_tags table (created by memory_tag tool) */
     function getAllTags() {
-        // memory_meta table has no tags column. Return empty for graceful degradation.
-        return [];
+        try {
+            const d = ensureDB();
+            const rows = d.prepare("SELECT tag, memory_id FROM memory_tags").all();
+            return rows;
+        }
+        catch {
+            return [];
+        }
     }
     /** Get all meta entries with id and filename (derived from date) */
     function getAllMeta() {
@@ -431,19 +454,7 @@ export function createDB(config, logger) {
     }
     /** Get most recent memory entries by date (for fallback when no keywords). */
     function getLatestMemory(limit = 1) {
-        try {
-            const d = ensureDB();
-            const rows = d.prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(limit);
-            return rows.map(r => ({
-                filename: r.date ? `${r.date}.md` : "memory.db",
-                snippet: (r.user_text || r.asst_text || "").slice(0, 500),
-                score: 1.0,
-                date: r.date || "",
-            }));
-        }
-        catch {
-            return [];
-        }
+        return searchAll(limit);
     }
     return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate };
 }

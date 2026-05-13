@@ -232,16 +232,19 @@ async function handleDedup(store, db) {
     lines.push("💡 如需删除重复项，请使用 memory_forget 手动处理");
     return { content: [{ type: "text", text: lines.join("\n") }] };
 }
-/** Compute Jaccard similarity on first N chars of two snippets */
+/** Compute Jaccard similarity on first N chars of two snippets using bigrams */
 function jaccardSnippet(a, b, chars = 100) {
     const snippetA = a.slice(0, chars);
     const snippetB = b.slice(0, chars);
-    const setA = new Set();
-    const setB = new Set();
-    for (const ch of snippetA)
-        setA.add(ch);
-    for (const ch of snippetB)
-        setB.add(ch);
+    function getBigrams(text) {
+        const set = new Set();
+        for (let i = 0; i < text.length - 1; i++) {
+            set.add(text.slice(i, i + 2));
+        }
+        return set;
+    }
+    const setA = getBigrams(snippetA);
+    const setB = getBigrams(snippetB);
     const intersect = new Set([...setA].filter((x) => setB.has(x)));
     const union = new Set([...setA, ...setB]);
     return union.size > 0 ? intersect.size / union.size : 0;

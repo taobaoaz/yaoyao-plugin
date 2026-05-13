@@ -58,6 +58,7 @@ export function createRemindTool(): ToolRegistration {
           description: "自然语言时间解析的随机偏移范围（分钟，默认 30）",
           default: 30,
         },
+      },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const action = String(params.action || "create");

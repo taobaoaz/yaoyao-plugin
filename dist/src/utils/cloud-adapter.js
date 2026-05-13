@@ -5,13 +5,14 @@
  * All HTTP-based adapters use node:https / node:http directly.
  * Shell-based adapters (SFTP, Samba) invoke system commands via child_process.
  */
+import { clampNum } from "./clamp.js";
 import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
 import http from "node:http";
 import { URL } from "node:url";
 import crypto from "node:crypto";
-import { execFile, execSync } from "node:child_process";
+import { execFile, execSync, execFileSync } from "node:child_process";
 import { loadSecrets } from "./secrets-loader.js";
 // ============================================================================
 // WebDAV Adapter — uses node:http(s) PUT/GET/PROPFIND/DELETE
@@ -346,11 +347,13 @@ class SFTPAdapter {
     port;
     username;
     password;
-    constructor(secrets) {
+    timeoutMs;
+    constructor(secrets, opts) {
         this.host = secrets.SFTP_HOST || "";
         this.port = parseInt(secrets.SFTP_PORT || "22", 10);
         this.username = secrets.SFTP_USERNAME || "";
         this.password = secrets.SFTP_PASSWORD || "";
+        this.timeoutMs = Math.max(3_000, Math.min(120_000, opts?.timeoutMs ?? parseInt(secrets.SFTP_TIMEOUT_MS || "30000", 10)));
     }
     static isConfigured(s) {
         return !!(s.SFTP_HOST && s.SFTP_USERNAME);
@@ -378,7 +381,7 @@ class SFTPAdapter {
                 cmd = "sftp";
                 cmdArgs = [...args, `${this.username}@${this.host}`];
             }
-            const child = execFile(cmd, cmdArgs, { timeout: 30000, env: envOverride || process.env }, (err, stdout, stderr) => {
+            const child = execFile(cmd, cmdArgs, { timeout: this.timeoutMs, env: envOverride || process.env }, (err, stdout, stderr) => {
                 if (err) {
                     resolve({ ok: false, stdout: stderr || err.message });
                 }
@@ -472,7 +475,10 @@ class SambaAdapter {
     share;
     remotePath;
     isWindows;
-    constructor(secrets) {
+    smbTimeoutMs;
+    mountCheckTimeoutMs;
+    mountTimeoutMs;
+    constructor(secrets, opts) {
         this.host = secrets.SAMBA_HOST || "";
         this.port = parseInt(secrets.SAMBA_PORT || "445", 10);
         this.username = secrets.SAMBA_USER || "";
@@ -480,6 +486,9 @@ class SambaAdapter {
         this.share = secrets.SAMBA_SHARE || "memory";
         this.remotePath = (secrets.SAMBA_REMOTE_PATH || "/").replace(/^\/+|\/+$/g, "");
         this.isWindows = process.platform === "win32";
+        this.smbTimeoutMs = clampNum(opts?.smbTimeoutMs, 15_000, 3_000, 60_000);
+        this.mountCheckTimeoutMs = clampNum(opts?.mountCheckTimeoutMs, 5_000, 1_000, 30_000);
+        this.mountTimeoutMs = clampNum(opts?.mountTimeoutMs, 10_000, 3_000, 60_000);
     }
     static isConfigured(s) {
         return !!(s.SAMBA_HOST && s.SAMBA_USER);
@@ -502,9 +511,8 @@ class SambaAdapter {
             "-p", String(this.port),
             "-c", args.join(";"),
         ];
-        return execSync("smbclient", {
-            args: cmdArgs,
-            timeout: 15000,
+        return execFileSync("smbclient", cmdArgs, {
+            timeout: this.smbTimeoutMs,
             env: { ...process.env, PASSWD: this.password },
         });
     }
@@ -517,7 +525,7 @@ class SambaAdapter {
         const unc = `\\\\${this.host}\\${this.share}`;
         try {
             // Check if already mounted
-            const existing = execSync(`net use ${driveLetter}`, { encoding: "utf-8", timeout: 5000 });
+            const existing = execSync(`net use ${driveLetter}`, { encoding: "utf-8", timeout: this.mountCheckTimeoutMs });
             if (existing.includes(unc))
                 return driveLetter;
         }
@@ -527,7 +535,7 @@ class SambaAdapter {
         try {
             execSync(`net use ${driveLetter} ${unc} /user:"${esc(this.username)}" /persistent:no`, {
                 encoding: "utf-8",
-                timeout: 10000,
+                timeout: this.mountTimeoutMs,
                 env: { ...process.env, PASSWD: this.password },
             });
             return driveLetter;
@@ -659,20 +667,20 @@ class SambaAdapter {
 const PROVIDER_CHECKS = [
     { name: "webdav", check: WebDAVAdapter.isConfigured, create: (s) => new WebDAVAdapter(s) },
     { name: "s3", check: S3Adapter.isConfigured, create: (s) => new S3Adapter(s) },
-    { name: "sftp", check: SFTPAdapter.isConfigured, create: (s) => new SFTPAdapter(s) },
-    { name: "samba", check: SambaAdapter.isConfigured, create: (s) => new SambaAdapter(s) },
+    { name: "sftp", check: SFTPAdapter.isConfigured, create: (s, opts) => new SFTPAdapter(s, opts) },
+    { name: "samba", check: SambaAdapter.isConfigured, create: (s, opts) => new SambaAdapter(s, opts) },
 ];
 /**
  * Create all configured cloud adapters from secrets.env.
  */
-export function createAdapters(secretsPath) {
+export function createAdapters(secretsPath, opts) {
     const secrets = loadSecrets(secretsPath);
     const adapters = new Map();
     const statuses = [];
     for (const { name, check, create } of PROVIDER_CHECKS) {
         if (check(secrets)) {
             try {
-                adapters.set(name, create(secrets));
+                adapters.set(name, create(secrets, opts));
                 statuses.push({ provider: name, configured: true, message: "✅ 已配置" });
             }
             catch (err) {
@@ -688,10 +696,10 @@ export function createAdapters(secretsPath) {
 /**
  * Create a single adapter by provider name.
  */
-export function createAdapter(provider, secretsPath) {
+export function createAdapter(provider, secretsPath, opts) {
     const secrets = loadSecrets(secretsPath);
     const entry = PROVIDER_CHECKS.find(p => p.name === provider);
     if (!entry || !entry.check(secrets))
         return null;
-    return entry.create(secrets);
+    return entry.create(secrets, opts);
 }

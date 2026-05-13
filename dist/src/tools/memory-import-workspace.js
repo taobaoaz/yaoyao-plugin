@@ -87,20 +87,30 @@ export function createImportWorkspaceTool(store, db) {
                     const content = fs.readFileSync(file.path, "utf-8");
                     if (content.trim().length < 20)
                         continue;
-                    // Split by ## headers into sections
-                    const parts = content.split(/^(#{1,3}\s+.+)$/gm).filter(Boolean);
-                    // Combine headers with their content
+                    // Split by ## headers into sections — line-by-line scan to preserve headers
+                    const lines = content.split("\n");
                     const fileSections = [];
                     let currentHeader = file.name;
-                    for (const part of parts) {
-                        if (/^#{1,3}\s+/.test(part)) {
-                            currentHeader = part.trim();
+                    let currentText = [];
+                    for (const line of lines) {
+                        if (/^#{1,3}\s+/.test(line)) {
+                            if (currentText.length > 0) {
+                                const text = currentText.join("\n").trim();
+                                if (text.length >= 10) {
+                                    fileSections.push({ header: currentHeader, text });
+                                }
+                            }
+                            currentHeader = line.trim();
+                            currentText = [];
                         }
                         else {
-                            const text = part.trim();
-                            if (text.length >= 10) {
-                                fileSections.push({ header: currentHeader, text });
-                            }
+                            currentText.push(line);
+                        }
+                    }
+                    if (currentText.length > 0) {
+                        const text = currentText.join("\n").trim();
+                        if (text.length >= 10) {
+                            fileSections.push({ header: currentHeader, text });
                         }
                     }
                     // If no headers found, import as single section

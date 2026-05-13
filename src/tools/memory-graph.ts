@@ -162,6 +162,8 @@ function buildGraph(
     unseenNode: weights.unseenNode ?? 0.7,
     nodeLimitMul: weights.nodeLimitMul ?? 15,
     edgeLimitMul: weights.edgeLimitMul ?? 30,
+    nodeLimitMax: weights.nodeLimitMax ?? 200,
+    edgeLimitMax: weights.edgeLimitMax ?? 400,
   };
 
   // Helper: add a node (if not exists)

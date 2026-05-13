@@ -160,7 +160,17 @@ export function detectSentiment(text) {
         }
     }
     // ── Emoji markers ──
-    for (const em of text) {
+    // Use Intl.Segmenter for grapheme-aware iteration (handles ZWJ emoji sequences like 🤦‍♂️)
+    let segments = [];
+    try {
+        const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
+        segments = Array.from(segmenter.segment(text), s => s.segment);
+    }
+    catch {
+        // Fallback for environments without Intl.Segmenter (should not happen on Node >= 22)
+        segments = Array.from(text);
+    }
+    for (const em of segments) {
         if (JOY_MARKERS.has(em))
             emotionScores.joy += 2;
         else if (SAD_MARKERS.has(em))

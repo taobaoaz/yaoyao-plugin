@@ -12,6 +12,7 @@
  *
  * ⚠️ 完全独立模块，所有 try-catch 兜底
  */
+import { clampNum } from "../utils/clamp.js";
 import { withErrorHandling } from "./common.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -34,8 +35,8 @@ function cosineSimilarity(a, b) {
 // ── Data Loaders ──
 function loadScenes(memoryDir) {
     const scenes = new Map();
+    const sceneDir = path.join(memoryDir, "scene_blocks");
     try {
-        const sceneDir = path.join(memoryDir, "scene_blocks");
         if (!fs.existsSync(sceneDir))
             return scenes;
         for (const file of fs.readdirSync(sceneDir)) {
@@ -47,8 +48,11 @@ function loadScenes(memoryDir) {
             const memories = [];
             for (const line of content.split("\n")) {
                 const t = line.trim();
-                if (t.startsWith("- ") || t.startsWith("* "))
-                    memories.push(t.slice(2));
+                if (t.startsWith("- ") || t.startsWith("* ")) {
+                    const raw = t.slice(2).trim();
+                    const normalized = raw.endsWith(".md") ? raw : `${raw}.md`;
+                    memories.push(normalized);
+                }
             }
             scenes.set(name, { name, memories });
         }
@@ -83,11 +87,26 @@ function buildFilenameToIdMap(db) {
     return map;
 }
 // ── Build Graph ──
-function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding, queryEmbedding) {
+function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, weights, embedding, queryEmbedding) {
     const nodes = new Map();
     const edges = new Map();
     const visited = new Set();
     const nodeOrder = [];
+    // Resolve weights with defaults
+    const w = {
+        tagNode: weights.tagNode ?? 0.7,
+        tagEdge: weights.tagEdge ?? 0.8,
+        sceneNode: weights.sceneNode ?? 0.8,
+        sceneEdge: weights.sceneEdge ?? 0.9,
+        sceneInner: weights.sceneInner ?? 0.5,
+        dateEdge: weights.dateEdge ?? 0.3,
+        orphanNode: weights.orphanNode ?? 0.6,
+        unseenNode: weights.unseenNode ?? 0.7,
+        nodeLimitMul: weights.nodeLimitMul ?? 15,
+        edgeLimitMul: weights.edgeLimitMul ?? 30,
+        nodeLimitMax: weights.nodeLimitMax ?? 200,
+        edgeLimitMax: weights.edgeLimitMax ?? 400,
+    };
     // Helper: add a node (if not exists)
     function addNode(id, node) {
         if (!nodes.has(id)) {
@@ -139,20 +158,20 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
         addNode(tagNodeId, {
             id: tagNodeId, label: `#${tag}`, type: "tag",
             snippet: `标签 "${tag}" 关联 ${memIds.length} 条记忆`,
-            score: 0.7, degree: 0, date: "",
+            score: w.tagNode, degree: 0, date: "",
         });
         for (const mid of memIds) {
             const memFname = [...memFilenameMap.entries()].find(([, v]) => v === mid)?.[0];
             if (!memFname)
                 continue;
             const memNodeId = `mem:${memFname}`;
-            addEdge(tagNodeId, memNodeId, "同标签", 0.8, `共同标签: ${tag}`);
+            addEdge(tagNodeId, memNodeId, "同标签", w.tagEdge, `共同标签: ${tag}`);
             if (!visited.has(memFname)) {
                 visited.add(memFname);
                 const nodeId = `mem:${memFname}`;
                 addNode(nodeId, {
                     id: nodeId, label: memFname, type: "memory",
-                    snippet: "(关联: 标签)", score: 0.6, degree: 0,
+                    snippet: "(关联: 标签)", score: w.orphanNode, degree: 0,
                     date: memFname.replace(".md", ""),
                 });
             }
@@ -167,16 +186,16 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
         addNode(sceneNodeId, {
             id: sceneNodeId, label: sceneName, type: "scene",
             snippet: `场景包含 ${sceneData.memories.length} 条记忆`,
-            score: 0.8, degree: 0, date: "",
+            score: w.sceneNode, degree: 0, date: "",
         });
         for (const otherMem of sceneData.memories) {
             const memNodeId = `mem:${otherMem}`;
-            addEdge(sceneNodeId, memNodeId, "同场景", 0.9, `场景: ${sceneName}`);
+            addEdge(sceneNodeId, memNodeId, "同场景", w.sceneEdge, `场景: ${sceneName}`);
             if (!visited.has(otherMem)) {
                 visited.add(otherMem);
                 addNode(memNodeId, {
                     id: memNodeId, label: otherMem, type: "memory",
-                    snippet: "(关联: 场景)", score: 0.7, degree: 0,
+                    snippet: "(关联: 场景)", score: w.unseenNode, degree: 0,
                     date: otherMem.replace(".md", ""),
                 });
             }
@@ -185,7 +204,7 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
         const sceneMems = sceneData.memories.filter(m => visited.has(m));
         for (let i = 0; i < sceneMems.length; i++) {
             for (let j = i + 1; j < sceneMems.length; j++) {
-                addEdge(`mem:${sceneMems[i]}`, `mem:${sceneMems[j]}`, "同场景内", 0.5, `均在场景: ${sceneName}`);
+                addEdge(`mem:${sceneMems[i]}`, `mem:${sceneMems[j]}`, "同场景内", w.sceneInner, `均在场景: ${sceneName}`);
             }
         }
     }
@@ -225,7 +244,7 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
             continue;
         for (let i = 0; i < memIds.length; i++) {
             for (let j = i + 1; j < memIds.length; j++) {
-                addEdge(memIds[i], memIds[j], "同日期", 0.3, "发生在同一天");
+                addEdge(memIds[i], memIds[j], "同日期", w.dateEdge, "发生在同一天");
             }
         }
     }
@@ -238,8 +257,10 @@ function buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding
         if (tgt)
             tgt.degree++;
     }
-    const nodeList = [...nodes.values()].sort((a, b) => b.degree - a.degree).slice(0, 50);
-    const edgeList = [...edges.values()].sort((a, b) => b.weight - a.weight).slice(0, 100);
+    const nodeLimit = Math.min(w.nodeLimitMax, depth * w.nodeLimitMul);
+    const edgeLimit = Math.min(w.edgeLimitMax, depth * w.edgeLimitMul);
+    const nodeList = [...nodes.values()].sort((a, b) => b.degree - a.degree).slice(0, nodeLimit);
+    const edgeList = [...edges.values()].sort((a, b) => b.weight - a.weight).slice(0, edgeLimit);
     const degreeSum = nodeList.reduce((s, n) => s + n.degree, 0);
     const maxDegree = Math.max(...nodeList.map(n => n.degree));
     const avgDegree = nodes.size > 0 ? degreeSum / nodes.size : 0;
@@ -348,11 +369,22 @@ export function createGraphTool(db, dbPath, memoryDir, embedding) {
                     default: "text",
                 },
             },
-            required: ["query"],
+            tagWeight: { type: "number", description: "标签节点权重（0-1，默认 0.7）", default: 0.7 },
+            tagEdgeWeight: { type: "number", description: "标签边权重（0-1，默认 0.8）", default: 0.8 },
+            sceneWeight: { type: "number", description: "场景节点权重（0-1，默认 0.8）", default: 0.8 },
+            sceneEdgeWeight: { type: "number", description: "场景边权重（0-1，默认 0.9）", default: 0.9 },
+            sceneInnerWeight: { type: "number", description: "场景内边权重（0-1，默认 0.5）", default: 0.5 },
+            dateWeight: { type: "number", description: "日期边权重（0-1，默认 0.3）", default: 0.3 },
+            orphanWeight: { type: "number", description: "孤立节点权重（0-1，默认 0.6）", default: 0.6 },
+            unseenWeight: { type: "number", description: "未访问节点权重（0-1，默认 0.7）", default: 0.7 },
+            nodeLimitMul: { type: "number", description: "节点数上限倍数（默认 15）", default: 15 },
+            edgeLimitMul: { type: "number", description: "边数上限倍数（默认 30）", default: 30 },
+            nodeLimitMax: { type: "number", description: "节点数绝对上限（默认 200）", default: 200 },
+            edgeLimitMax: { type: "number", description: "边数绝对上限（默认 400）", default: 400 },
         },
         execute: withErrorHandling(async (_id, params) => {
             const query = String(params.query || "").trim();
-            const depth = Math.min(3, Math.max(1, Number(params.depth) || 2));
+            const depth = clampNum(params.depth, 2, 1, 3);
             const format = String(params.format || "text");
             if (!query)
                 return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
@@ -367,7 +399,21 @@ export function createGraphTool(db, dbPath, memoryDir, embedding) {
                 }
                 catch { /* best effort */ }
             }
-            const graph = buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, embedding, queryVec);
+            const weights = {
+                tagNode: clampNum(params.tagWeight, 0.7, 0, 1),
+                tagEdge: clampNum(params.tagEdgeWeight, 0.8, 0, 1),
+                sceneNode: clampNum(params.sceneWeight, 0.8, 0, 1),
+                sceneEdge: clampNum(params.sceneEdgeWeight, 0.9, 0, 1),
+                sceneInner: clampNum(params.sceneInnerWeight, 0.5, 0, 1),
+                dateEdge: clampNum(params.dateWeight, 0.3, 0, 1),
+                orphanNode: clampNum(params.orphanWeight, 0.6, 0, 1),
+                unseenNode: clampNum(params.unseenWeight, 0.7, 0, 1),
+                nodeLimitMul: clampNum(params.nodeLimitMul, 15, 1, 100),
+                edgeLimitMul: clampNum(params.edgeLimitMul, 30, 1, 100),
+                nodeLimitMax: clampNum(params.nodeLimitMax, 200, 1, 1000),
+                edgeLimitMax: clampNum(params.edgeLimitMax, 400, 1, 2000),
+            };
+            const graph = buildGraph(query, db, dbPath, memoryDir, depth, scenes, tags, weights, embedding, queryVec);
             if (format === "json") {
                 return { content: [{ type: "text", text: JSON.stringify(graph, null, 2) }] };
             }

@@ -1,12 +1,40 @@
 /**
  * Embedding Service — generates vector embeddings via OpenAI-compatible API.
  * Used to convert text to vectors for sqlite-vec similarity search.
+ *
+ * All tunables are configurable via EmbeddingConfig (with defaults).
  */
+import { clampNum } from "./clamp.js";
+/** Provider → default embedding model mapping (overridable via config.providerModels) */
+const DEFAULT_EMBED_MODELS = {
+    openai: "text-embedding-3-small",
+    deepseek: "text-embedding",
+    gitee: "text-embedding",
+    siliconflow: "BAAI/bge-m3",
+    azure: "text-embedding-3-small",
+    ollama: "nomic-embed-text",
+    anthropic: "claude-embed",
+    google: "text-embedding-004",
+    groq: "text-embedding",
+    mistral: "mistral-embed",
+    fireworks: "nomic-embed-text-v1.5",
+};
+function detectEmbedModel(provider, customMap) {
+    const p = provider.toLowerCase().trim();
+    if (customMap && customMap[p])
+        return customMap[p];
+    return DEFAULT_EMBED_MODELS[p] || "";
+}
 export function createEmbeddingService(config) {
     const baseUrl = config.baseUrl.replace(/\/$/, "");
-    /** Fetch with AbortSignal timeout (15s default) */
+    // Resolve tunables with defaults
+    const timeoutMs = clampNum(config.timeoutMs, 15_000, 3_000, 120_000);
+    const retries = clampNum(config.retries, 1, 0, 5);
+    const maxInputChars = clampNum(config.maxInputChars, 4_000, 500, 32_000);
+    const backoffBaseMs = clampNum(config.backoffBaseMs, 1_000, 100, 30_000);
+    /** Fetch with AbortSignal timeout */
     async function fetchWithTimeout(url, init) {
-        const timeout = init.timeoutMs ?? 15_000;
+        const timeout = init.timeoutMs ?? timeoutMs;
         const ac = new AbortController();
         const timer = setTimeout(() => ac.abort(), timeout);
         try {
@@ -18,18 +46,18 @@ export function createEmbeddingService(config) {
         }
     }
     /** Retry wrapper: retries on network/timeout errors (not 4xx) */
-    async function fetchWithRetry(url, init, retries = 1) {
-        for (let attempt = 0; attempt <= retries; attempt++) {
+    async function fetchWithRetry(url, init, _retries = retries) {
+        for (let attempt = 0; attempt <= _retries; attempt++) {
             try {
                 return await fetchWithTimeout(url, init);
             }
             catch (err) {
-                const isLast = attempt === retries;
+                const isLast = attempt === _retries;
                 if (isLast)
                     throw err;
                 // Retry on all network errors (timeout, ECONNREFUSED, ETIMEDOUT, system errors)
                 if (err.name === "AbortError" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.type === "system") {
-                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // backoff: 1s, 2s
+                    await new Promise(r => setTimeout(r, backoffBaseMs * (attempt + 1))); // backoff
                     continue;
                 }
                 throw err;
@@ -52,7 +80,7 @@ export function createEmbeddingService(config) {
                 "Authorization": `Bearer ${config.apiKey}`,
             },
             body: JSON.stringify({
-                input: text.slice(0, 4000), // Trim to avoid token limit (conservative char-based, not token)
+                input: text.slice(0, maxInputChars),
                 model: config.model,
             }),
         });
@@ -73,7 +101,7 @@ export function createEmbeddingService(config) {
     async function embedBatch(texts) {
         const path = baseUrl.endsWith("/v1") ? "" : "/v1";
         const url = `${baseUrl}${path}/embeddings`;
-        const inputs = texts.map(t => t.slice(0, 4000)); // Conservative char-based truncation (not token)
+        const inputs = texts.map(t => t.slice(0, maxInputChars));
         const res = await fetchWithRetry(url, {
             method: "POST",
             headers: {

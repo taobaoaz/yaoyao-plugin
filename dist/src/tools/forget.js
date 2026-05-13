@@ -37,7 +37,7 @@ export function createForgetTool(store, db) {
                 msg += ` FTS5 索引中删除了 ${deleted} 条记录。`;
                 return { content: [{ type: "text", text: msg }] };
             }
-            // Delete by keyword
+            // Delete by keyword — block-level deletion to preserve markdown structure
             const files = store.listFiles().filter(f => f.type === "daily");
             let fileDeleted = 0;
             for (const f of files) {
@@ -45,17 +45,32 @@ export function createForgetTool(store, db) {
                 if (!content)
                     continue;
                 const lines = content.split("\n");
-                const filtered = lines.filter(line => {
-                    if (line.startsWith("#") || line.startsWith(">") || line.startsWith("_") || line.startsWith("---"))
-                        return true;
-                    if (line.toLowerCase().includes(query.toLowerCase())) {
-                        fileDeleted++;
-                        return false;
+                // First pass: identify which ###-blocks contain the keyword
+                const matchingBlocks = new Set();
+                let currentBlock = -1;
+                for (let i = 0; i < lines.length; i++) {
+                    if (/^###\s+/.test(lines[i])) {
+                        currentBlock = i;
                     }
-                    return true;
-                });
-                if (filtered.length !== lines.length)
+                    if (currentBlock >= 0 && lines[i].toLowerCase().includes(query.toLowerCase())) {
+                        matchingBlocks.add(currentBlock);
+                    }
+                }
+                // Second pass: output only non-matching blocks
+                const filtered = [];
+                let skipBlock = -1;
+                for (let i = 0; i < lines.length; i++) {
+                    if (/^###\s+/.test(lines[i])) {
+                        skipBlock = matchingBlocks.has(i) ? i : -1;
+                    }
+                    if (skipBlock < 0) {
+                        filtered.push(lines[i]);
+                    }
+                }
+                if (filtered.length !== lines.length) {
+                    fileDeleted += matchingBlocks.size;
                     fs.writeFileSync(f.path, filtered.join("\n"), "utf-8");
+                }
             }
             const ftsDeleted = db.deleteByKeyword(query);
             return { content: [{ type: "text", text: (fileDeleted > 0 || ftsDeleted > 0)

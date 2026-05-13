@@ -6,6 +6,7 @@
  * Stores both FTS5 index and vector embeddings in a single .yaoyao.db file.
  */
 
+import { clampNum } from "./clamp.js";
 import { createRequire } from "node:module";
 import type { DatabaseSync } from "node:sqlite";
 import path from "node:path";
@@ -57,6 +58,7 @@ function computeScore(rank: number): number {
 export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
   const dbPath = path.join(baseDir, ".yaoyao.db");
+  let vecEnabled = false;
 
   // Configurable limits (not hardcoded)
   const snippetMaxLen = clampNum((config as Record<string, unknown>).snippetMaxLen, 500, 100, 5000);

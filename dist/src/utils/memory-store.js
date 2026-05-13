@@ -6,7 +6,10 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 export function createMemoryStore(config, logger) {
-    const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+    let baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+    if (!path.isAbsolute(baseDir)) {
+        baseDir = path.resolve(baseDir);
+    }
     const log = (msg) => logger?.debug?.(`[yaoyao-memory:store] ${msg}`);
     function ensureDir(dir) {
         if (!fs.existsSync(dir)) {

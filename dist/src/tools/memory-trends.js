@@ -5,6 +5,7 @@
  * simple word/bigram frequency counting (no LLM), and computes trend
  * direction by comparing early vs late halves of the period.
  */
+import { clampNum } from "../utils/clamp.js";
 import { withErrorHandling } from "./common.js";
 import path from "node:path";
 // ── Stop word lists ──
@@ -111,7 +112,7 @@ export function createTrendsTool(store) {
         },
         execute: withErrorHandling(async (_id, params) => {
             const period = String(params.period || "30d");
-            const topN = Math.min(Math.max(Number(params.topN) || 10, 1), 50);
+            const topN = clampNum(params.topN, 10, 1, 50);
             // Determine cutoff date
             let cutoffDate = null;
             if (period !== "all") {

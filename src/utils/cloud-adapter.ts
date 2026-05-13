@@ -5,6 +5,7 @@
  * All HTTP-based adapters use node:https / node:http directly.
  * Shell-based adapters (SFTP, Samba) invoke system commands via child_process.
  */
+import { clampNum } from "./clamp.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";

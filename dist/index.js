@@ -26,11 +26,15 @@ import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 import { createMemoryStore } from "./src/utils/memory-store.js";
 import { createDB } from "./src/utils/db-bridge.js";
 import { createLLMClient } from "./src/utils/llm-client.js";
-import { createEmbeddingService } from "./src/utils/embedding.js";
+import { createEmbeddingService, detectEmbedModel } from "./src/utils/embedding.js";
 import { registerMemoryTools } from "./src/tools/index.js";
 import { registerCaptureHook } from "./src/hooks/auto-capture.js";
 import { registerRecallHook } from "./src/hooks/auto-recall.js";
 import { createMemoryCleaner } from "./src/utils/memory-cleaner.js";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import { execSync } from "node:child_process";
 export default definePluginEntry({
     id: "yaoyao-memory",
     name: "Yaoyao Memory",
@@ -54,7 +58,7 @@ export default definePluginEntry({
             const missingFiles = [];
             for (const { path: relPath, desc } of selfCheckFiles) {
                 const resolved = new URL(relPath, _selfUrl);
-                if (!require("node:fs").existsSync(resolved)) {
+                if (!fs.existsSync(resolved)) {
                     missingFiles.push(`${desc} (${relPath})`);
                 }
             }
@@ -63,34 +67,26 @@ export default definePluginEntry({
                 api.logger.error?.(msg);
                 console.log("  " + msg);
             }
-            // 🎲 读取实时版本号（兼容 dist/index.js 编译路径）
+            // 🎲 读取实时版本号 + 兼容性信息（兼容 dist/index.js 编译路径）
             let pluginVersion = "dev";
+            let requiredApi;
             try {
                 const currentUrl = import.meta.url;
-                // Try root package.json first, then dist/ fallback
                 let pkgPath = new URL("../package.json", currentUrl);
-                if (!require("node:fs").existsSync(pkgPath)) {
+                if (!fs.existsSync(pkgPath)) {
                     pkgPath = new URL("./package.json", currentUrl);
                 }
-                const pkg = JSON.parse(require("node:fs").readFileSync(pkgPath, "utf-8"));
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
                 if (pkg.version)
                     pluginVersion = pkg.version;
+                requiredApi = pkg?.openclaw?.compat?.pluginApi;
             }
             catch { /* best effort */ }
-            // ── Self-check: verify compat version matches runtime ──
-            try {
-                const pkgUrl = new URL("../package.json", import.meta.url);
-                const pkg = JSON.parse(require("node:fs").readFileSync(pkgUrl, "utf-8"));
-                const requiredApi = pkg?.openclaw?.compat?.pluginApi;
-                if (requiredApi) {
-                    api.logger.info(`[yaoyao-memory] Compat: ${requiredApi} (self-check OK)`);
-                }
+            if (requiredApi) {
+                api.logger.info(`[yaoyao-memory] Compat: ${requiredApi} (self-check OK)`);
             }
-            catch { /* best effort */ }
             // ── v1.5.0 Migration Detection: detect legacy soul-layer traces ──
             const legacyTraces = [];
-            const fs = require("node:fs");
-            const path = require("node:path");
             const workspaceDir = api.baseDir || ".";
             // Check for old config keys
             if (config.psychology === true)
@@ -115,8 +111,7 @@ export default definePluginEntry({
                     const pluginsDir = path.dirname(path.dirname(require.resolve("openclaw/plugin-sdk/plugin-entry"))) || path.join(workspaceDir, "plugins");
                     const soulDir = path.join(pluginsDir, "yaoyao-soul");
                     if (!fs.existsSync(soulDir)) {
-                        const { execSync } = require("node:child_process");
-                        execSync("git clone https://github.com/taobaoaz/yaoyao-soul.git yaoyao-soul", { cwd: pluginsDir, stdio: "pipe", timeout: 30000 });
+                        execSync("git clone https://github.com/taobaoaz/yaoyao-soul.git yaoyao-soul", { cwd: pluginsDir, stdio: "pipe", timeout: Math.max(5_000, Math.min(120_000, Number(config.migrationGitTimeoutMs) || 30_000)) });
                         autoMigrated = true;
                     }
                     else {
@@ -167,24 +162,28 @@ export default definePluginEntry({
             }
             // ── 旧 skill 配置迁移 + 安全清理 ──
             // 检测旧 yaoyao skill 中的自定义 JSON 配置，迁移到插件配置目录后整体删除
-            const _os = require("node:os");
-            const _skillsDir = require("node:path").join(_os.homedir(), ".openclaw", "workspace", "skills");
-            const _migratedDir = require("node:path").join(_os.homedir(), ".openclaw", "extensions", "yaoyao-memory", ".skill-migrations");
+            const _skillsDir = path.join(os.homedir(), ".openclaw", "workspace", "skills");
+            const _migratedDir = path.join(os.homedir(), ".openclaw", "extensions", "yaoyao-memory", ".skill-migrations");
             const oldSkillDirs = [
-                { dir: require("node:path").join(_skillsDir, "yaoyao-memory"), name: "yaoyao-memory" },
-                { dir: require("node:path").join(_skillsDir, "yaoyao-memory-v2"), name: "yaoyao-memory-v2" },
-                { dir: require("node:path").join(_skillsDir, "yaoyao-cloud-backup"), name: "yaoyao-cloud-backup" },
+                { dir: path.join(_skillsDir, "yaoyao-memory"), name: "yaoyao-memory" },
+                { dir: path.join(_skillsDir, "yaoyao-memory-v2"), name: "yaoyao-memory-v2" },
+                { dir: path.join(_skillsDir, "yaoyao-cloud-backup"), name: "yaoyao-cloud-backup" },
             ];
             for (const { dir, name } of oldSkillDirs) {
                 try {
-                    if (!require("node:fs").existsSync(dir))
+                    try {
+                        if (!fs.existsSync(dir))
+                            continue;
+                    }
+                    catch {
                         continue;
+                    }
                     const migrated = [];
                     // Step 1: collect all .json files before cleaning
                     const jsonFiles = [];
                     const walk = (d) => {
-                        for (const e of require("node:fs").readdirSync(d, { withFileTypes: true })) {
-                            const full = require("node:path").join(d, e.name);
+                        for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+                            const full = path.join(d, e.name);
                             if (e.isDirectory())
                                 walk(full);
                             else if (e.name.endsWith(".json"))
@@ -194,19 +193,19 @@ export default definePluginEntry({
                     walk(dir);
                     // Step 2: copy each .json to migration archive dir (flat, prefixed by skill name)
                     if (jsonFiles.length > 0) {
-                        require("node:fs").mkdirSync(_migratedDir, { recursive: true });
+                        fs.mkdirSync(_migratedDir, { recursive: true });
                         for (const jf of jsonFiles) {
-                            const rel = require("node:path").relative(dir, jf);
+                            const rel = path.relative(dir, jf);
                             const safeName = name + "__" + rel.replace(/[\\/]/g, "_");
-                            const dest = require("node:path").join(_migratedDir, safeName);
-                            if (!require("node:fs").existsSync(dest)) {
-                                require("node:fs").copyFileSync(jf, dest);
+                            const dest = path.join(_migratedDir, safeName);
+                            if (!fs.existsSync(dest)) {
+                                fs.copyFileSync(jf, dest);
                             }
                             migrated.push(rel);
                         }
                     }
                     // Step 3: delete the entire old skill directory (all content is safe to remove now)
-                    require("node:fs").rmSync(dir, { recursive: true });
+                    fs.rmSync(dir, { recursive: true });
                     if (migrated.length > 0) {
                         api.logger.info(`[yaoyao-memory] 已迁移 ${migrated.length} 个配置文件并从 ${name} 转移（${_migratedDir}），旧目录已清理`);
                     }
@@ -220,9 +219,24 @@ export default definePluginEntry({
             }
             // Initialize embedding service from config
             const embedCfg = config.embedding;
-            const embedding = embedCfg?.enabled && embedCfg?.apiKey
-                ? createEmbeddingService(embedCfg)
-                : null;
+            let embedding = null;
+            if (embedCfg?.enabled && embedCfg?.apiKey) {
+                // Auto-detect model if not provided
+                const provider = String(embedCfg.provider || "openai").toLowerCase().trim();
+                const customMap = (embedCfg.providerModels || {});
+                const resolvedModel = embedCfg.model || detectEmbedModel(provider, customMap);
+                const resolvedCfg = {
+                    apiKey: embedCfg.apiKey,
+                    baseUrl: embedCfg.baseUrl || "",
+                    model: resolvedModel,
+                    dimensions: embedCfg.dimensions ?? 1024,
+                    timeoutMs: Number(embedCfg.timeoutMs) || 15_000,
+                    retries: Number(embedCfg.retries) || 1,
+                    maxInputChars: Number(embedCfg.maxInputChars) || 4_000,
+                    backoffBaseMs: Number(embedCfg.backoffBaseMs) || 1_000,
+                };
+                embedding = createEmbeddingService(resolvedCfg);
+            }
             if (embedding) {
                 api.logger.info(`[yaoyao-memory] Embedding service initialized: ${embedding.config.model}`);
             }
@@ -279,8 +293,8 @@ export default definePluginEntry({
             let cleanerTimer = null;
             if (config.cleanup?.enabled !== false) {
                 const cleaner = createMemoryCleaner(store.baseDir, db, {
-                    l0l1RetentionDays: config.cleanup?.l0l1RetentionDays || 30,
-                    allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup || false,
+                    l0l1RetentionDays: config.cleanup?.l0l1RetentionDays,
+                    allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup,
                 }, api.logger);
                 const warn = cleaner.validateConfig();
                 if (warn) {

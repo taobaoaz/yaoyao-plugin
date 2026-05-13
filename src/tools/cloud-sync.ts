@@ -3,6 +3,7 @@
  * Supports: WebDAV, S3, SFTP, Samba/NAS
  * Operations: status / upload / download / bidirectional / configure
  */
+import { clampNum } from "../utils/clamp.js";
 import fs from "node:fs";
 import path from "node:path";
 import type { MemoryStore } from "../utils/memory-store.js";
@@ -315,7 +316,7 @@ export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
       if (action === "status") {
         const { statuses } = createAdapters(undefined, adapterOpts);
         return { content: [{ type: "text", text: formatStatus(statuses) }] };
-      } }
+      }
 
       // --- configure ---
       if (action === "configure") {

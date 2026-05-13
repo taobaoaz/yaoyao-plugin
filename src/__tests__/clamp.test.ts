@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { clampNum } from "../src/utils/clamp";
+import { clampNum } from "../utils/clamp.js";
 
 describe("clampNum", () => {
   it("returns the exact value when inside range", () => {

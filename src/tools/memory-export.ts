@@ -7,6 +7,7 @@
  * ⚠️ 完全独立模块，所有 try-catch 兜底
  */
 
+import { clampNum } from "../utils/clamp.js";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";

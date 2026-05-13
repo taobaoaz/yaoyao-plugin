@@ -8,15 +8,16 @@
  * v1.5.0+: Removed psychological state tracking (moved to yaoyao-soul).
  *          Plugin now purely captures and indexes, without implicit tagging.
  */
-import fs from "node:fs";
+import { clampNum } from "../utils/clamp.js";
 import { createSessionFilter } from "../utils/session-filter.js";
 /** Safely extract text content from a message, handling string/array/object formats */
 function extractContent(msg, maxLen) {
     if (!msg)
         return "";
     const content = msg.content;
+    const limit = maxLen && maxLen > 0 ? maxLen : 500;
     if (typeof content === "string")
-        return content.slice(0, maxLen);
+        return content.slice(0, limit);
     if (Array.isArray(content)) {
         return content
             .map((part) => {
@@ -25,11 +26,11 @@ function extractContent(msg, maxLen) {
             return "";
         })
             .join(" ")
-            .slice(0, maxLen);
+            .slice(0, limit);
     }
     // Fallback: try JSON stringify
     try {
-        return JSON.stringify(content).slice(0, maxLen);
+        return JSON.stringify(content).slice(0, limit);
     }
     catch {
         return "[unparseable content]";
@@ -65,10 +66,13 @@ export function registerCaptureHook(api, store, db, config) {
                 ? new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
                 : new Date().toISOString().slice(0, 10);
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
-            const userContent = extractContent(lastUserMsg, 500);
-            const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, 500) : "(no response)";
-            // Skip trivial entries (e.g., heartbeat, empty responses)
-            if (userContent.length < 3)
+            const captureCfg = config.capture || {};
+            const captureMaxLen = clampNum(captureCfg.maxContentLen, 500, 50, 5000);
+            const minContentLen = clampNum(captureCfg.minContentLen, 3, 0, 100);
+            const userContent = extractContent(lastUserMsg, captureMaxLen);
+            const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, captureMaxLen) : "(no response)";
+            // Skip trivial entries
+            if (userContent.length < minContentLen)
                 return;
             // Bug #12: Skip indexing if assistant content is empty or "(no response)"
             const indexableAsst = (!asstContent || asstContent === "(no response)")
@@ -76,30 +80,17 @@ export function registerCaptureHook(api, store, db, config) {
                 : asstContent;
             // Write to daily Markdown log (L0)
             const entry = `\n### ${timestamp}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
-            // Issue #12: Make file append and DB index atomic — if index fails, undo file append
+            // Issue #12: Make file append and DB index atomic — if index fails, log error but do NOT rollback.
+            // Rationale: L0 (daily file) and L1 (FTS5 index) are independent systems.
+            // Rolling back file writes introduces race conditions under concurrent agent_end hooks.
+            // It's safer to let L0 succeed and L1 fail separately, than to corrupt L0 trying to undo it.
             try {
                 store.appendToDaily(date, entry);
                 db.indexTurn(userContent, indexableAsst, date);
             }
             catch (indexErr) {
-                // indexTurn failed; undo the file append by removing the last line we just added
-                try {
-                    const fp = store.getDailyFile(date);
-                    const content = store.readFile(fp);
-                    if (content) {
-                        // Remove the entry we just appended (last occurrence)
-                        const idx = content.lastIndexOf(entry);
-                        if (idx !== -1) {
-                            const updated = content.slice(0, idx);
-                            fs.writeFileSync(fp, updated, "utf-8");
-                            api.logger.warn?.("[yaoyao-memory:capture] Rolled back daily file append after index failure");
-                        }
-                    }
-                }
-                catch (rollbackErr) {
-                    api.logger.error(`[yaoyao-memory:capture] Rollback failed: ${rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr)}`);
-                }
-                api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr instanceof Error ? indexErr.message : String(indexErr)}`);
+                api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr.message || String(indexErr)}`);
+                // Note: daily file already has the entry; next DB rebuild (startup check) will catch it.
                 return;
             }
             // NOTE: Implicit observation tagging removed in v1.5.0.

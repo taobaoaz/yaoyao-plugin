@@ -3,6 +3,7 @@
  * Supports: WebDAV, S3, SFTP, Samba/NAS
  * Operations: status / upload / download / bidirectional / configure
  */
+import { clampNum } from "../utils/clamp.js";
 import fs from "node:fs";
 import path from "node:path";
 import { createAdapters, createAdapter } from "../utils/cloud-adapter.js";
@@ -33,16 +34,21 @@ function saveSyncState(baseDir, state) {
 // Sync marker — prevent sync loops
 // ============================================================================
 const SYNC_MARKER = ".sync-source";
-function markSynced(filePath, provider) {
-    const markerPath = filePath + SYNC_MARKER;
+function markSynced(filePath, provider, baseDir) {
     try {
+        const rel = path.relative(baseDir, filePath);
+        const markerDir = path.join(baseDir, ".sync-meta");
+        const markerPath = path.join(markerDir, rel + SYNC_MARKER);
+        fs.mkdirSync(markerDir, { recursive: true });
         fs.writeFileSync(markerPath, JSON.stringify({ provider, time: Date.now() }), "utf-8");
     }
     catch { /* best effort */ }
 }
-function isMarked(filePath) {
+function isMarked(filePath, baseDir) {
     try {
-        return fs.existsSync(filePath + SYNC_MARKER);
+        const rel = path.relative(baseDir, filePath);
+        const markerPath = path.join(baseDir, ".sync-meta", rel + SYNC_MARKER);
+        return fs.existsSync(markerPath);
     }
     catch {
         return false;
@@ -69,7 +75,7 @@ async function doUpload(adapter, store, dryRun, since) {
             const ok = await adapter.upload(file.path, rp);
             if (ok) {
                 result.uploaded.push(file.filename);
-                markSynced(file.path, adapter.provider);
+                markSynced(file.path, adapter.provider, store.baseDir);
             }
             else {
                 result.errors.push(file.filename);
@@ -143,7 +149,7 @@ async function doDownload(adapter, store, dryRun, conflictPolicy) {
                 const ok = await adapter.download(remotePath(remote.name), localPath);
                 if (ok) {
                     result.downloaded.push(remote.name);
-                    markSynced(localPath, adapter.provider);
+                    markSynced(localPath, adapter.provider, store.baseDir);
                 }
                 else {
                     result.errors.push(remote.name);
@@ -242,6 +248,11 @@ export function createCloudSyncTool(store) {
                     description: "预览模式，只显示会执行的操作，不实际传输",
                     default: false,
                 },
+                cmdTimeoutMs: {
+                    type: "number",
+                    description: "云命令超时（毫秒，默认 30000）",
+                    default: 30000,
+                },
                 conflictPolicy: {
                     type: "string",
                     enum: ["newer", "keep_both"],
@@ -255,10 +266,12 @@ export function createCloudSyncTool(store) {
             const action = String(params.action);
             const provider = params.provider ? String(params.provider) : undefined;
             const dryRun = !!params.dryRun;
+            const cmdTimeoutMs = clampNum(params.cmdTimeoutMs, 30_000, 3_000, 120_000);
             const conflictPolicy = String(params.conflictPolicy || "newer");
+            const adapterOpts = { sftpTimeoutMs: cmdTimeoutMs, sambaTimeoutMs: cmdTimeoutMs, sambaMountTimeoutMs: cmdTimeoutMs, sambaMountCheckTimeoutMs: Math.max(1_000, Math.min(30_000, cmdTimeoutMs / 3)) };
             // --- status ---
             if (action === "status") {
-                const { statuses } = createAdapters();
+                const { statuses } = createAdapters(undefined, adapterOpts);
                 return { content: [{ type: "text", text: formatStatus(statuses) }] };
             }
             // --- configure ---
@@ -298,7 +311,7 @@ export function createCloudSyncTool(store) {
                     return { content: [{ type: "text", text: `📝 凭证文件路径: ${secretsPath}\n\n当前未配置任何凭证。模板:\n\n${template}` }] };
                 }
                 // Show what's configured
-                const { statuses } = createAdapters();
+                const { statuses } = createAdapters(undefined, adapterOpts);
                 const lines = [`📝 凭证文件: ${secretsPath}`, "", "当前配置:"];
                 for (const [key, value] of Object.entries(secrets)) {
                     const masked = key.includes("PASSWORD") || key.includes("SECRET") || key.includes("KEY")
@@ -310,10 +323,10 @@ export function createCloudSyncTool(store) {
                 return { content: [{ type: "text", text: lines.join("\n") }] };
             }
             // --- upload / download / bidirectional ---
-            const { adapters, statuses } = createAdapters();
+            const { adapters, statuses } = createAdapters(undefined, adapterOpts);
             const configuredAdapters = [];
             if (provider) {
-                const adapter = createAdapter(provider) || adapters.get(provider);
+                const adapter = createAdapter(provider, undefined, adapterOpts) || adapters.get(provider);
                 if (!adapter) {
                     return { content: [{ type: "text", text: `❌ 云服务 ${provider} 未配置。请先编辑 ${getSecretsPath()} 添加凭证。` }] };
                 }

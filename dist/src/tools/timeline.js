@@ -1,3 +1,7 @@
+/**
+ * Timeline Tool — visual heat-map of memory activity.
+ */
+import { clampNum } from "../utils/clamp.js";
 import { withErrorHandling } from "./common.js";
 export function createTimelineTool(db) {
     return {
@@ -11,7 +15,7 @@ export function createTimelineTool(db) {
             },
         },
         execute: withErrorHandling(async (_id, params) => {
-            const days = Math.min(Math.max(Number(params.days) || 14, 1), 90);
+            const days = clampNum(params.days, 14, 1, 90);
             const stats = db.getStats();
             const dates = stats.datesSummary || [];
             const now = new Date();

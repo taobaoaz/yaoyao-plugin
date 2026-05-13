@@ -50,6 +50,11 @@ export function createRemindTool() {
                     description: "要移除的提醒 ID（仅 remove 操作需要）",
                     default: "",
                 },
+                minuteOffset: {
+                    type: "number",
+                    description: "自然语言时间解析的随机偏移范围（分钟，默认 30）",
+                    default: 30,
+                },
             },
         },
         execute: withErrorHandling(async (_id, params) => {
@@ -126,53 +131,69 @@ export function createRemindTool() {
     };
 }
 /**
- * 自然语言时间 → cron 表达式（简单映射）
- * 处理常用的中文时间描述
+ * 自然语言时间 → cron 表达式
+ * 覆盖常用中文时间描述，自动提取小时和分钟
  */
 function convertHumanToCron(descr) {
     const lower = descr.toLowerCase().replace(/\s+/g, "");
-    // 每天早上
-    if (/每天早上/.test(lower)) {
-        const match = lower.match(/每天早上(\d+)/);
-        const hour = match ? match[1].padStart(2, "0") : "08";
-        return `0 ${hour} * * *`;
+    // 提取分钟和小时
+    let hour = "09";
+    let minute = "00";
+    const minMatch = lower.match(/(\d+)分/);
+    if (minMatch)
+        minute = minMatch[1].padStart(2, "0");
+    const hourMatch = lower.match(/(\d+)点/);
+    if (hourMatch)
+        hour = hourMatch[1].padStart(2, "0");
+    // 上午/下午/晚上/中午转换
+    if (/下午/.test(lower) || /晚上/.test(lower)) {
+        const h = Number(hour);
+        if (h >= 1 && h <= 11)
+            hour = String(h + 12).padStart(2, "0");
     }
-    // 每天中午
-    if (/每天中午/.test(lower)) {
-        return "0 12 * * *";
+    if (/中午/.test(lower)) {
+        hour = "12";
+        minute = "00";
     }
-    // 每天下午
-    if (/每天下午(\d+)/.test(lower)) {
-        const match = lower.match(/每天下午(\d+)/);
-        const hour = match ? String(Number(match[1]) + 12).padStart(2, "0") : "14";
-        return `0 ${hour} * * *`;
+    // 每N分钟
+    const intervalMin = lower.match(/每(?:隔)?(\d+)分钟/);
+    if (intervalMin) {
+        return `*/${intervalMin[1].padStart(2, "0")} * * * *`;
     }
-    // 每晚 / 每天晚上
-    if (/每天晚上/.test(lower) || /每晚/.test(lower)) {
-        const match = lower.match(/每天晚上?(\d+)/);
-        const hour = match ? match[1].padStart(2, "0") : "20";
-        return `0 ${hour} * * *`;
+    // 每半小时 / 每30分钟
+    if (/每半?小时/.test(lower) || /每30分钟/.test(lower)) {
+        return `*/30 * * * *`;
     }
-    // 每周一/二/三...
+    // 每N小时
+    const intervalHour = lower.match(/每(?:隔)?(\d+)小时/);
+    if (intervalHour) {
+        return `0 */${intervalHour[1]} * * *`;
+    }
+    // 每小时
+    if (/每小时/.test(lower) || /每个小时/.test(lower)) {
+        return `${minute} * * * *`;
+    }
+    // 工作日
+    if (/工作日/.test(lower) || /周一到周五/.test(lower) || /星期一到五/.test(lower)) {
+        return `${minute} ${hour} * * 1-5`;
+    }
+    // 周末
+    if (/周末/.test(lower)) {
+        return `${minute} ${hour} * * 0,6`;
+    }
+    // 每周X
     const weekdays = {
         "一": "1", "二": "2", "三": "3", "四": "4",
         "五": "5", "六": "6", "日": "0", "天": "0",
     };
     for (const [cn, num] of Object.entries(weekdays)) {
         if (lower.includes(`每周${cn}`)) {
-            const match = lower.match(/每周[^日天]?(\d+)/);
-            const hour = match ? match[1].padStart(2, "0") : "09";
-            return `0 ${hour} * * ${num}`;
+            return `${minute} ${hour} * * ${num}`;
         }
     }
-    // 每小时
-    if (lower.includes("每小时") || lower.includes("每个小时")) {
-        return "0 * * * *";
-    }
-    // 每隔 N 分钟
-    const intervalMin = lower.match(/每隔(\d+)分钟/);
-    if (intervalMin) {
-        return `*/${intervalMin[1]} * * * *`;
+    // 每天（兜底）
+    if (/每天/.test(lower) || /每日/.test(lower)) {
+        return `${minute} ${hour} * * *`;
     }
     return null;
 }

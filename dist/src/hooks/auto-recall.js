@@ -1,12 +1,27 @@
 import { detectSentiment } from "../utils/sentiment.js";
 import { createSessionFilter } from "../utils/session-filter.js";
-// ── Search result cache (30s TTL, prevents duplicate DB hits on repeated queries) ──
+import { clampNum } from "../utils/clamp.js";
+// ── Config helper: read from flat config keys with range clamping ──
+function cfgVal(config, key, defaultVal, min, max) {
+    return clampNum(config[key], defaultVal, min, max);
+}
+function getRecallConfig(config) {
+    return {
+        cacheTTL: cfgVal(config, "recallCacheTTL", 30_000, 5_000, 300_000),
+        maxCacheSize: cfgVal(config, "recallMaxCacheSize", 50, 10, 200),
+        halfLife: cfgVal(config, "recallHalfLife", 30, 1, 365),
+        jaccardBase: cfgVal(config, "recallJaccardBase", 0.75, 0.1, 1),
+        jaccardMin: cfgVal(config, "recallJaccardMin", 0.5, 0.1, 1),
+        maxSessions: cfgVal(config, "recallMaxSessions", 1000, 100, 5000),
+        maxContextKeywords: cfgVal(config, "recallMaxContextKeywords", 20, 5, 100),
+        maxResults: clampNum(config.recall?.maxResults, 3, 1, 20),
+    };
+}
+// ── Search result cache (TTL + size limit from config) ──
 const resultCache = new Map();
-const CACHE_TTL_MS = 30 * 1000;
-const MAX_CACHE_SIZE = 50;
 /** Periodic expired-entry cleanup counter */
 let cacheAccessCount = 0;
-function getCachedResults(key) {
+function getCachedResults(key, cfg) {
     cacheAccessCount++;
     // Periodic expired-entry cleanup (every 100 accesses)
     if (cacheAccessCount % 100 === 0) {
@@ -22,24 +37,22 @@ function getCachedResults(key) {
     resultCache.delete(key);
     return null;
 }
-function setCachedResults(key, results) {
-    if (resultCache.size >= MAX_CACHE_SIZE) {
+function setCachedResults(key, results, cfg) {
+    if (resultCache.size >= cfg.maxCacheSize) {
         const now = Date.now();
         for (const [k, v] of resultCache) {
-            if (v.expires < now || resultCache.size > MAX_CACHE_SIZE * 1.5)
+            if (v.expires < now || resultCache.size > cfg.maxCacheSize * 1.5)
                 resultCache.delete(k);
         }
     }
-    resultCache.set(key, { results, expires: Date.now() + CACHE_TTL_MS });
+    resultCache.set(key, { results, expires: Date.now() + cfg.cacheTTL });
 }
 // ── Enhancement 3: Session context accumulation ──
 // Maintains cross-turn keyword context per session to improve recall relevance.
 const sessionContext = new Map();
-const MAX_SESSIONS = 1000;
-const MAX_CONTEXT_KEYWORDS = 20;
-function updateSessionContext(sessionKey, keywords) {
+function updateSessionContext(sessionKey, keywords, cfg) {
     // Evict oldest session if over limit
-    if (!sessionContext.has(sessionKey) && sessionContext.size >= MAX_SESSIONS) {
+    if (!sessionContext.has(sessionKey) && sessionContext.size >= cfg.maxSessions) {
         const firstKey = sessionContext.keys().next().value;
         if (firstKey !== undefined) {
             sessionContext.delete(firstKey);
@@ -53,9 +66,9 @@ function updateSessionContext(sessionKey, keywords) {
         ctx.add(kw);
     }
     // Evict oldest when over limit
-    if (ctx.size > MAX_CONTEXT_KEYWORDS) {
+    if (ctx.size > cfg.maxContextKeywords) {
         const arr = Array.from(ctx);
-        const toRemove = arr.slice(0, ctx.size - MAX_CONTEXT_KEYWORDS);
+        const toRemove = arr.slice(0, ctx.size - cfg.maxContextKeywords);
         for (const kw of toRemove)
             ctx.delete(kw);
     }
@@ -66,11 +79,9 @@ function getSessionContextKeywords(sessionKey) {
 }
 // ── Enhancement 1: Time decay scoring ──
 // Applies exponential decay based on age: score *= exp(-daysAgo / halfLife)
-// halfLife = 30 days (30-day-old memories have ~37% weight)
-function applyTimeDecay(results) {
+function applyTimeDecay(results, cfg) {
     if (results.length <= 1)
         return results;
-    const halfLife = 30;
     const now = Date.now();
     const dayMs = 86400000;
     return results
@@ -87,18 +98,17 @@ function applyTimeDecay(results) {
         }
         // Default score when missing: positional (first=1.0, then -0.1)
         const originalScore = typeof r.score === "number" ? r.score : Math.max(0.1, 1.0 - i * 0.1);
-        return { ...r, score: originalScore * Math.exp(-daysAgo / halfLife) };
+        return { ...r, score: originalScore * Math.exp(-daysAgo / cfg.halfLife) };
     })
         .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
 // ── Enhancement 2: Diversity sampling ──
 // Multi-faceted diversity: Jaccard dedup + date coverage + previous recall backoff
-/** Track which dates were recently recalled to avoid date-clustering */
-function applyDiversitySampling(results, maxResults = 8) {
+function applyDiversitySampling(results, maxResults = 8, cfg) {
     if (results.length <= 1)
         return results;
     /** Adaptive Jaccard threshold — stricter when more results are available */
-    const jaccardThreshold = Math.max(0.5, 0.75 - (results.length / 30) * 0.15);
+    const jaccardThreshold = Math.max(cfg.jaccardMin, cfg.jaccardBase - (results.length / 30) * (cfg.jaccardBase - cfg.jaccardMin));
     function jaccardSimilarity(a, b) {
         const snippetA = a.slice(0, 50);
         const snippetB = b.slice(0, 50);
@@ -171,7 +181,7 @@ function buildPrependRules(config) {
 }
 /** Merge append + prepend context into a single return value */
 function buildHookResult(appendCtx, config) {
-    if (!appendCtx && !config)
+    if (!appendCtx)
         return undefined;
     const prependSystemContext = buildPrependRules(config);
     if (!prependSystemContext)
@@ -183,6 +193,7 @@ function buildHookResult(appendCtx, config) {
 }
 export function registerRecallHook(api, db, config, embedding) {
     api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})`);
+    const cfg = getRecallConfig(config);
     // Create session filter with configured blockLabels
     const sessionFilter = createSessionFilter({
         blockLabels: config.blockLabels || [],
@@ -225,18 +236,18 @@ export function registerRecallHook(api, db, config, embedding) {
                 }
             }
             const ftsQuery = enrichedKeywords.join(" ");
-            const maxResults = config.recall?.maxResults ?? 3;
+            const maxResults = cfg.maxResults;
             const hasVectorSearch = userMessage.toLowerCase().includes("tsne") || userMessage.toLowerCase().includes("向量") || userMessage.toLowerCase().includes("embedding") || userMessage.toLowerCase().includes("语义");
             const searchType = hasVectorSearch ? "hybrid" : (embedding ? "fts" : "fts");
             const cacheKey = `${searchType}:${ftsQuery}:${maxResults}`;
-            // Check cache (30s TTL)
-            const cached = getCachedResults(cacheKey);
+            // Check cache
+            const cached = getCachedResults(cacheKey, cfg);
             if (cached) {
                 api.logger.debug?.("[yaoyao-memory:recall] Cache hit");
                 // Apply enhancements to cached results
-                const decayed = applyTimeDecay(cached);
-                const deduped = applyDiversitySampling(decayed);
-                updateSessionContext(sessionKey, keywords);
+                const decayed = applyTimeDecay(cached, cfg);
+                const deduped = applyDiversitySampling(decayed, maxResults, cfg);
+                updateSessionContext(sessionKey, keywords, cfg);
                 return buildHookResult(buildRecallContext(deduped), config);
             }
             // Hybrid search: FTS5 + optional vector
@@ -245,12 +256,12 @@ export function registerRecallHook(api, db, config, embedding) {
                     const vec = await embedding.embed(userMessage);
                     const results = db.hybridSearch(ftsQuery, vec, maxResults);
                     if (results.length > 0) {
-                        setCachedResults(cacheKey, results);
+                        setCachedResults(cacheKey, results, cfg);
                         api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms`);
                         // Apply enhancements
-                        const decayed = applyTimeDecay(results);
-                        const deduped = applyDiversitySampling(decayed);
-                        updateSessionContext(sessionKey, keywords);
+                        const decayed = applyTimeDecay(results, cfg);
+                        const deduped = applyDiversitySampling(decayed, maxResults, cfg);
+                        updateSessionContext(sessionKey, keywords, cfg);
                         return buildHookResult(buildRecallContext(deduped), config);
                     }
                 }
@@ -264,12 +275,12 @@ export function registerRecallHook(api, db, config, embedding) {
                 api.logger.debug?.("[yaoyao-memory:recall] No relevant memories found");
                 return;
             }
-            setCachedResults(cacheKey, results);
+            setCachedResults(cacheKey, results, cfg);
             api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms`);
             // Apply enhancements
-            const decayed = applyTimeDecay(results);
-            const deduped = applyDiversitySampling(decayed);
-            updateSessionContext(sessionKey, keywords);
+            const decayed = applyTimeDecay(results, cfg);
+            const deduped = applyDiversitySampling(decayed, maxResults, cfg);
+            updateSessionContext(sessionKey, keywords, cfg);
             return buildHookResult(buildRecallContext(deduped), config);
         }
         catch (err) {
@@ -314,7 +325,6 @@ function extractKeywords(text) {
         "她",
         "它",
         "们",
-        "也",
         "吗",
         "吧",
         "呢",
@@ -334,73 +344,13 @@ function extractKeywords(text) {
         "而且",
         "然后",
         "可以",
-        "the",
-        "a",
-        "an",
-        "is",
-        "are",
-        "was",
-        "were",
-        "be",
-        "been",
-        "being",
-        "have",
-        "has",
-        "had",
-        "do",
-        "does",
-        "did",
-        "will",
-        "would",
-        "can",
-        "could",
-        "shall",
-        "should",
-        "may",
-        "might",
-        "must",
-        "i",
-        "you",
-        "he",
-        "she",
-        "it",
-        "we",
-        "they",
-        "me",
-        "him",
-        "her",
-        "us",
-        "them",
-        "this",
-        "that",
-        "these",
-        "those",
-        "and",
-        "or",
-        "but",
-        "if",
-        "because",
-        "when",
-        "where",
-        "how",
-        "what",
-        "which",
-        "who",
-        "whom",
-        "to",
-        "of",
-        "in",
-        "for",
-        "on",
-        "with",
-        "at",
-        "by",
-        "from",
-        "as",
-        "into",
-        "not",
-        "no",
-        "yes",
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "can", "could",
+        "shall", "should", "may", "might", "must", "i", "you", "he", "she", "it",
+        "we", "they", "me", "him", "her", "us", "them", "this", "that", "these",
+        "those", "and", "or", "but", "if", "because", "when", "where", "how",
+        "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
+        "at", "by", "from", "as", "into", "not", "no", "yes",
     ]);
     return words.filter((w) => !stopwords.has(w) && w.length < 30);
 }

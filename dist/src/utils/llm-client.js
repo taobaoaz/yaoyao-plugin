@@ -1,20 +1,40 @@
 /**
- * Auto-detect LLM model name based on provider base URL.
- * Returns a reasonable chat model if we know the provider.
+ * Default provider → model mapping.
+ * Exposed as a module-level constant so it can be overridden by user config.
  */
-function detectModel(baseUrl) {
+export const DEFAULT_PROVIDER_MODELS = {
+    gitee: "Qwen3-8B",
+    deepseek: "deepseek-chat",
+    openai: "gpt-4o-mini",
+    siliconflow: "Qwen/Qwen2.5-7B-Instruct",
+    azure: "gpt-4o-mini",
+    anthropic: "claude-3-5-sonnet-20241022",
+    google: "gemini-1.5-flash",
+    ollama: "llama3.1",
+    groq: "llama-3.1-70b-versatile",
+    mistral: "mistral-small-latest",
+    fireworks: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+};
+/**
+ * Auto-detect LLM model name based on provider base URL.
+ * Supports custom override via `providerModels` config.
+ * Returns empty string if no match — caller must handle.
+ */
+function detectModel(baseUrl, customMap) {
     const url = baseUrl.toLowerCase();
-    if (url.includes("gitee"))
-        return "Qwen3-8B";
-    if (url.includes("deepseek"))
-        return "deepseek-chat";
-    if (url.includes("openai"))
-        return "gpt-4o-mini";
-    if (url.includes("siliconflow"))
-        return "Qwen/Qwen2.5-7B-Instruct";
-    if (url.includes("azure"))
-        return "gpt-4o-mini";
-    return "deepseek-chat"; // generic fallback
+    // 1. Custom map (user-configured) takes highest priority
+    if (customMap) {
+        for (const [provider, model] of Object.entries(customMap)) {
+            if (url.includes(provider.toLowerCase()))
+                return model;
+        }
+    }
+    // 2. Default map
+    for (const [provider, model] of Object.entries(DEFAULT_PROVIDER_MODELS)) {
+        if (url.includes(provider.toLowerCase()))
+            return model;
+    }
+    return ""; // no hardcoded fallback — caller handles
 }
 /** Create an LLM client from plugin config.
  *
@@ -27,12 +47,22 @@ export function createLLMClient(config, embeddingConfig) {
     const result = { client: null, source: null };
     if (!config || typeof config !== "object")
         return result;
-    // Priority 1: explicit llm config
+    // User-configured provider → model override map (if any)
     const llmSection = (config.llm || {});
+    const providerModels = (llmSection.providerModels || {});
+    // Priority 1: explicit llm config
     const llmApiKey = String(llmSection.apiKey || "");
     if (llmApiKey) {
-        const baseUrl = String(llmSection.baseUrl || "https://api.deepseek.com");
-        const model = String(llmSection.model || detectModel(baseUrl));
+        const baseUrl = String(llmSection.baseUrl || "").trim();
+        if (!baseUrl) {
+            // apiKey present but baseUrl missing — can't create a valid client
+            return result;
+        }
+        const model = String(llmSection.model || detectModel(baseUrl, providerModels));
+        if (!model) {
+            // baseUrl valid but model unknown and not user-configured
+            return result;
+        }
         result.client = new LLMClient({ apiKey: llmApiKey, baseUrl, model });
         result.source = "explicit";
         return result;
@@ -42,8 +72,12 @@ export function createLLMClient(config, embeddingConfig) {
         const embeddingApiKey = String(embeddingConfig.apiKey || "");
         const embeddingEnabled = embeddingConfig.enabled !== false;
         if (embeddingApiKey && embeddingEnabled) {
-            const baseUrl = String(embeddingConfig.baseUrl || "https://api.deepseek.com");
-            const model = detectModel(baseUrl);
+            const baseUrl = String(embeddingConfig.baseUrl || "").trim();
+            if (!baseUrl)
+                return result;
+            const model = detectModel(baseUrl, providerModels);
+            if (!model)
+                return result;
             result.client = new LLMClient({ apiKey: embeddingApiKey, baseUrl, model });
             result.source = "embedding-auto";
             return result;
@@ -65,9 +99,13 @@ export class LLMClient {
         const body = {
             model: this.config.model,
             messages,
-            temperature: options?.temperature ?? 0.3,
-            max_tokens: options?.maxTokens ?? 4096,
         };
+        if (options?.temperature !== undefined) {
+            body.temperature = options.temperature;
+        }
+        if (options?.maxTokens !== undefined) {
+            body.max_tokens = options.maxTokens;
+        }
         if (options?.json) {
             body.response_format = { type: "json_object" };
         }

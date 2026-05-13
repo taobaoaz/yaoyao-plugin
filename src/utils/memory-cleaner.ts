@@ -6,6 +6,7 @@
  * - Optionally archives before deletion
  * - Evicts cold session checkpoints
  */
+import { clampNum } from "./clamp.js";
 import path from "node:path";
 import fs from "node:fs";
 import type { DBBridge } from "./db-bridge.js";

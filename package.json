@@ -79,8 +79,7 @@
       "llm_suspicious": {
         "reason": "Optional LLM API calls for memory extraction pipeline (L1→L2→L3). Only active when user configures llm.apiKey. No telemetry or data transmission without explicit configuration.",
         "files": [
-          "src/utils/llm-client.ts",
-          "src/hooks/pipeline-manager.ts"
+          "src/utils/llm-client.ts"
         ],
         "optIn": true,
         "mitigation": "Set llm.enabled=false to disable all LLM functionality"

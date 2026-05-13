@@ -15,19 +15,17 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import crypto from "node:crypto";
 const _require = createRequire(import.meta.url);
 function getOCLocation() {
     const defaultPath = path.join(os.homedir(), ".openclaw", "memory", "main.sqlite");
     if (fs.existsSync(defaultPath))
         return defaultPath;
-    if (fs.existsSync(defaultPath + "-wal"))
-        return defaultPath;
     return null;
 }
-// Simple hash for dedup (first 100 chars + length)
+// SHA-256 content hash for dedup (truncated to 32 chars for key length)
 function contentHash(text) {
-    const t = String(text || "");
-    return `${t.length}:${t.slice(0, 100).replace(/\s+/g, "")}`;
+    return crypto.createHash("sha256").update(String(text || "")).digest("hex").slice(0, 32);
 }
 export function createImportOCTool(store, db) {
     return {
