@@ -359,7 +359,50 @@ openclaw gateway restart
 
 > 💡 **心理学模型**（PersonaStateMachine、情绪追踪、L4 反馈学习）在 v1.5.0+ 已拆分为独立插件 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul)。安装后可与本插件协同工作。
 
-## 要求
+## 已知限制与路线图
+
+> 以下问题已被识别并诚实记录。区分"plugin 自己能解决的"与"需要上游 SDK 支持的"。
+
+### 1. 跨设备实时同步（当前：定时触发 → 目标：近实时）
+
+**现状**：`memory_cloud_sync` 支持 WebDAV/S3/SFTP/Samba，但为**手动或定时触发**（非实时 push/pull）。
+
+**限制原因**：实时同步需要 fs.watch + 冲突合并策略（last-write-wins 可能丢数据，CRDT 过重）。当前"启动时拉取 + 定时推送 + 手动触发"是务实方案。
+
+**计划**：P2 — 后续版本可能增加 `autoSync: true` 模式，基于文件修改事件触发的增量推送，但冲突合并仍建议人工确认。
+
+### 2. 隐私加密（当前：明文存储 → 目标：Gateway 级加密）
+
+**现状**：`memory/*.md`、`.yaoyao.db`、云备份均为**明文存储**。文件权限已收紧（`0o600`），但磁盘上的数据仍是可读的。
+
+**限制原因**：plugin 自行加密 = 自行保管密钥 = 密钥丢失则数据永久不可恢复。正确的做法是由 **OpenClaw Gateway 提供 machine key**（类似系统 Keychain），plugin 调用 SDK 接口做透明加解密。
+
+**计划**：P1 — 等待 OpenClaw SDK 暴露加密接口。在此之前，建议：
+- 使用全盘加密（BitLocker/FileVault/LUKS）
+- 云备份使用服务端加密（S3 SSE/SFTP 隧道）
+- 共享主机用户确保 `memory/` 目录权限为 `0o700`
+
+### 3. 多进程并发写入（当前：单进程安全 → 多进程未验证）
+
+**现状**：SQLite 有 WAL 模式和事务锁，**同一台机器上的单个进程写入是安全的**。"两个 agent 同时写同一 DB"属于多进程/多设备边缘场景。
+
+**限制**：网络挂载（NFS/Samba）上的 SQLite 并发行为不可靠。plugin 不提供分布式锁。
+
+**计划**：P3 — 在文档中明确声明"不建议多进程并发写同一 DB"。若需多设备协作，使用 `memory_cloud_sync` 的 pull → 本地写 → push 工作流。
+
+### 4. 增量学习闭环（当前：诊断有，自动调整无 → 目标：自优化）
+
+**现状**：`memory_quality` 能计算重复度/覆盖率/健康度，`memory_retain` 能检测遗忘风险，但**诊断后没有自动动作**。
+
+**计划**：P2 — v1.6.x 引入轻量闭环（纯统计，无需 LLM）：
+- 重复度 > 30% → 自动触发 `memory_unify dedup`
+- 某记忆 30 天未召回且 importance 高 → 自动提升索引权重
+- `memory_trends` 检测到话题激增 → 自动给相关记忆打 `[trending]` 标签
+- `memory_quality` 健康度下降 → 在 `auto-capture` 中提高写入阈值，减少噪音
+
+这属于 plugin 自身能力范围内，下一版本优先实现。
+
+---
 
 - **OpenClaw** >= 2026.5.5（`openclaw --version` 查看）
 - **Node.js** >= 22（原生 `node:sqlite` 支持，`node --version` 查看）
