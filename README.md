@@ -6,7 +6,7 @@
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
-> ⚠️ v1.5.0+ 架构已拆分：心理学模型、情绪追踪、L4 反馈学习已移至 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul) 插件。本插件专注于**记忆存储、搜索、索引与数据管理**。
+> ⚠️ **从 v1.4.x 升级？** 架构已拆分（记忆存取 vs 情绪观察），**数据 100% 保留**。阅读 [MIGRATION.md](./MIGRATION.md) 获取一键迁移脚本和详细步骤。
 
 ---
 
@@ -190,9 +190,21 @@ DB 大小：~204KB（500 条条目）。
 
 运行：`npm run benchmark`
 
-## 快速开始
+## 🚀 快速开始
 
-### 方式一：ClawHub 安装（推荐）
+### 从旧版本升级（v1.4.x → v1.5.1）
+
+```bash
+cd ~/.openclaw/extensions/yaoyao-memory
+git pull origin main
+# 然后阅读 [MIGRATION.md](./MIGRATION.md) 完成配置更新
+```
+
+**数据完全保留**，只需更新代码 + 调整配置。
+
+---
+
+### 全新安装：ClawHub（推荐）
 
 ```bash
 openclaw plugins install yaoyao-memory
