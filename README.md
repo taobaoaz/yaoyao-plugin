@@ -378,16 +378,31 @@ openclaw gateway restart
 
 **计划**：P2 — v2.x 可能引入基于**操作日志（oplog）**的同步层：每条写入生成一条 append-only log，多设备通过 oplog 做事件回放 + 冲突标记（非自动合并）。这是 SQLite → Syncthing/CloudKit 级别的差距，plugin 自身无法在短期内弥合。
 
-### 2. 隐私加密（当前：明文存储 → 目标：Gateway 级加密）
+### 2. 隐私加密（当前：明文存储，已做权限隔离 → 目标：Gateway 级透明加密）
 
-**现状**：`memory/*.md`、`.yaoyao.db`、云备份均为**明文存储**。文件权限已收紧（`0o600`），但磁盘上的数据仍是可读的。
+**现状（已做的）**：
+- 文件权限已收紧：`memory/` 目录 `0o700`（仅 owner 可读写执行），`.yaoyao.db` / `memory/*.md` 写入后强制 `0o600`
+- 传输加密：`memory_cloud_sync` 通过 HTTPS/SFTP/TLS 传输，不落明文到传输链路
+- SSRF 防护：embedding/LLM 请求禁止访问内网地址，防止本地服务被利用泄露数据
+- 配置脱敏：`apiKey` / `token` / `password` 等敏感字段在日志中自动掩码（`***`），防止凭证泄露
 
-**限制原因**：plugin 自行加密 = 自行保管密钥 = 密钥丢失则数据永久不可恢复。正确的做法是由 **OpenClaw Gateway 提供 machine key**（类似系统 Keychain），plugin 调用 SDK 接口做透明加解密。
+**为什么不自己做磁盘加密**：
 
-**计划**：P1 — 等待 OpenClaw SDK 暴露加密接口。在此之前，建议：
-- 使用全盘加密（BitLocker/FileVault/LUKS）
-- 云备份使用服务端加密（S3 SSE/SFTP 隧道）
-- 共享主机用户确保 `memory/` 目录权限为 `0o700`
+plugin 层自行加密的方案（如 AES-256-GCM 加密 `.md` + `.db`）存在三个不可接受的矛盾：
+
+1. **搜索与加密互斥** — yaoyao-memory 依赖 FTS5 全文索引实现 0.06ms 级查询。如果 `.yaoyao.db` 加密，FTS5 每次查询前必须解密整个数据库（或维护一份明文内存副本），延迟从毫秒级变成数百毫秒，且内存中仍有一份明文，抵消加密意义。`memory/*.md` 同理，实时解密会让 `memory_get` / `memory_search` 的 API 响应爆炸。
+
+2. **密钥管理地狱** — 如果由 plugin 自行保管密钥（用户 passphrase），passphrase 丢失 = 全部记忆永久不可恢复（无后门）。而 plugin 作为无状态进程，没有安全的密钥存储位置（不可能每次启动都让用户输入密码）。
+
+3. **安全幻觉** — 即使加密了 `memory/*.md`，`.yaoyao.db` 的 FTS5 索引仍必须是明文才能查询。敌人直接从索引就能重建出"你聊过猫、工作、某个项目"等关键词画像，加密原始文本的意义被严重削弱。
+
+**建议（现在就能做的）**：
+- **全盘加密** — BitLocker（Windows）、FileVault（macOS）、LUKS（Linux）。这是最有效、最标准的保护，覆盖所有应用数据而非只覆盖 plugin
+- **加密文件系统挂载** — 把 `memory/` 目录放在加密卷/ VeraCrypt 容器 / APFS 加密分区上
+- **云备份加密** — S3 SSE（服务端加密）、SFTP over TLS、WebDAV HTTPS
+- **共享主机** — `0o700/0o600` 权限已防止同机其他普通用户读取；如需更强隔离，使用独立用户账户运行 OpenClaw Gateway
+
+**计划**：P1 — 等待 **OpenClaw SDK 暴露 `getMachineKey()` 接口**（类似系统 Keychain / Android Keystore）。届时 plugin 可调用 Gateway 托管的 machine key 做透明加解密，密钥由 OS 安全飞地保管，plugin 不触碰密钥管理。在那之前，任何 plugin 自行实现的加密都是**安全幻觉，不做**。
 
 ### 3. 多进程并发写入（当前：单进程安全 → 多进程未验证）
 
