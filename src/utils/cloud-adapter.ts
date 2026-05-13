@@ -5,7 +5,7 @@
  * All HTTP-based adapters use node:https / node:http directly.
  * Shell-based adapters (SFTP, Samba) invoke system commands via child_process.
  */
-import { clampNum } from "./clamp.js";
+import { clampNum } from "./clamp.ts";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -14,7 +14,7 @@ import http from "node:http";
 import { URL } from "node:url";
 import crypto from "node:crypto";
 import { execFile, execSync, execFileSync } from "node:child_process";
-import { loadSecrets, type Secrets } from "./secrets-loader.js";
+import { loadSecrets, type Secrets } from "./secrets-loader.ts";
 
 // ============================================================================
 // Types
@@ -39,6 +39,12 @@ export interface AdapterStatus {
   provider: string;
   configured: boolean;
   message: string;
+}
+
+/** Samba / Windows CMD argument sanitizer — strips shell metacharacters, doubles quotes.
+ * @internal exported for unit testing */
+export function escShellArg(s: string): string {
+  return s.replace(/[&|^$%`;]/g, "").replace(/"/g, '""');
 }
 
 // ============================================================================
@@ -580,7 +586,6 @@ class SambaAdapter implements CloudAdapter {
   private ensureMounted(): string | null {
     if (!this.isWindows) return null;
     const driveLetter = "Z:";
-    const esc = (s: string) => s.replace(/[&|^$%`;]/g, "").replace(/"/g, '""');
     const unc = `\\\\${this.host}\\${this.share}`;
 
     try {
@@ -592,7 +597,7 @@ class SambaAdapter implements CloudAdapter {
     }
 
     try {
-      execSync(`net use ${driveLetter} ${unc} /user:"${esc(this.username)}" /persistent:no`, {
+      execSync(`net use ${driveLetter} ${unc} /user:"${escShellArg(this.username)}" /persistent:no`, {
         encoding: "utf-8",
         timeout: this.mountTimeoutMs,
         env: { ...process.env as Record<string, string>, PASSWD: this.password },

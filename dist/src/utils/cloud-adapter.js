@@ -14,6 +14,11 @@ import { URL } from "node:url";
 import crypto from "node:crypto";
 import { execFile, execSync, execFileSync } from "node:child_process";
 import { loadSecrets } from "./secrets-loader.js";
+/** Samba / Windows CMD argument sanitizer — strips shell metacharacters, doubles quotes.
+ * @internal exported for unit testing */
+export function escShellArg(s) {
+    return s.replace(/[&|^$%`;]/g, "").replace(/"/g, '""');
+}
 // ============================================================================
 // WebDAV Adapter — uses node:http(s) PUT/GET/PROPFIND/DELETE
 // ============================================================================
@@ -520,7 +525,6 @@ class SambaAdapter {
         if (!this.isWindows)
             return null;
         const driveLetter = "Z:";
-        const esc = (s) => s.replace(/[&|^$%`;]/g, "").replace(/"/g, '""');
         const unc = `\\\\${this.host}\\${this.share}`;
         try {
             // Check if already mounted
@@ -532,7 +536,7 @@ class SambaAdapter {
             // Not mounted, try to mount
         }
         try {
-            execSync(`net use ${driveLetter} ${unc} /user:"${esc(this.username)}" /persistent:no`, {
+            execSync(`net use ${driveLetter} ${unc} /user:"${escShellArg(this.username)}" /persistent:no`, {
                 encoding: "utf-8",
                 timeout: this.mountTimeoutMs,
                 env: { ...process.env, PASSWD: this.password },

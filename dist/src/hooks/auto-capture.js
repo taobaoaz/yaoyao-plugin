@@ -12,7 +12,7 @@ import { clampNum } from "../utils/clamp.js";
 import { getObj, getProp } from "../utils/config.js";
 import { createSessionFilter } from "../utils/session-filter.js";
 /** Safely extract text content from a message, handling string/array/object formats */
-function extractContent(msg, maxLen) {
+export function extractContent(msg, maxLen) {
     if (!msg)
         return "";
     const content = msg.content;
@@ -26,6 +26,7 @@ function extractContent(msg, maxLen) {
                 return String(part.text ?? "");
             return "";
         })
+            .filter(s => s.length > 0)
             .join(" ")
             .slice(0, limit);
     }
@@ -38,7 +39,7 @@ function extractContent(msg, maxLen) {
     }
 }
 /** Depth-limited JSON stringify to avoid OOM on deeply nested / massive objects */
-function safeStringify(obj, maxLen) {
+export function safeStringify(obj, maxLen) {
     const seen = new WeakSet();
     function walk(val, depth) {
         if (depth > 3)

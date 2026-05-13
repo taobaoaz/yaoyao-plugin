@@ -8,16 +8,16 @@
  * v1.5.0+: Removed psychological state tracking (moved to yaoyao-soul).
  *          Plugin now purely captures and indexes, without implicit tagging.
  */
-import { clampNum } from "../utils/clamp.js";
+import { clampNum } from "../utils/clamp.ts";
 import fs from "node:fs";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
 import type { DBBridge } from "../utils/db-bridge.js";
-import { getObj, getProp } from "../utils/config.js";
-import { createSessionFilter } from "../utils/session-filter.js";
+import { getObj, getProp } from "../utils/config.ts";
+import { createSessionFilter } from "../utils/session-filter.ts";
 
 /** Safely extract text content from a message, handling string/array/object formats */
-function extractContent(msg: unknown, maxLen?: number): string {
+export function extractContent(msg: unknown, maxLen?: number): string {
   if (!msg) return "";
   const content = (msg as Record<string, unknown>).content;
   const limit = maxLen && maxLen > 0 ? maxLen : 500;
@@ -30,6 +30,7 @@ function extractContent(msg: unknown, maxLen?: number): string {
         if (part.type === "text") return String(part.text ?? "");
         return "";
       })
+      .filter(s => s.length > 0)
       .join(" ")
       .slice(0, limit);
   }
@@ -43,7 +44,7 @@ function extractContent(msg: unknown, maxLen?: number): string {
 }
 
 /** Depth-limited JSON stringify to avoid OOM on deeply nested / massive objects */
-function safeStringify(obj: unknown, maxLen: number): string {
+export function safeStringify(obj: unknown, maxLen: number): string {
   const seen = new WeakSet<object>();
   function walk(val: unknown, depth: number): string {
     if (depth > 3) return "[...]";

@@ -5,7 +5,7 @@
  * All tunables are configurable via EmbeddingConfig (with defaults).
  */
 
-import { clampNum } from "./clamp.js";
+import { clampNum } from "./clamp.ts";
 
 export interface EmbeddingConfig {
   apiKey: string;
@@ -68,16 +68,20 @@ export function createEmbeddingService(config: EmbeddingConfig) {
     }
   }
 
-  /** Retry wrapper: retries on network/timeout errors (not 4xx) */
+  /** Retry wrapper: retries on network/timeout errors and HTTP 5xx (not 4xx). */
   async function fetchWithRetry(url: string, init: RequestInit & { timeoutMs?: number }, _retries = retries): Promise<Response> {
     for (let attempt = 0; attempt <= _retries; attempt++) {
       try {
-        return await fetchWithTimeout(url, init);
+        const res = await fetchWithTimeout(url, init);
+        if (!res.ok && res.status >= 500) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res;
       } catch (err: any) {
         const isLast = attempt === _retries;
         if (isLast) throw err;
-        // Retry on all network errors (timeout, ECONNREFUSED, ETIMEDOUT, system errors)
-        if (err.name === "AbortError" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.type === "system") {
+        // Retry on all network errors (timeout, ECONNREFUSED, ETIMEDOUT, system errors) and HTTP 5xx
+        if (err.name === "AbortError" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.type === "system" || err.message?.startsWith("HTTP 5")) {
           await new Promise(r => setTimeout(r, backoffBaseMs * (attempt + 1))); // backoff
           continue;
         }
