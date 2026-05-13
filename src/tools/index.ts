@@ -43,6 +43,9 @@ import { createRecommendTool } from "../features/recommend/tool.js";
 import { createRemindTool } from "../features/remind/tool.js";
 import { createHealthcheckTool } from "../features/healthcheck/tool.js";
 
+/* ── Anti-hallucination ───────────────────────────── */
+import { createVerifyTool } from "../features/verify/tool.ts";
+
 export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge, embedding?: EmbeddingService | null) {
   const tools: Array<import("./common.js").ToolRegistration> = [];
 
@@ -109,6 +112,11 @@ export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, 
   // Unified memory — cross-backend status
   try { tools.push(createUnifyTool(store)); } catch (e: unknown) {
     api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${(e as Error).message}`);
+  }
+
+  /* ── Anti-hallucination ── */
+  try { tools.push(createVerifyTool(db)); } catch (e: unknown) {
+    api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${(e as Error).message}`);
   }
 
   api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);

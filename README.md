@@ -2,7 +2,7 @@
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**24 个工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 环境自适应 · 记忆接管 · 趋势分析 · 质量评估 · 云备份 · 反遗忘 · 175+ 单元测试**
+**25 个工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 情感分析 · 环境自适应 · 记忆接管 · 趋势分析 · 质量评估 · 云备份 · 反遗忘 · 防幻觉 · 187+ 单元测试**
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
@@ -21,7 +21,7 @@ L3 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 
 > 💡 v1.4.x 中的 **心理学模型**（PersonaStateMachine、情绪追踪、L4 反馈学习）已拆分为独立插件 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul)。安装后可与本插件协同工作。
 
-## 工具 (24 个)
+## 工具 (25 个)
 
 | 工具 | 用途 |
 |------|------|
@@ -50,6 +50,7 @@ L3 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 | `memory_import_oc` | 📦 OC chunks 导入 — 从 OpenClaw 原生记忆增量导入 |
 | `memory_import_workspace` | 📂 Workspace 导入 — 导入 MEMORY.md/USER.md 等文件 |
 | `memory_retain` | 🧠 记忆反遗忘 — 检测重要但长期未召回的活跃记忆 |
+| `memory_verify` | 🔍✅ 防幻觉验证 — 核实 AI 说法是否与记忆一致，返回 confirmed/partial/unconfirmed/contradicted |
 
 ## Hook (2 个)
 
@@ -250,7 +251,7 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.5.1  ·  24 Tools  ·  2 Hooks
+🎲    v1.5.1  ·  25 Tools  ·  2 Hooks
 🎲 能力: FTS5✅ Vec✅ LLM✅ Cloud⚪
 ```
 
@@ -354,21 +355,60 @@ openclaw gateway restart
 - **云备份** — WebDAV/S3/SFTP/Samba 多云同步
 - **趋势分析** — 话题频率变化趋势洞察
 - **反遗忘** — 检测重要记忆遗忘风险，主动提醒
+- **防幻觉** — 自动标记推测性 AI 输出与用户纠正，提供 `memory_verify` 工具核实任意说法与记忆的匹配度（confirmed/partial/unconfirmed/contradicted）
 - **极小依赖** — 仅 sqlite-vec（node:sqlite 内置），无 Python 无额外运行时
-- **175+ 测试全绿** — 原生运行
+- **187+ 测试全绿** — 原生运行
 
 > 💡 **心理学模型**（PersonaStateMachine、情绪追踪、L4 反馈学习）在 v1.5.0+ 已拆分为独立插件 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul)。安装后可与本插件协同工作。
 
-## 🔌 相关插件
+## 🔍 防幻觉机制
 
-yaoyao-memory 专注于**存储、索引、召回** — 以下能力由独立插件提供，按需安装：
+yaoyao-memory 在存储和验证两个环节提供防幻觉能力，**无需 LLM 调用，纯本地规则实现**。
 
-| 插件 | 职责 | 安装 |
-|------|------|------|
-| [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul) | 心理学模型 — PersonaStateMachine、情绪追踪、L4 反馈学习 | `openclaw plugins install yaoyao-soul` |
-| **yaoyao-verify** | 防幻觉核查 — `memory_verify` 工具，验证 AI 说法与记忆的一致性 | `openclaw plugins install yaoyao-verify` |
+### 1. 自动标记（Auto-Capture 环节）
 
-> yaoyao-verify 读取 yaoyao-memory 管理的 `.yaoyao.db`（只读），无需额外配置。安装后 AI 想声称"我记得你说过..."时，会先自动核实。
+每次 `agent_end` 写入 L0 日志时，自动检测两类信号：
+
+| 信号 | 检测规则 | 日志标记 |
+|------|----------|----------|
+| **推测性输出** | 命中 "可能/也许/我觉得/I think/maybe" 等 30+ 个中英文推测词 | `[⚠️ 推测性: 可能, 也许]` |
+| **用户纠正** | 命中 "不对/错了/不是/no/wrong" 等 20+ 个纠正词 | `[🚫 用户纠正]` |
+
+**作用**：
+- 让 AI 回忆时能看到 "这条记忆是 AI 自己推测的，不是用户确认的事实"
+- 用户纠正的记录成为 "争议标记"，后续 `memory_verify` 会优先检查
+
+### 2. 主动验证（`memory_verify` 工具）
+
+当 AI 想声称 "我记得你说过..." 时，应该先调用 `memory_verify` 核实：
+
+```json
+{ "claim": "用户上周提到在用 Next.js" }
+```
+
+返回四种 verdict：
+
+| 结果 | 含义 | AI 应该怎么回应 |
+|------|------|-----------------|
+| **confirmed** ✅ | 记忆中有明确支持，关键词重叠 >50% | "是的，你确实说过..." |
+| **partial** 🟡 | 记忆中有部分相关内容，但不完全匹配 | "我记得你提到过类似的事，但细节可能是..." |
+| **unconfirmed** ❓ | 记忆中无相关记录 | "我不太确定你是否说过这个，可能是我记混了" |
+| **contradicted** ⚠️ | 记忆中有相反记录（肯定/否定方向矛盾） | "等等，我记得你说过的是相反的情况..." |
+
+**技术实现**：
+- 中文按字符重叠 + 英文按单词 Jaccard，混合评分
+- 否定词检测（"不/没/no/not"），自动识别矛盾方向
+- 纯本地计算，0.1ms 级延迟
+
+### 3. 为什么不做 "幻觉过滤"（即自动丢弃 AI 输出）
+
+常见建议是 "检测到推测内容就不存入记忆"，但 yaoyao-memory **不这样做**，原因：
+
+1. **上下文价值** — 即使 AI 的推测是错的，用户后续的纠正本身是高价值记忆（"纠正了 AI 的错误" = 用户对某话题的真实立场）
+2. **自证价值** — AI 的推测被纠正的过程，比结果更重要。丢弃 = 丢失 "AI 曾经这样理解过" 的历史
+3. **标记优于删除** — `[⚠️ 推测性]` 标记让后续搜索时自然降低权重，而不是粗暴删除
+
+**原则**：yaoyao-memory 是记忆的**档案员**，不是**审查官**。标记风险，但不替用户决定什么值得记住。
 
 ## 已知限制与路线图
 

@@ -15,6 +15,7 @@ import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
 import type { DBBridge } from "../utils/db-bridge.js";
 import { getObj, getProp } from "../utils/config.ts";
 import { createSessionFilter } from "../utils/session-filter.ts";
+import { detectSpeculative, detectCorrection } from "../core/verify/verify.ts";
 
 /** Safely extract text content from a message, handling string/array/object formats */
 export function extractContent(msg: unknown, maxLen?: number): string {
@@ -128,8 +129,26 @@ export function registerCaptureHook(
         ? "[空内容]"
         : asstContent;
 
+      // Anti-hallucination: detect speculative AI output and user corrections
+      const specCheck = detectSpeculative(asstContent);
+      const corrCheck = detectCorrection(userContent);
+
+      // Build hallucination risk tag for the log
+      let riskTag = "";
+      if (specCheck.isSpeculative) {
+        riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(", ")}]`;
+      }
+      if (corrCheck.isCorrection) {
+        riskTag += ` [🚫 用户纠正]`;
+      }
+
       // Write to daily Markdown log (L0)
-      const entry = `\n### ${timestamp}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
+      const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${asstContent}${riskTag}\n`;
+
+      // Index with anti-hallucination metadata for search
+      const indexableMeta = specCheck.isSpeculative || corrCheck.isCorrection
+        ? `${indexableAsst} [幻觉风险: ${specCheck.confidence}${corrCheck.isCorrection ? ", 用户纠正" : ""}]`
+        : indexableAsst;
 
       // Issue #12: Make file append and DB index atomic — if index fails, log error but do NOT rollback.
       // Rationale: L0 (daily file) and L1 (FTS5 index) are independent systems.
@@ -137,7 +156,7 @@ export function registerCaptureHook(
       // It's safer to let L0 succeed and L1 fail separately, than to corrupt L0 trying to undo it.
       try {
         store.appendToDaily(date, entry);
-        db.indexTurn(userContent, indexableAsst, date);
+        db.indexTurn(userContent, indexableMeta, date);
       } catch (indexErr: unknown) {
         api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr instanceof Error ? indexErr.message : String(indexErr)}`);
         // Note: daily file already has the entry; next DB rebuild (startup check) will catch it.
