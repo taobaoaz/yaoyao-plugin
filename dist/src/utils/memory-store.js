@@ -27,8 +27,14 @@ export function createMemoryStore(config, logger) {
     const log = (msg) => logger?.debug?.(`[yaoyao-memory:store] ${msg}`);
     function ensureDir(dir) {
         if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-            log(`Created directory: ${dir}`);
+            try {
+                fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+                log(`Created directory: ${dir}`);
+            }
+            catch (err) {
+                logger?.warn?.(`[yaoyao-memory:store] Failed to create directory ${dir}: ${err}`);
+                throw err; // re-throw so caller can decide (fallback to memory-only mode)
+            }
         }
         else {
             try {

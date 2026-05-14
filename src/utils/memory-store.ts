@@ -85,8 +85,13 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
 
   function ensureDir(dir: string) {
     if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-      log(`Created directory: ${dir}`);
+      try {
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        log(`Created directory: ${dir}`);
+      } catch (err) {
+        logger?.warn?.(`[yaoyao-memory:store] Failed to create directory ${dir}: ${err}`);
+        throw err; // re-throw so caller can decide (fallback to memory-only mode)
+      }
     } else {
       try { fs.chmodSync(dir, 0o700); } catch { /* ignore on Windows or restricted fs */ }
     }
