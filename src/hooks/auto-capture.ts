@@ -152,10 +152,11 @@ export function registerCaptureHook(
       // Write to daily Markdown log (L0)
       const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${asstContent}${riskTag}\n`;
 
-      // Index with anti-hallucination metadata for search
-      const indexableMeta = specCheck.isSpeculative || corrCheck.isCorrection
-        ? `${indexableAsst} [幻觉风险: ${specCheck.confidence}${corrCheck.isCorrection ? ", 用户纠正" : ""}]`
-        : indexableAsst;
+      // Risk metadata goes into the structured meta column — NOT into asst_text,
+      // so FTS5 search space isn't polluted with "⚠️ 推测性" / "🚫 用户纠正" tokens.
+      const meta = specCheck.isSpeculative || corrCheck.isCorrection
+        ? JSON.stringify({ speculative: specCheck.isSpeculative, confidence: specCheck.confidence, correction: corrCheck.isCorrection })
+        : undefined;
 
       // Issue #12: Make file append and DB index atomic — if index fails, log error but do NOT rollback.
       // Rationale: L0 (daily file) and L1 (FTS5 index) are independent systems.
@@ -163,7 +164,7 @@ export function registerCaptureHook(
       // It's safer to let L0 succeed and L1 fail separately, than to corrupt L0 trying to undo it.
       try {
         store.appendToDaily(date, entry);
-        db.indexTurn(userContent, indexableMeta, date);
+        db.indexTurn(userContent, indexableAsst, date, meta);
       } catch (indexErr: unknown) {
         api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr instanceof Error ? indexErr.message : String(indexErr)}`);
         // Note: daily file already has the entry; next DB rebuild (startup check) will catch it.

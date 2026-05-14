@@ -23,10 +23,12 @@ const resultCache = new Map();
 /** Periodic expired-entry cleanup counter */
 let cacheAccessCount = 0;
 function getCachedResults(key, cfg) {
-    cacheAccessCount++;
+    if (++cacheAccessCount >= 100) {
+        cacheAccessCount = 0;
+    }
     const now = Date.now();
     // Periodic expired-entry cleanup (every 100 accesses)
-    if (cacheAccessCount % 100 === 0) {
+    if (cacheAccessCount === 0) {
         for (const [k, v] of resultCache) {
             if (v.expires < now)
                 resultCache.delete(k);
@@ -266,8 +268,7 @@ export function registerRecallHook(api, db, config, embedding) {
             }
             const ftsQuery = enrichedKeywords.join(" ");
             const maxResults = cfg.maxResults;
-            const hasVectorSearch = userMessage.toLowerCase().includes("tsne") || userMessage.toLowerCase().includes("向量") || userMessage.toLowerCase().includes("embedding") || userMessage.toLowerCase().includes("语义");
-            const searchType = hasVectorSearch ? "hybrid" : (embedding ? "fts" : "fts");
+            const searchType = embedding ? "hybrid" : "fts";
             const cacheKey = `${searchType}:${ftsQuery}:${maxResults}`;
             // Check cache
             const cached = getCachedResults(cacheKey, cfg);
@@ -299,18 +300,23 @@ export function registerRecallHook(api, db, config, embedding) {
                 }
             }
             // FTS5 search (with internal LIKE fallback for CJK)
-            const results = db.search(ftsQuery, maxResults);
-            if (results.length === 0) {
-                api.logger.debug?.("[yaoyao-memory:recall] No relevant memories found");
-                return;
+            try {
+                const results = db.search(ftsQuery, maxResults);
+                if (results.length === 0) {
+                    api.logger.debug?.("[yaoyao-memory:recall] No relevant memories found");
+                    return;
+                }
+                setCachedResults(cacheKey, results, cfg);
+                api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms`);
+                // Apply enhancements
+                const decayed = applyTimeDecay(results, cfg);
+                const deduped = applyDiversitySampling(decayed, maxResults, cfg);
+                updateSessionContext(sessionKey, keywords, cfg);
+                return buildHookResult(buildRecallContext(deduped), config);
             }
-            setCachedResults(cacheKey, results, cfg);
-            api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms`);
-            // Apply enhancements
-            const decayed = applyTimeDecay(results, cfg);
-            const deduped = applyDiversitySampling(decayed, maxResults, cfg);
-            updateSessionContext(sessionKey, keywords, cfg);
-            return buildHookResult(buildRecallContext(deduped), config);
+            catch (searchErr) {
+                api.logger.error(`[yaoyao-memory:recall] Search error: ${searchErr instanceof Error ? searchErr.message : String(searchErr)}`);
+            }
         }
         catch (err) {
             api.logger.error(`[yaoyao-memory:recall] Error: ${err instanceof Error ? err.message : String(err)}`);

@@ -119,7 +119,9 @@ export default definePluginEntry({
         registerRecallHook(api, db, config, embedding);
       }
 
-      api.logger.info?.("[yaoyao-memory] L1/L2/L3 pipeline disabled — install yaoyao-soul for LLM-driven extraction");
+      if (!llmResult.client) {
+        api.logger.info?.("[yaoyao-memory] L1/L2/L3 pipeline disabled — install yaoyao-soul for LLM-driven extraction");
+      }
 
       // ── 8. Cleanup scheduler ──
       let cleanerTimer: ReturnType<typeof setInterval> | null = null;

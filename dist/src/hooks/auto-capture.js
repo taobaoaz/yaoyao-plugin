@@ -11,6 +11,7 @@
 import { clampNum } from "../utils/clamp.js";
 import { getObj, getProp } from "../utils/config.js";
 import { createSessionFilter } from "../utils/session-filter.js";
+import { detectSpeculative, detectCorrection } from "../core/verify/verify.js";
 /** Safely extract text content from a message, handling string/array/object formats */
 export function extractContent(msg, maxLen) {
     if (!msg)
@@ -47,7 +48,7 @@ export function safeStringify(obj, maxLen) {
         if (val === null)
             return "null";
         if (typeof val !== "object")
-            return String(val).slice(0, maxLen);
+            return String(val);
         if (seen.has(val))
             return "[Circular]";
         seen.add(val);
@@ -89,9 +90,19 @@ export function registerCaptureHook(api, store, db, config) {
             if (!lastUserMsg)
                 return;
             // Issue #16: Use timezone-aware date if config.tz is set
-            const date = config.tz
-                ? new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date())
-                : new Date().toISOString().slice(0, 10);
+            let date;
+            if (config.tz) {
+                try {
+                    date = new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+                }
+                catch {
+                    api.logger.warn?.(`[yaoyao-memory:capture] Invalid timezone "${config.tz}", falling back to UTC date`);
+                    date = new Date().toISOString().slice(0, 10);
+                }
+            }
+            else {
+                date = new Date().toISOString().slice(0, 10);
+            }
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
             const captureCfg = getObj(config, "capture") || {};
             const captureMaxLen = clampNum(getProp(captureCfg, "maxContentLen", 500), 500, 50, 5000);
@@ -105,18 +116,41 @@ export function registerCaptureHook(api, store, db, config) {
             const indexableAsst = (!asstContent || asstContent === "(no response)")
                 ? "[空内容]"
                 : asstContent;
+            // Anti-hallucination: detect speculative AI output and user corrections
+            // Isolated try/catch: verify failure must NOT block capture
+            let specCheck = { isSpeculative: false, markers: [], confidence: "high" };
+            let corrCheck = { isCorrection: false, markers: [] };
+            try {
+                specCheck = detectSpeculative(asstContent);
+                corrCheck = detectCorrection(userContent);
+            }
+            catch (verifyErr) {
+                api.logger.warn?.(`[yaoyao-memory:capture] Verify detection failed, falling back to no-tag capture: ${verifyErr instanceof Error ? verifyErr.message : String(verifyErr)}`);
+            }
+            // Build hallucination risk tag for the log
+            let riskTag = "";
+            if (specCheck.isSpeculative) {
+                riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(", ")}]`;
+            }
+            if (corrCheck.isCorrection) {
+                riskTag += ` [🚫 用户纠正]`;
+            }
             // Write to daily Markdown log (L0)
-            const entry = `\n### ${timestamp}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
+            const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${asstContent}${riskTag}\n`;
+            // Index with anti-hallucination metadata for search
+            const indexableMeta = specCheck.isSpeculative || corrCheck.isCorrection
+                ? `${indexableAsst} [幻觉风险: ${specCheck.confidence}${corrCheck.isCorrection ? ", 用户纠正" : ""}]`
+                : indexableAsst;
             // Issue #12: Make file append and DB index atomic — if index fails, log error but do NOT rollback.
             // Rationale: L0 (daily file) and L1 (FTS5 index) are independent systems.
             // Rolling back file writes introduces race conditions under concurrent agent_end hooks.
             // It's safer to let L0 succeed and L1 fail separately, than to corrupt L0 trying to undo it.
             try {
                 store.appendToDaily(date, entry);
-                db.indexTurn(userContent, indexableAsst, date);
+                db.indexTurn(userContent, indexableMeta, date);
             }
             catch (indexErr) {
-                api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr.message || String(indexErr)}`);
+                api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr instanceof Error ? indexErr.message : String(indexErr)}`);
                 // Note: daily file already has the entry; next DB rebuild (startup check) will catch it.
                 return;
             }

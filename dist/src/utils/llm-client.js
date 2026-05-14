@@ -48,6 +48,21 @@ function detectModel(baseUrl, customMap) {
  * 2. Embedding fallback (if `embedding` section has apiKey) → auto-detect
  * 3. Nothing → return null
  */
+/** SSRF protection: block internal / link-local / private IP ranges */
+const FORBIDDEN_HOSTS = [
+    "localhost", "127.0.0.1", "0.0.0.0", "::1",
+    "169.254", "192.168", "10.", "172.", "fc00", "fe80",
+];
+function isForbiddenHost(urlStr) {
+    try {
+        const url = new URL(urlStr);
+        const host = url.hostname.toLowerCase();
+        return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
+    }
+    catch {
+        return true; // malformed URL is also forbidden
+    }
+}
 export function createLLMClient(config, embeddingConfig) {
     const result = { client: null, source: null };
     if (!config || typeof config !== "object")
@@ -62,6 +77,9 @@ export function createLLMClient(config, embeddingConfig) {
         if (!baseUrl) {
             // apiKey present but baseUrl missing — can't create a valid client
             return result;
+        }
+        if (isForbiddenHost(baseUrl)) {
+            return result; // SSRF protection: reject internal/private URLs
         }
         const model = String(llmSection.model || detectModel(baseUrl, providerModels));
         if (!model) {
@@ -79,6 +97,8 @@ export function createLLMClient(config, embeddingConfig) {
         if (embeddingApiKey && embeddingEnabled) {
             const baseUrl = String(embeddingConfig.baseUrl || "").trim();
             if (!baseUrl)
+                return result;
+            if (isForbiddenHost(baseUrl))
                 return result;
             const model = detectModel(baseUrl, providerModels);
             if (!model)
@@ -132,11 +152,19 @@ export class LLMClient {
                 throw new Error(`LLM API error ${res.status}: ${text.slice(0, 200)}`);
             }
             const data = await res.json();
+            const firstChoice = data.choices?.[0];
+            const message = firstChoice?.message;
             return {
-                content: data.choices?.[0]?.message?.content || "",
+                content: message?.content || "",
                 model: data.model || this.config.model,
                 usage: data.usage || { prompt: 0, completion: 0, total: 0 },
             };
+        }
+        catch (err) {
+            if (err instanceof Error && err.name === "AbortError") {
+                throw new Error("LLM request timed out after 30s");
+            }
+            throw err;
         }
         finally {
             clearTimeout(timeout);

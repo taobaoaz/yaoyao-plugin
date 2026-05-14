@@ -6,6 +6,7 @@
 
 import type { MemoryStore } from "../../utils/memory-store.js";
 import { createBackupManager } from "../../utils/backup.js";
+import { clampNum } from "../../utils/clamp.js";
 import { withErrorHandling } from "../../tools/common.js";
 import type { ToolRegistration } from "../../tools/common.js";
 
@@ -17,8 +18,9 @@ export function createBackupTool(store: MemoryStore): ToolRegistration {
     parameters: {
       type: "object",
       properties: {
-        action: { type: "string", enum: ["create", "list", "prune"], description: "create（默认）、list 列出备份、prune 清理（保留最近 10 个）", default: "create" },
+        action: { type: "string", enum: ["create", "list", "prune"], description: "create（默认）、list 列出备份、prune 清理（默认保留最近 10 个）", default: "create" },
         mode: { type: "string", enum: ["full", "incremental"], description: "备份模式：full 全量、incremental 仅备份自上次备份以来新增/修改的文件", default: "full" },
+        keep: { type: "number", description: "prune 时保留的备份数量（默认 10，范围 1-100）", default: 10 },
       },
       required: [],
     },
@@ -39,8 +41,9 @@ export function createBackupTool(store: MemoryStore): ToolRegistration {
       }
 
       if (action === "prune") {
-        mgr.pruneBackups(10);
-        return { content: [{ type: "text", text: "✅ 已清理旧备份，保留最近 10 个。" }] };
+        const keep = clampNum(params.keep, 10, 1, 100);
+        mgr.pruneBackups(keep);
+        return { content: [{ type: "text", text: `✅ 已清理旧备份，保留最近 ${keep} 个。` }] };
       }
 
       const backupName = mgr.createBackup(mode);

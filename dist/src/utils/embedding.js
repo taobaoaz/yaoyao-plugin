@@ -25,8 +25,26 @@ export function detectEmbedModel(provider, customMap) {
         return customMap[p];
     return DEFAULT_EMBED_MODELS[p] || "";
 }
+/** SSRF protection: block internal / link-local / private IP ranges */
+const FORBIDDEN_HOSTS = [
+    "localhost", "127.0.0.1", "0.0.0.0", "::1",
+    "169.254", "192.168", "10.", "172.", "fc00", "fe80",
+];
+function isForbiddenHost(urlStr) {
+    try {
+        const url = new URL(urlStr);
+        const host = url.hostname.toLowerCase();
+        return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
+    }
+    catch {
+        return true; // malformed URL is also forbidden
+    }
+}
 export function createEmbeddingService(config) {
     const baseUrl = config.baseUrl.replace(/\/$/, "");
+    if (isForbiddenHost(baseUrl)) {
+        throw new Error(`Embedding baseUrl "${baseUrl}" is forbidden (SSRF protection)`);
+    }
     // Resolve tunables with defaults
     const timeoutMs = clampNum(config.timeoutMs, 15_000, 3_000, 120_000);
     const retries = clampNum(config.retries, 1, 0, 5);
@@ -78,27 +96,35 @@ export function createEmbeddingService(config) {
         // Handle baseUrl that already contains /v1 prefix (e.g. https://ai.gitee.com/v1)
         const path = baseUrl.endsWith("/v1") ? "" : "/v1";
         const url = `${baseUrl}${path}/embeddings`;
-        const res = await fetchWithRetry(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${config.apiKey}`,
-            },
-            body: JSON.stringify({
-                input: text.slice(0, maxInputChars),
-                model: config.model,
-            }),
-        });
-        if (!res.ok) {
-            const errText = await res.text().catch(() => "unknown");
-            throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+        try {
+            const res = await fetchWithRetry(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${config.apiKey}`,
+                },
+                body: JSON.stringify({
+                    input: text.slice(0, maxInputChars),
+                    model: config.model,
+                }),
+            });
+            if (!res.ok) {
+                const errText = await res.text().catch(() => "unknown");
+                throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+            }
+            const data = await res.json();
+            const embedding = data.data?.[0]?.embedding;
+            if (!embedding || !Array.isArray(embedding)) {
+                throw new Error("Invalid embedding response");
+            }
+            return new Float32Array(embedding);
         }
-        const data = await res.json();
-        const embedding = data?.data?.[0]?.embedding;
-        if (!embedding || !Array.isArray(embedding)) {
-            throw new Error("Invalid embedding response");
+        catch (err) {
+            if (err instanceof Error && err.name === "AbortError") {
+                throw new Error("Embedding request timed out");
+            }
+            throw err;
         }
-        return new Float32Array(embedding);
     }
     /**
      * Generate embeddings for multiple texts in a batch.
@@ -110,27 +136,35 @@ export function createEmbeddingService(config) {
         const url = `${baseUrl}${path}/embeddings`;
         for (let i = 0; i < texts.length; i += batchSize) {
             const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
-            const res = await fetchWithRetry(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${config.apiKey}`,
-                },
-                body: JSON.stringify({
-                    input: chunk,
-                    model: config.model,
-                }),
-            });
-            if (!res.ok) {
-                const errText = await res.text().catch(() => "unknown");
-                throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+            try {
+                const res = await fetchWithRetry(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${config.apiKey}`,
+                    },
+                    body: JSON.stringify({
+                        input: chunk,
+                        model: config.model,
+                    }),
+                });
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => "unknown");
+                    throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+                }
+                const data = await res.json();
+                const dataArr = data.data;
+                if (!dataArr || !Array.isArray(dataArr)) {
+                    throw new Error("Invalid embedding batch response");
+                }
+                results.push(...dataArr.map((d) => new Float32Array(d.embedding)));
             }
-            const data = await res.json();
-            const dataArr = data?.data;
-            if (!dataArr || !Array.isArray(dataArr)) {
-                throw new Error("Invalid embedding batch response");
+            catch (err) {
+                if (err instanceof Error && err.name === "AbortError") {
+                    throw new Error("Embedding batch request timed out");
+                }
+                throw err;
             }
-            results.push(...dataArr.map((d) => new Float32Array(d.embedding)));
         }
         return results;
     }

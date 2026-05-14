@@ -44,14 +44,14 @@ function markSynced(filePath: string, provider: string, baseDir: string): void {
   } catch { /* best effort */ }
 }
 
-async function doUpload(adapter: CloudAdapter, store: MemoryStore, dryRun: boolean, since?: number): Promise<SyncResult> {
+async function doUpload(adapter: CloudAdapter, store: MemoryStore, dryRun: boolean, sinceMs?: number): Promise<SyncResult> {
   const result: SyncResult = { provider: adapter.provider, action: "upload", uploaded: [], downloaded: [], skipped: [], errors: [] };
   const files = store.listFiles();
 
   for (const file of files) {
     try {
       if (file.filename.endsWith(SYNC_MARKER) || file.filename === SYNC_STATE_FILE) continue;
-      if (since && file.modified < since) {
+      if (sinceMs && file.modified < sinceMs) {
         result.skipped.push(file.filename);
         continue;
       }
@@ -76,7 +76,7 @@ async function doUpload(adapter: CloudAdapter, store: MemoryStore, dryRun: boole
   if (fs.existsSync(memoryMd)) {
     try {
       const stat = fs.statSync(memoryMd);
-      if (!since || stat.mtimeMs > since) {
+      if (!sinceMs || stat.mtimeMs > sinceMs) {
         const rp = remotePath("MEMORY.md");
         if (dryRun) {
           result.uploaded.push("MEMORY.md (dry-run)");

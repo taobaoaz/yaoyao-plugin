@@ -1,91 +1,99 @@
-import { createSearchTool } from "./search.js";
-import { createGetTool } from "./get.js";
-import { createListTool } from "./list.js";
-import { createSaveTool } from "./save.js";
-import { createStatsTool } from "./stats.js";
-import { createTimelineTool } from "./timeline.js";
-import { createSearchTimelineTool } from "./search-timeline.js";
-import { createBackupTool } from "./backup.js";
-import { createForgetTool } from "./forget.js";
-import { createNoteTool } from "./note.js";
-import { createGraphTool } from "./memory-graph.js";
-import { createEnhancedSearchTool } from "./memory-search-enhanced.js";
-import { createExportTool } from "./memory-export.js";
-import { createImportTool } from "./memory-import.js";
-import { createTagTool } from "./memory-tag.js";
-import { createRemindTool } from "./memory-remind.js";
-import { createRecommendTool } from "./memory-recommend.js";
-import { createCloudSyncTool } from "./cloud-sync.js";
-import { createUnifyTool } from "./memory-unify.js";
-import { createTrendsTool } from "./memory-trends.js";
-import { createQualityTool } from "./memory-quality.js";
-import { createRetainTool } from "./memory-retain.js";
+/* ── Search ─────────────────────────────────────────── */
+import { createSearchTool } from "../features/search/tool.js";
+import { createGetTool } from "../features/get/tool.js";
+import { createListTool } from "../features/list/tool.js";
+import { createSearchTimelineTool } from "../features/search-timeline/tool.js";
+import { createEnhancedSearchTool } from "../features/enhanced-search/tool.js";
+/* ── Management ────────────────────────────────────── */
+import { createSaveTool } from "../features/save/tool.js";
+import { createNoteTool } from "../features/note/tool.js";
+import { createForgetTool } from "../features/forget/tool.js";
+import { createTagTool } from "../features/tag/tool.js";
+import { createBackupTool } from "../features/backup/tool.js";
+import { createExportTool } from "../features/export/tool.js";
+import { createCloudSyncTool } from "../features/cloud-sync/tool.js";
+import { createUnifyTool } from "../features/unify/tool.js";
+/* ── Analysis ──────────────────────────────────────── */
+import { createStatsTool } from "../features/stats/tool.js";
+import { createTimelineTool } from "../features/timeline/tool.js";
+import { createTrendsTool } from "../features/trends/tool.js";
+import { createQualityTool } from "../features/quality/tool.js";
+import { createRetainTool } from "../features/retain/tool.js";
+import { createGraphTool } from "../features/graph/tool.js";
+/* ── Import ────────────────────────────────────────── */
+import { createImportTool } from "../features/import/tool.js";
+import { createImportOCTool } from "../features/import-oc/tool.js";
+import { createImportWorkspaceTool } from "../features/import-workspace/tool.js";
+/* ── System ────────────────────────────────────────── */
+import { createRecommendTool } from "../features/recommend/tool.js";
+import { createRemindTool } from "../features/remind/tool.js";
+import { createHealthcheckTool } from "../features/healthcheck/tool.js";
+/* ── Anti-hallucination ───────────────────────────── */
+import { createVerifyTool } from "../features/verify/tool.js";
 export function registerMemoryTools(api, store, db, embedding) {
-    const tools = [
-        createSearchTool(db),
-        createGetTool(store, db),
-        createListTool(store),
-        createSaveTool(store, db),
-        createStatsTool(store, db),
-        createTimelineTool(db),
-        createSearchTimelineTool(db),
-        createBackupTool(store),
-        createForgetTool(store, db),
-        createNoteTool(store, db),
-        createExportTool(store),
-        createImportTool(store),
-        createTagTool(store, db),
-        createRemindTool(),
-        createRecommendTool(db, store.baseDir),
-    ];
-    // Graph tool (knowledge graph)
+    const tools = [];
+    /* ── Search ── */
+    tools.push(createSearchTool(db), createGetTool(store, db), createListTool(store), createSearchTimelineTool(db));
+    /* ── Management ── */
+    tools.push(createSaveTool(store, db), createNoteTool(store, db), createForgetTool(store, db), createTagTool(store, db), createBackupTool(store), createExportTool(db));
+    /* ── Import ── */
+    tools.push(createImportTool(store), createImportOCTool(store, db), createImportWorkspaceTool(store, db));
+    /* ── Analysis ── */
+    tools.push(createStatsTool(store, db), createTimelineTool(db), createTrendsTool(store));
+    /* ── System ── */
+    tools.push(createRecommendTool(db, store.baseDir), createRemindTool(), createHealthcheckTool());
+    /* ── Best-effort / optional ── */
+    // Graph (knowledge graph) — requires scenes directory
     try {
         tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding));
     }
-    catch { /* best effort */ }
-    // Enhanced search tool (vector rerank + keyword highlight)
+    catch { /* skip */ }
+    // Enhanced search — vector rerank + keyword highlight
     if (embedding) {
         try {
             tools.push(createEnhancedSearchTool(db, embedding));
         }
-        catch { /* best effort */ }
+        catch { /* skip */ }
     }
     else {
-        // FTS5-only enhanced search (no rerank, but still highlight)
         try {
             tools.push(createEnhancedSearchTool(db));
         }
-        catch { /* best effort */ }
+        catch { /* skip */ }
     }
-    // Retain tool (memory enhancement / anti-forgetting, best-effort)
-    try {
-        tools.push(createRetainTool(store, db));
-    }
-    catch { /* best effort */ }
-    // Quality assessment tool (best-effort)
+    // Quality, Retain, Trends — best-effort
     try {
         tools.push(createQualityTool(store, db));
     }
-    catch { /* best effort */ }
-    // Trends analysis tool (best-effort)
+    catch { /* skip */ }
     try {
-        tools.push(createTrendsTool(store));
+        tools.push(createRetainTool(store, db));
     }
-    catch { /* best effort */ }
-    // Cloud sync tool (best-effort, graceful when no credentials configured)
+    catch { /* skip */ }
+    // Cloud sync — graceful when no credentials
     try {
         tools.push(createCloudSyncTool(store));
     }
     catch (e) {
         api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${e.message}`);
     }
-    // Unified memory management (all OpenClaw backends)
+    // Unified memory — cross-backend status
     try {
         tools.push(createUnifyTool(store));
     }
     catch (e) {
         api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${e.message}`);
     }
+    /* ── Anti-hallucination ── */
+    try {
+        tools.push(createVerifyTool(db));
+    }
+    catch (e) {
+        api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${e.message}`);
+    }
     api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);
+    for (const tool of tools) {
+        api.registerTool(tool);
+    }
     return tools.length;
 }

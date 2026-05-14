@@ -5,6 +5,7 @@
 import type { UnifiedDB, SQLiteRow } from "../../platform/db/types.js";
 
 export interface SearchResult {
+  id?: number;
   filename: string;
   date: string;
   snippet: string;
@@ -18,18 +19,19 @@ export function searchFTS(db: UnifiedDB, query: string, limit: number): SearchRe
   if (typeof query !== "string") throw new TypeError("searchFTS: query must be a string");
   if (!Number.isFinite(limit) || limit < 1) limit = 10;
 
-  const sql = `SELECT m.date, m.filename, m.user_text, m.asst_text, m.snippet, f.rank AS score
+  const sql = `SELECT m.id, m.date, m.user_text, m.asst_text, f.rank AS score
     FROM memory_fts f
-    JOIN memory_meta m ON f.date = m.date AND f.filename = m.filename
+    JOIN memory_meta m ON f.rowid = m.id
     WHERE memory_fts MATCH ?
     ORDER BY f.rank
     LIMIT ?`;
   const rows = db.prepare(sql).all(query, limit);
 
   return rows.map((row: SQLiteRow) => ({
-    filename: String(row.filename || ""),
+    id: Number(row.id || 0),
+    filename: `${String(row.date || "memory")}.md`,
     date: String(row.date || ""),
-    snippet: String(row.snippet || ""),
+    snippet: `${String(row.user_text || "")} ${String(row.asst_text || "")}`.trim().slice(0, 500),
     score: Number(row.score || 0),
     user_text: String(row.user_text || ""),
     asst_text: String(row.asst_text || ""),

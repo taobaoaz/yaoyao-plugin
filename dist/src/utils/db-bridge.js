@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import { createCompatDB } from "../platform/db/compat.js";
 const _require = createRequire(import.meta.url);
 // ──────────────────────────── Helpers ────────────────────────────
 /** Compute a normalized score from FTS5 rank (negative = better) */
@@ -32,46 +33,64 @@ export function createDB(config, logger) {
     const log = (msg) => logger?.debug?.(`[yaoyao-memory:db] ${msg}`);
     let db = null;
     let initFailed = false; // fail-fast guard: once init fails, skip retries
+    let dbBackend = null;
     /** Initialize database — create tables if not exist */
     function init() {
         try {
             fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-            const { DatabaseSync } = _require("node:sqlite");
-            db = new DatabaseSync(dbPath, { allowExtension: true });
-            // Handle stale WAL/shm files from previous crash
-            try {
-                db.exec("PRAGMA journal_mode = WAL");
-            }
-            catch (e) {
-                // disk I/O error → stale WAL files, clean up and retry
-                if (e.message?.includes("disk I/O")) {
-                    log("Stale WAL files detected, cleaning up");
-                    try {
-                        db.close();
+            dbBackend = createCompatDB(dbPath, { allowExtension: true }, logger);
+            db = dbBackend.db;
+            const backend = dbBackend.backend;
+            const supportsWAL = dbBackend.supportsWAL;
+            const supportsFTS5 = dbBackend.supportsFTS5;
+            const supportsExtensions = dbBackend.supportsExtensions;
+            // Handle WAL setup only for real SQLite backends
+            if (backend !== "file-db") {
+                try {
+                    db.exec("PRAGMA journal_mode = WAL");
+                    const mode = db.prepare("PRAGMA journal_mode").get();
+                    const walEnabled = String(mode?.journal_mode) === "wal" || String(mode) === "wal";
+                    if (!walEnabled) {
+                        log("WAL mode not supported by filesystem, continuing with default journal mode");
                     }
-                    catch { /* ignore */ }
-                    db = null;
-                    // Remove only WAL journal files that may be corrupt (not the main db)
-                    for (const ext of ["-wal", "-shm"]) {
+                }
+                catch (e) {
+                    if (e.message?.includes("disk I/O")) {
+                        log("Stale WAL files detected, cleaning up");
                         try {
-                            fs.unlinkSync(dbPath + ext);
+                            db.close();
                         }
                         catch { /* ignore */ }
+                        db = null;
+                        for (const ext of ["-wal", "-shm"]) {
+                            try {
+                                fs.unlinkSync(dbPath + ext);
+                            }
+                            catch { /* ignore */ }
+                        }
+                        dbBackend = createCompatDB(dbPath, { allowExtension: true }, logger);
+                        db = dbBackend.db;
+                        try {
+                            db.exec("PRAGMA journal_mode = WAL");
+                        }
+                        catch {
+                            log("WAL recovery failed, continuing with default journal mode");
+                        }
                     }
-                    db = new DatabaseSync(dbPath, { allowExtension: true });
-                    db.exec("PRAGMA journal_mode = WAL");
+                    else {
+                        log(`WAL setup failed: ${e.message}, continuing with default journal mode`);
+                    }
                 }
-                else {
-                    throw e;
-                }
+                db.exec("PRAGMA busy_timeout = 5000");
+                db.exec("PRAGMA cache_size = -65536");
             }
-            db.exec("PRAGMA busy_timeout = 5000");
-            db.exec("PRAGMA cache_size = -65536");
-            // FTS5 table for full-text search
-            db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
-                "date, user_text, asst_text, " +
-                "tokenize='unicode61'" +
-                ")");
+            // FTS5 table for full-text search (only if backend supports it)
+            if (supportsFTS5) {
+                db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+                    "date, user_text, asst_text, " +
+                    "tokenize='unicode61'" +
+                    ")");
+            }
             // Metadata table for L1 memories
             db.exec("CREATE TABLE IF NOT EXISTS memory_meta (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -80,31 +99,35 @@ export function createDB(config, logger) {
                 "asst_text TEXT, " +
                 "created_at TEXT DEFAULT (datetime('now'))" +
                 ")");
-            // Vector search table (sqlite-vec)
+            // Vector search table (sqlite-vec) — only with native SQLite + extensions
             vecEnabled = false;
             const dimensions = config.embedding?.dimensions ?? 1024;
-            try {
-                const sqliteVec = _require("sqlite-vec");
-                db.enableLoadExtension(true);
-                sqliteVec.load(db);
-                vecEnabled = true;
-                db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
-                    `embedding float[${dimensions}]` +
-                    ")");
-                db.exec("CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
-                    "id INTEGER PRIMARY KEY, " +
-                    "meta_id INTEGER, " +
-                    "model TEXT, " +
-                    `dimensions INTEGER DEFAULT ${dimensions}, ` +
-                    "created_at TEXT DEFAULT (datetime('now'))" +
-                    ")");
-                log("sqlite-vec loaded successfully");
+            if (supportsExtensions) {
+                try {
+                    const sqliteVec = _require("sqlite-vec");
+                    if (db.enableLoadExtension) {
+                        db.enableLoadExtension(true);
+                        sqliteVec.load(db._raw || db);
+                    }
+                    vecEnabled = true;
+                    db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
+                        `embedding float[${dimensions}]` +
+                        ")");
+                    db.exec("CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
+                        "id INTEGER PRIMARY KEY, " +
+                        "meta_id INTEGER, " +
+                        "model TEXT, " +
+                        `dimensions INTEGER DEFAULT ${dimensions}, ` +
+                        "created_at TEXT DEFAULT (datetime('now'))" +
+                        ")");
+                    log("sqlite-vec loaded successfully");
+                }
+                catch (e) {
+                    log(`sqlite-vec not available: ${e.message}`);
+                    vecEnabled = false;
+                }
             }
-            catch (e) {
-                log(`sqlite-vec not available: ${e.message}`);
-                vecEnabled = false;
-            }
-            log(`DB initialized: ${dbPath} (vec=${vecEnabled})`);
+            log(`DB initialized: ${dbPath} (backend=${backend}, fts5=${supportsFTS5}, vec=${vecEnabled})`);
             return true;
         }
         catch (err) {
@@ -141,6 +164,10 @@ export function createDB(config, logger) {
     }
     /** Sanitize query string for FTS5 MATCH syntax.
      * Removes characters that can cause FTS5 syntax errors while keeping search terms readable.
+     *
+     * ⚠️ Security note: this is "sanitization for syntax safety", not a security boundary.
+     * FTS5 MATCH uses prepared statements (parametric `?` binding), so SQL injection is not possible.
+     * This function prevents FTS5 syntax errors (e.g. unmatched quotes) that would crash the query.
      */
     function sanitizeFTSQuery(query) {
         // FTS5 special chars that cause syntax errors if unescaped:
@@ -170,13 +197,14 @@ export function createDB(config, logger) {
                 return searchAll(limit);
             }
             // Try FTS5 first
-            const stmt = d.prepare("SELECT date, user_text, asst_text, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
+            const stmt = d.prepare("SELECT rowid, date, user_text, asst_text, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
                 "FROM memory_fts WHERE memory_fts MATCH ? " +
                 "ORDER BY rank LIMIT ?");
             const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), searchMaxLimit));
             // FTS5 returns results, use them
             if (rows.length > 0) {
                 return rows.map(row => ({
+                    id: row.rowid,
                     filename: row.date ? `${row.date}.md` : "memory.db",
                     snippet: (row.snippet || "").slice(0, snippetMaxLen),
                     score: computeScore(row.rank),
@@ -188,7 +216,8 @@ export function createDB(config, logger) {
             // FTS5 unicode61 tokenizer treats each Chinese character as a separate token,
             // so multi-character words like "天气" or "今天" fail to match.
             // LIKE is character-based and handles CJK correctly.
-            const likeQuery = `%${query.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+            const safeLikeQuery = query.slice(0, 200);
+            const likeQuery = `%${safeLikeQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
             const likeStmt = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
                 "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
                 "ORDER BY id DESC LIMIT ?");
@@ -196,6 +225,7 @@ export function createDB(config, logger) {
             if (likeRows.length > 0) {
                 log(`FTS5 miss → LIKE fallback found ${likeRows.length} results for "${query.slice(0, 30)}"`);
                 return likeRows.map(row => ({
+                    id: row.id,
                     filename: row.date ? `${row.date}.md` : "memory.db",
                     snippet: `${row.user_text || ""} ${row.asst_text || ""}`.trim().slice(0, snippetMaxLen),
                     score: likeFallbackScore,
@@ -215,8 +245,9 @@ export function createDB(config, logger) {
     function searchAll(limit) {
         try {
             const d = ensureDB();
-            const rows = d.prepare("SELECT date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(Math.min(Math.max(limit, 1), searchMaxLimit));
+            const rows = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(Math.min(Math.max(limit, 1), searchMaxLimit));
             return rows.map(r => ({
+                id: r.id,
                 filename: r.date ? `${r.date}.md` : "memory.db",
                 snippet: (r.user_text || r.asst_text || "").slice(0, snippetMaxLen),
                 score: 1.0,
@@ -245,6 +276,7 @@ export function createDB(config, logger) {
                 const cosineSim = 1 - (row.distance || 0) / 2;
                 const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
                 return {
+                    id: row.rowid,
                     filename: row.date ? `${row.date}.md` : "memory.db",
                     snippet: snippet.slice(0, snippetMaxLen),
                     score: Math.max(0, cosineSim),
@@ -273,14 +305,14 @@ export function createDB(config, logger) {
         const vecResults = vectorSearch(embedding, limit);
         const merged = new Map();
         for (const r of ftsResults) {
-            merged.set(`${r.date}|${r.snippet}`, {
+            merged.set(`${r.date}|${r.snippet}|${r.id}`, {
                 ...r,
                 vectorScore: 0,
                 hybridScore: r.score * 0.6,
             });
         }
         for (const r of vecResults) {
-            const key = `${r.date}|${r.snippet}`;
+            const key = `${r.date}|${r.snippet}|${r.id}`;
             if (merged.has(key)) {
                 const existing = merged.get(key);
                 existing.vectorScore = r.vectorScore;
@@ -359,7 +391,7 @@ export function createDB(config, logger) {
             scheduleRebuild();
             // Clean up orphan vectors
             try {
-                d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)");
+                d.exec("DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)");
             }
             catch { /* best effort */ }
             log(`deleteByDate: ${deleted} entries removed for ${date}`);
@@ -380,7 +412,7 @@ export function createDB(config, logger) {
             if (deleted > 0) {
                 scheduleRebuild();
                 try {
-                    d.exec("DELETE FROM memory_vec WHERE rowid NOT IN (SELECT id FROM memory_meta)");
+                    d.exec("DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)");
                 }
                 catch { /* best effort */ }
             }
@@ -466,7 +498,7 @@ export function createDB(config, logger) {
             return [];
         }
     }
-    /** Expose the raw DatabaseSync instance for tools that need direct SQL access (e.g., memory-tag). */
+    /** Expose the raw DB instance for tools that need direct SQL access (e.g., memory-tag). */
     function getRawDb() {
         return ensureDB();
     }
