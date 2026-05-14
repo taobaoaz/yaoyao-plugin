@@ -37,14 +37,14 @@ function markSynced(filePath, provider, baseDir) {
     }
     catch { /* best effort */ }
 }
-async function doUpload(adapter, store, dryRun, since) {
+async function doUpload(adapter, store, dryRun, sinceMs) {
     const result = { provider: adapter.provider, action: "upload", uploaded: [], downloaded: [], skipped: [], errors: [] };
     const files = store.listFiles();
     for (const file of files) {
         try {
             if (file.filename.endsWith(SYNC_MARKER) || file.filename === SYNC_STATE_FILE)
                 continue;
-            if (since && file.modified < since) {
+            if (sinceMs && file.modified < sinceMs) {
                 result.skipped.push(file.filename);
                 continue;
             }
@@ -70,7 +70,7 @@ async function doUpload(adapter, store, dryRun, since) {
     if (fs.existsSync(memoryMd)) {
         try {
             const stat = fs.statSync(memoryMd);
-            if (!since || stat.mtimeMs > since) {
+            if (!sinceMs || stat.mtimeMs > sinceMs) {
                 const rp = remotePath("MEMORY.md");
                 if (dryRun) {
                     result.uploaded.push("MEMORY.md (dry-run)");

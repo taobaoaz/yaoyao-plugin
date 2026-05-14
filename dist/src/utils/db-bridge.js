@@ -97,6 +97,7 @@ export function createDB(config, logger) {
                 "date TEXT NOT NULL, " +
                 "user_text TEXT, " +
                 "asst_text TEXT, " +
+                "meta TEXT, " +
                 "created_at TEXT DEFAULT (datetime('now'))" +
                 ")");
             // Vector search table (sqlite-vec) — only with native SQLite + extensions
@@ -146,12 +147,14 @@ export function createDB(config, logger) {
         }
         return db;
     }
-    /** Index a conversation turn in FTS5. Returns the row id (>0) or -1 on failure. */
-    function indexTurn(userText, asstText, date) {
+    /** Index a conversation turn in FTS5. Returns the row id (>0) or -1 on failure.
+     * @param meta Optional JSON metadata (e.g. risk flags) — stored in memory_meta but NOT indexed in FTS5
+     */
+    function indexTurn(userText, asstText, date, meta) {
         try {
             const d = ensureDB();
-            const stmt = d.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-            const result = stmt.run(date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
+            const stmt = d.prepare("INSERT INTO memory_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)");
+            const result = stmt.run(date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen), meta || null);
             const rowId = Number(result.lastInsertRowid);
             const stmt2 = d.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
             stmt2.run(rowId, date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
