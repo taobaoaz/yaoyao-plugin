@@ -33,6 +33,10 @@ export interface YaoyaoMemoryConfig {
     baseUrl?: string;
     model?: string;
     dimensions?: number;
+    /** Vector backend: 'sqlite-vec' (default) or 'hnswlib' (optional, requires hnswlib-node) */
+    vectorBackend?: string;
+    /** HNSW max elements (only used when vectorBackend='hnswlib'). Range: 1000–500000 */
+    hnswMaxElements?: number;
     provider?: string;
     providerModels?: Record<string, string>;
     timeoutMs?: number;
@@ -51,6 +55,9 @@ export interface YaoyaoMemoryConfig {
     l0l1RetentionDays?: number;
     allowAggressiveCleanup?: boolean;
   };
+  snippetMaxLen?: number;
+  searchMaxLimit?: number;
+  likeFallbackScore?: number;
   tz?: string; // timezone for date formatting (e.g., "Asia/Shanghai")
   blockLabels?: string[];
   [key: string]: unknown; // allow additional fields

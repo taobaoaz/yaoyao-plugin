@@ -126,6 +126,17 @@
             "default": 1024,
             "description": "向量维度"
           },
+          "vectorBackend": {
+            "type": "string",
+            "default": "sqlite-vec",
+            "description": "向量后端引擎。sqlite-vec=零依赖默认（brute-force L2）；hnswlib=高性能 ANN（需手动安装 hnswlib-node，C++ addon）",
+            "enum": ["sqlite-vec", "hnswlib"]
+          },
+          "hnswMaxElements": {
+            "type": "number",
+            "default": 50000,
+            "description": "HNSW 索引最大元素数（仅 vectorBackend=hnswlib 时生效）。范围 1000–500000。超过后需重建索引。"
+          },
           "providerModels": {
             "type": "object",
             "additionalProperties": { "type": "string" },

@@ -8,15 +8,14 @@
 
 import { getProp } from "./config.js";
 import { clampNum } from "./clamp.js";
-import { createRequire } from "node:module";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import { createCompatDB, type UnifiedDB, type DBCompatResult } from "../platform/db/compat.js";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "./memory-store.js";
-
-const _require = createRequire(import.meta.url);
+import { createVectorBackend } from "./vector/index.js";
+import type { VectorBackend } from "./vector/types.js";
 
 // ──────────────────────────── Types ────────────────────────────
 
@@ -60,6 +59,7 @@ function computeScore(rank: number): number {
 export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
   const dbPath = path.join(baseDir, ".yaoyao.db");
+  let backend: VectorBackend | null = null;
   let vecEnabled = false;
 
   // Configurable limits (not hardcoded)
@@ -80,13 +80,13 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       dbBackend = createCompatDB(dbPath, { allowExtension: true }, logger);
       db = dbBackend.db;
 
-      const backend = dbBackend.backend;
+      const dbBackendType = dbBackend.backend;
       const supportsWAL = dbBackend.supportsWAL;
       const supportsFTS5 = dbBackend.supportsFTS5;
       const supportsExtensions = dbBackend.supportsExtensions;
 
       // Handle WAL setup only for real SQLite backends
-      if (backend !== "file-db") {
+      if (dbBackendType !== "file-db") {
         try {
           db.exec("PRAGMA journal_mode = WAL");
           const mode = db.prepare("PRAGMA journal_mode").get() as Record<string, unknown> | undefined;
@@ -139,42 +139,11 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
         ")"
       );
 
-      // Vector search table (sqlite-vec) — only with native SQLite + extensions
-      vecEnabled = false;
-      const dimensions = config.embedding?.dimensions ?? 1024;
-      if (supportsExtensions) {
-        try {
-          const sqliteVec = _require("sqlite-vec") as Record<string, unknown>;
-          if (db.enableLoadExtension) {
-            db.enableLoadExtension(true);
-            (sqliteVec.load as (raw: unknown) => void)(db._raw || db);
-          }
-          vecEnabled = true;
+      // Initialize pluggable vector backend (sqlite-vec default, hnswlib optional)
+      backend = createVectorBackend(db, config, logger);
+      vecEnabled = backend?.isAvailable ?? false;
 
-          db.exec(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
-              `embedding float[${dimensions}]` +
-            ")"
-          );
-
-          db.exec(
-            "CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
-              "id INTEGER PRIMARY KEY, " +
-              "meta_id INTEGER, " +
-              "model TEXT, " +
-              `dimensions INTEGER DEFAULT ${dimensions}, ` +
-              "created_at TEXT DEFAULT (datetime('now'))" +
-            ")"
-          );
-
-          log("sqlite-vec loaded successfully");
-        } catch (e: unknown) {
-          log(`sqlite-vec not available: ${(e as Error).message}`);
-          vecEnabled = false;
-        }
-      }
-
-      log(`DB initialized: ${dbPath} (backend=${backend}, fts5=${supportsFTS5}, vec=${vecEnabled})`);
+      log(`DB initialized: ${dbPath} (dbBackend=${dbBackendType}, fts5=${supportsFTS5}, vec=${vecEnabled}, vecBackend=${backend?.name ?? 'none'})`);
       return true;
     } catch (err: unknown) {
       logger?.error?.(`[yaoyao-memory:db] Init failed: ${(err as Error).message}`);
@@ -327,41 +296,9 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     }
   }
 
-  /** Vector similarity search via sqlite-vec */
+  /** Vector similarity search via pluggable backend (sqlite-vec or hnswlib) */
   function vectorSearch(embedding: Float32Array, limit: number = 10): EmbeddedSearchResult[] {
-    try {
-      const d = ensureDB();
-      const jsonArr = "[" + Array.from(embedding).join(",") + "]";
-
-      const stmt = d.prepare(
-        "SELECT v.rowid, m.date, m.user_text, m.asst_text, v.distance " +
-        "FROM memory_vec v " +
-        "JOIN memory_meta m ON v.rowid = m.id " +
-        "WHERE v.embedding MATCH ? AND k = ?"
-      );
-      const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), searchMaxLimit));
-
-      return (rows as Array<{ rowid: number; date: string; user_text: string; asst_text: string; distance: number }>).map(row => {
-        // vec0 uses L2 distance by default. Convert to cosine similarity:
-        // For unit-normalized vectors: cosine ≈ 1 - (L2^2 / 2)
-        // Using normalized L2-to-similarity mapping:
-        const cosineSim = 1 - (row.distance || 0) / 2;
-        const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
-        return {
-          id: row.rowid,
-          filename: row.date ? `${row.date}.md` : "memory.db",
-          snippet: snippet.slice(0, snippetMaxLen),
-          score: Math.max(0, cosineSim),
-          date: row.date || "",
-          asst_text: (row.asst_text || "").slice(0, snippetMaxLen),
-          vectorScore: Math.max(0, cosineSim),
-          hybridScore: Math.max(0, cosineSim),
-        };
-      });
-    } catch (err: unknown) {
-      log(`vectorSearch error: ${(err as Error).message}`);
-      return [];
-    }
+    return backend?.vectorSearch(embedding, limit) ?? [];
   }
 
   /** Hybrid search: FTS5 + vector weighted combination */
@@ -408,40 +345,9 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       .slice(0, limit);
   }
 
-  /** Store a vector embedding for a memory record. Normalizes to unit length before storage. */
+  /** Store a vector embedding via pluggable backend. */
   function storeVector(metaId: number, embedding: Float32Array): boolean {
-    if (metaId <= 0) return false; // reject orphan vectors
-    try {
-      const d = ensureDB();
-
-      // Normalize to unit length for correct cosine similarity from L2 distance
-      let norm = 0;
-      for (let i = 0; i < embedding.length; i++) {
-        norm += embedding[i] * embedding[i];
-      }
-      norm = Math.sqrt(norm);
-      const normalized = norm === 0
-        ? new Float32Array(embedding.length)  // zero vector for all-zero embeddings
-        : new Float32Array(embedding.map(v => v / norm));
-
-      const jsonArr = "[" + Array.from(normalized).join(",") + "]";
-
-      // Wrap DELETE + INSERT in a transaction
-      d.exec("BEGIN");
-      try {
-        d.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
-        d.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
-        d.exec("COMMIT");
-      } catch (txErr: unknown) {
-        d.exec("ROLLBACK");
-        throw txErr;
-      }
-
-      return true;
-    } catch (err: unknown) {
-      log(`storeVector error: ${(err as Error).message}`);
-      return false;
-    }
+    return backend?.storeVector(metaId, embedding) ?? false;
   }
 
   let pendingRebuild = false;
@@ -468,8 +374,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const deleted = Number(metaResult.changes ?? 0);
       // Defer FTS5 rebuild to batch multiple deletions
       scheduleRebuild();
-      // Clean up orphan vectors
-      try { d.exec("DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)"); } catch { /* best effort */ }
+      // Clean up orphan vectors (backend-specific)
+      try { backend?.deleteOrphans?.(); } catch { /* best effort */ }
       log(`deleteByDate: ${deleted} entries removed for ${date}`);
       return deleted;
     } catch (err: unknown) {
@@ -489,7 +395,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       const deleted = Number(result.changes ?? 0);
       if (deleted > 0) {
         scheduleRebuild();
-        try { d.exec("DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)"); } catch { /* best effort */ }
+        try { backend?.deleteOrphans?.(); } catch { /* best effort */ }
       }
       log(`deleteByKeyword: ${deleted} entries removed for "${keyword}"`);
       return deleted;
@@ -514,13 +420,10 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       let vecCount = 0;
       let dimensions = 0;
       try {
-        const vecRow = d.prepare("SELECT COUNT(*) as c FROM memory_vec").get() as { c: number } | undefined;
-        vecCount = vecRow?.c ?? 0;
-        // Try to read actual dimensions from vec_meta; fallback to config or 0 (unknown)
-        const actualDim = d.prepare("SELECT dimensions FROM memory_vec_meta LIMIT 1").get() as { dimensions: number } | undefined;
-        dimensions = actualDim?.dimensions ?? config.embedding?.dimensions ?? 0;
+        vecCount = backend?.getVectorCount?.() ?? 0;
+        dimensions = backend?.getDimensions?.() ?? config.embedding?.dimensions ?? 0;
       } catch {
-        // vec table may not exist
+        // vec backend may not be initialized
       }
 
       return {
@@ -548,6 +451,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
   /** Close database connection */
   function close(): void {
+    backend?.close();
     if (db) {
       try { db.close(); } catch { /* ignore */ }
       db = null;

@@ -1,0 +1,246 @@
+/**
+ * HnswlibBackend — optional high-performance ANN vector search.
+ *
+ * Requires `hnswlib-node` to be installed manually (C++ addon).
+ * Falls back to sqlite-vec if hnswlib-node is unavailable or crashes.
+ *
+ * Design:
+ *   - HNSW index lives in memory; persisted to disk as `memoryDir/.hnsw/index.bin`
+ *   - Metadata (date, text) stays in SQLite (memory_meta) — JOIN at search time
+ *   - Vectors are normalized by caller (storeVector assumes unit length)
+ *   - Cosine space: distance = 1 - similarity, so similarity = 1 - distance
+ */
+import path from "node:path";
+import fs from "node:fs";
+import type { UnifiedDB } from "../../platform/db/compat.js";
+import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { YaoyaoMemoryConfig } from "../memory-store.js";
+import type { VectorBackend, EmbeddedSearchResult } from "./types.js";
+
+interface HnswlibModule {
+  HierarchicalNSW: new (space: string, dimensions: number) => HnswIndex;
+}
+
+interface HnswIndex {
+  initIndex(opts: { maxElements: number; allowReplaceDeleted?: boolean }): void;
+  addPoint(vector: number[], label: number): void;
+  markDelete(label: number): void;
+  searchKnn(query: number[], k: number): { distances: number[]; neighbors: number[] };
+  writeIndexSync(filepath: string): void;
+  readIndexSync(filepath: string): void;
+  getCurrentCount(): number;
+}
+
+interface HnswMeta {
+  dimensions: number;
+  model?: string;
+  count: number;
+  space: string;
+}
+
+export class HnswlibBackend implements VectorBackend {
+  name = "hnswlib";
+  isAvailable = false;
+
+  private db: UnifiedDB | null = null;
+  private config: YaoyaoMemoryConfig = {};
+  private logger?: PluginLogger;
+  private index: HnswIndex | null = null;
+  private hnswlib: HnswlibModule | null = null;
+  private indexDir = "";
+  private indexPath = "";
+  private metaPath = "";
+  private dimensions = 1024;
+  private snippetMaxLen = 500;
+  private searchMaxLimit = 100;
+  private maxElements = 50000;
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private dirty = false;
+
+  init(db: UnifiedDB, config: YaoyaoMemoryConfig, logger?: PluginLogger): boolean {
+    this.db = db;
+    this.config = config;
+    this.logger = logger;
+    this.dimensions = config.embedding?.dimensions ?? 1024;
+    this.snippetMaxLen = Math.min(Math.max(config.snippetMaxLen ?? 500, 100), 2000);
+    this.searchMaxLimit = Math.min(Math.max(config.searchMaxLimit ?? 100, 10), 1000);
+    this.maxElements = clampNum(config.embedding?.hnswMaxElements, 50000, 1000, 500000);
+
+    // Resolve hnsw index directory
+    const memoryDir = config.memoryDir || path.join(process.env.HOME || ".", ".openclaw", "workspace", "memory");
+    this.indexDir = path.join(memoryDir, ".hnsw");
+    this.indexPath = path.join(this.indexDir, "index.bin");
+    this.metaPath = path.join(this.indexDir, "meta.json");
+
+    try {
+      this.hnswlib = requireHnswlib();
+      if (!this.hnswlib) {
+        logger?.warn?.("[yaoyao-memory:vec] hnswlib-node not installed — install with: npm install hnswlib-node");
+        return false;
+      }
+
+      this.index = new this.hnswlib.HierarchicalNSW("cosine", this.dimensions);
+
+      // Ensure directory exists
+      if (!fs.existsSync(this.indexDir)) {
+        fs.mkdirSync(this.indexDir, { recursive: true, mode: 0o700 });
+      }
+
+      // Try load existing index
+      if (fs.existsSync(this.indexPath) && fs.existsSync(this.metaPath)) {
+        const meta: HnswMeta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
+        if (meta.dimensions === this.dimensions) {
+          this.index.readIndexSync(this.indexPath);
+          this.isAvailable = true;
+          logger?.info?.(`[yaoyao-memory:vec] hnswlib backend loaded: ${meta.count} vectors, dim=${meta.dimensions}`);
+          return true;
+        }
+        logger?.warn?.(`[yaoyao-memory:vec] HNSW dimensions changed (${meta.dimensions} → ${this.dimensions}), rebuilding...`);
+      }
+
+      // Fresh index
+      this.index.initIndex({ maxElements: this.maxElements, allowReplaceDeleted: true });
+      this.isAvailable = true;
+      logger?.info?.(`[yaoyao-memory:vec] hnswlib backend initialized (maxElements=${this.maxElements}, dim=${this.dimensions})`);
+      return true;
+    } catch (e: unknown) {
+      logger?.warn?.(`[yaoyao-memory:vec] hnswlib init failed: ${(e as Error).message}`);
+      this.isAvailable = false;
+      return false;
+    }
+  }
+
+  storeVector(metaId: number, embedding: Float32Array): boolean {
+    if (metaId <= 0 || !this.isAvailable || !this.index) return false;
+    try {
+      // Ensure float array (hnswlib expects number[])
+      const vec = Array.from(embedding);
+      this.index.addPoint(vec, metaId);
+      this.dirty = true;
+      this.scheduleFlush();
+      return true;
+    } catch (err: unknown) {
+      this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${(err as Error).message}`);
+      return false;
+    }
+  }
+
+  vectorSearch(embedding: Float32Array, limit: number = 10): EmbeddedSearchResult[] {
+    if (!this.isAvailable || !this.index || !this.db) return [];
+    try {
+      const k = Math.min(Math.max(limit, 1), this.searchMaxLimit);
+      const vec = Array.from(embedding);
+      const result = this.index.searchKnn(vec, k);
+
+      if (!result.neighbors.length) return [];
+
+      // Build parameterized query for memory_meta JOIN
+      const placeholders = result.neighbors.map(() => "?").join(",");
+      const stmt = this.db.prepare(
+        `SELECT id, date, user_text, asst_text FROM memory_meta WHERE id IN (${placeholders})`
+      );
+      const rows = stmt.all(...result.neighbors) as Array<{ id: number; date: string; user_text: string; asst_text: string }>;
+
+      const rowMap = new Map(rows.map(r => [r.id, r]));
+      const results: EmbeddedSearchResult[] = [];
+
+      for (let i = 0; i < result.neighbors.length; i++) {
+        const id = result.neighbors[i];
+        const distance = result.distances[i];
+        const row = rowMap.get(id);
+        if (!row) continue; // skip deleted / orphan
+
+        const similarity = 1 - distance; // cosine space: distance = 1 - sim
+        const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
+        results.push({
+          id,
+          filename: row.date ? `${row.date}.md` : "memory.db",
+          snippet: snippet.slice(0, this.snippetMaxLen),
+          score: Math.max(0, similarity),
+          date: row.date || "",
+          asst_text: (row.asst_text || "").slice(0, this.snippetMaxLen),
+          vectorScore: Math.max(0, similarity),
+          hybridScore: Math.max(0, similarity),
+        });
+      }
+
+      return results;
+    } catch (err: unknown) {
+      this.logger?.warn?.(`[yaoyao-memory:vec] vectorSearch error: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  close(): void {
+    this.flush(true);
+    this.index = null;
+    this.hnswlib = null;
+    this.isAvailable = false;
+  }
+
+  /** Mark-deleted vectors whose meta_id no longer exists in memory_meta */
+  deleteOrphans(): void {
+    if (!this.isAvailable || !this.index || !this.db) return;
+    try {
+      const rows = this.db.prepare("SELECT id FROM memory_meta").all() as Array<{ id: number }>;
+      const validIds = new Set(rows.map(r => r.id));
+      const count = this.index.getCurrentCount?.() ?? 0;
+      // hnswlib doesn't have a list-all-labels API. Best effort: nothing for now.
+      // Orphans are filtered at search time via rowMap.get(id) check.
+      this.logger?.debug?.("[yaoyao-memory:vec] HNSW deleteOrphans: no-op (filtered at search time)");
+    } catch { /* best effort */ }
+  }
+
+  getVectorCount(): number {
+    return this.index?.getCurrentCount?.() ?? 0;
+  }
+
+  getDimensions(): number {
+    return this.dimensions;
+  }
+
+  // ──────────────────────────── Internal ────────────────────────────
+
+  private scheduleFlush(): void {
+    if (this.flushTimer) clearTimeout(this.flushTimer);
+    this.flushTimer = setTimeout(() => this.flush(), 2000);
+  }
+
+  private flush(sync = false): void {
+    if (!this.dirty || !this.index) return;
+    this.dirty = false;
+    try {
+      this.index.writeIndexSync(this.indexPath);
+      const meta: HnswMeta = {
+        dimensions: this.dimensions,
+        model: this.config.embedding?.model,
+        count: this.index.getCurrentCount?.() ?? 0,
+        space: "cosine",
+      };
+      fs.writeFileSync(this.metaPath, JSON.stringify(meta, null, 2), "utf-8");
+      this.logger?.debug?.("[yaoyao-memory:vec] HNSW index flushed to disk");
+    } catch (err: unknown) {
+      this.logger?.warn?.(`[yaoyao-memory:vec] flush failed: ${(err as Error).message}`);
+    }
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+}
+
+/** Dynamically require hnswlib-node. Returns null if not installed or incompatible. */
+function requireHnswlib(): HnswlibModule | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require("hnswlib-node") as { HierarchicalNSW: new (space: string, dimensions: number) => HnswIndex };
+    if (mod && mod.HierarchicalNSW) return mod;
+  } catch { /* not installed or platform incompatible */ }
+  return null;
+}
+
+function clampNum(val: unknown, def: number, min: number, max: number): number {
+  const n = Number(val);
+  if (!Number.isFinite(n)) return def;
+  return Math.min(Math.max(n, min), max);
+}
