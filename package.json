@@ -34,7 +34,7 @@
     "url": "https://github.com/taobaoaz/yaoyao-plugin/issues"
   },
   "engines": {
-    "node": "^22.0.0"
+    "node": ">=22.0.0"
   },
   "private": false,
   "scripts": {
