@@ -2,11 +2,15 @@
  * Tool index — registers all yaoyao-memory tools.
  * Tool logic lives in src/features/<feature>/tool.ts.
  * Core algorithms are in src/core/<domain>/.
+ *
+ * Optional tools are gated by the FeatureRegistry so enabling/disabling
+ * is declarative and consistent across entry + tools + hooks.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore } from "../utils/memory-store.js";
 import type { DBBridge } from "../utils/db-bridge.js";
 import type { EmbeddingService } from "../utils/embedding.js";
+import type { FeatureRegistry } from "../optional/registry.js";
 
 /* ── Search ─────────────────────────────────────────── */
 import { createSearchTool } from "../features/search/tool.js";
@@ -46,77 +50,79 @@ import { createHealthcheckTool } from "../features/healthcheck/tool.js";
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.ts";
 
-export function registerMemoryTools(api: OpenClawPluginApi, store: MemoryStore, db: DBBridge, embedding?: EmbeddingService | null) {
+export function registerMemoryTools(
+  api: OpenClawPluginApi,
+  store: MemoryStore,
+  db: DBBridge,
+  embedding?: EmbeddingService | null,
+  registry?: FeatureRegistry,
+) {
   const tools: Array<import("./common.js").ToolRegistration> = [];
 
-  /* ── Search ── */
+  /* ── Core tools (always registered) ── */
   tools.push(
     createSearchTool(db),
     createGetTool(store, db),
     createListTool(store),
     createSearchTimelineTool(db),
-  );
-
-  /* ── Management ── */
-  tools.push(
     createSaveTool(store, db),
     createNoteTool(store, db),
     createForgetTool(store, db),
     createTagTool(store, db),
     createBackupTool(store),
     createExportTool(db),
-  );
-
-  /* ── Import ── */
-  tools.push(
     createImportTool(store),
     createImportOCTool(store, db),
     createImportWorkspaceTool(store, db),
-  );
-
-  /* ── Analysis ── */
-  tools.push(
     createStatsTool(store, db),
     createTimelineTool(db),
     createTrendsTool(store),
-  );
-
-  /* ── System ── */
-  tools.push(
     createRecommendTool(db, store.baseDir),
     createRemindTool(),
     createHealthcheckTool(),
   );
 
-  /* ── Best-effort / optional ── */
+  /* ── Optional tools (gated by FeatureRegistry) ── */
 
-  // Graph (knowledge graph) — requires scenes directory
-  try { tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding)); } catch { /* skip */ }
-
-  // Enhanced search — vector rerank + keyword highlight
+  // Enhanced search — requires embedding
   if (embedding) {
     try { tools.push(createEnhancedSearchTool(db, embedding)); } catch { /* skip */ }
   } else {
     try { tools.push(createEnhancedSearchTool(db)); } catch { /* skip */ }
   }
 
-  // Quality, Retain, Trends — best-effort
-  try { tools.push(createQualityTool(store, db)); } catch { /* skip */ }
-  try { tools.push(createRetainTool(store, db)); } catch { /* skip */ }
-
-  // Cloud sync — graceful when no credentials
-  try { tools.push(createCloudSyncTool(store)); } catch (e: unknown) {
-    api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${(e as Error).message}`);
+  // Cloud sync
+  if (registry?.isActive("cloud-sync")) {
+    try { tools.push(createCloudSyncTool(store)); } catch (e: unknown) {
+      api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${(e as Error).message}`);
+    }
   }
 
-  // Unified memory — cross-backend status
+  // Unify (cross-backend status)
   try { tools.push(createUnifyTool(store)); } catch (e: unknown) {
     api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${(e as Error).message}`);
   }
 
-  /* ── Anti-hallucination ── */
-  try { tools.push(createVerifyTool(db)); } catch (e: unknown) {
-    api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${(e as Error).message}`);
+  // Quality analysis
+  if (registry?.isActive("quality") ?? true) {
+    try { tools.push(createQualityTool(store, db)); } catch { /* skip */ }
+  }
+
+  // Retain check
+  if (registry?.isActive("retain") ?? true) {
+    try { tools.push(createRetainTool(store, db)); } catch { /* skip */ }
+  }
+
+  // Knowledge graph — requires scenes directory
+  if (registry?.isActive("graph") ?? true) {
+    try { tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding)); } catch { /* skip */ }
+  }
+
+  // Anti-hallucination verify
+  if (registry?.isActive("verify") ?? true) {
+    try { tools.push(createVerifyTool(db)); } catch (e: unknown) {
+      api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${(e as Error).message}`);
+    }
   }
 
   api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);

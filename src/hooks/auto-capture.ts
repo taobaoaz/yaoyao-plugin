@@ -71,6 +71,7 @@ export function registerCaptureHook(
   store: MemoryStore,
   db: DBBridge,
   config: YaoyaoMemoryConfig,
+  verifyActive = true, // anti-hallucination detection can be disabled via config
 ) {
   api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
 
@@ -133,11 +134,13 @@ export function registerCaptureHook(
       // Isolated try/catch: verify failure must NOT block capture
       let specCheck: ReturnType<typeof detectSpeculative> = { isSpeculative: false, markers: [], confidence: "high" };
       let corrCheck: ReturnType<typeof detectCorrection> = { isCorrection: false, markers: [] };
-      try {
-        specCheck = detectSpeculative(asstContent);
-        corrCheck = detectCorrection(userContent);
-      } catch (verifyErr: unknown) {
-        api.logger.warn?.(`[yaoyao-memory:capture] Verify detection failed, falling back to no-tag capture: ${verifyErr instanceof Error ? verifyErr.message : String(verifyErr)}`);
+      if (verifyActive) {
+        try {
+          specCheck = detectSpeculative(asstContent);
+          corrCheck = detectCorrection(userContent);
+        } catch (verifyErr: unknown) {
+          api.logger.warn?.(`[yaoyao-memory:capture] Verify detection failed, falling back to no-tag capture: ${verifyErr instanceof Error ? verifyErr.message : String(verifyErr)}`);
+        }
       }
 
       // Build hallucination risk tag for the log

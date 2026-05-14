@@ -3,7 +3,7 @@
  *
  * Three steps only:
  *   1. Detect platform capabilities
- *   2. Initialize core (store, db, embedding, llm)
+ *   2. Initialize core (store, db) + optional features via registry
  *   3. Register features (tools, hooks, banner)
  */
 
@@ -12,9 +12,6 @@ import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
 import { runInstallCheck, formatInstallCheck } from "../utils/install-check.js";
 import { createMemoryStore } from "../utils/memory-store.js";
 import { createDB } from "../utils/db-bridge.js";
-import { createLLMClient } from "../utils/llm-client.js";
-import { createEmbeddingService, detectEmbedModel } from "../utils/embedding.js";
-import type { EmbeddingConfig } from "../utils/embedding.js";
 import { registerMemoryTools } from "../tools/index.js";
 import { registerCaptureHook } from "../hooks/auto-capture.js";
 import { registerRecallHook } from "../hooks/auto-recall.js";
@@ -24,6 +21,16 @@ import { showBanner } from "./banner.js";
 import { detectLegacy, cleanupOldSkills } from "./migration.js";
 import { readPluginVersion } from "./version.js";
 import { maskSensitive } from "../utils/mask-config.js";
+
+// ── Optional feature registry ──
+import {
+  createFeatureRegistry,
+  embeddingFeature,
+  llmFeature,
+  cloudSyncFeature,
+  verifyFeature,
+  cleanerFeature,
+} from "../optional/index.js";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
@@ -41,11 +48,36 @@ export default definePluginEntry({
       const config = (api.pluginConfig || {}) as YaoyaoMemoryConfig & Record<string, unknown>;
       const store = createMemoryStore(config, api.logger);
       const db = createDB(config, api.logger);
-
-      // Read version
       const pluginVersion = readPluginVersion();
 
-      // ── 3. Migration & cleanup ──
+      // ── 3. Optional features registry ──
+      const registry = createFeatureRegistry();
+      registry.register(embeddingFeature);
+      registry.register(llmFeature);
+      registry.register(cloudSyncFeature);
+      registry.register(verifyFeature);
+      registry.register(cleanerFeature);
+
+      const features = registry.initAll(api, config);
+
+      const embedding = registry.service<ReturnType<typeof import("../utils/embedding.js").createEmbeddingService>>("embedding");
+      const llmResult = registry.service<import("../utils/llm-client.js").CreateLLMClientResult>("llm");
+      const verifyActive = registry.isActive("verify");
+      const cloudActive = registry.isActive("cloud-sync");
+
+      // Log LLM state
+      if (llmResult?.client) {
+        const sourceLabel = llmResult.source === "explicit" ? "explicit llm config" : "auto-detected from embedding config";
+        api.logger.info?.(`[yaoyao-memory] LLM client initialized (${sourceLabel}): ${llmResult.client.config.model}`);
+        if (llmResult.source === "embedding-auto") {
+          api.logger.info?.(`[yaoyao-memory] LLM pipeline is now active using your embedding API key.`);
+          api.logger.info?.(`[yaoyao-memory] To disable, set llm: { enabled: false } in plugin config.`);
+        }
+      } else {
+        api.logger.info?.("[yaoyao-memory] No LLM available — L1/L2/L3 extraction pipeline disabled (configure embedding or llm API to enable)");
+      }
+
+      // ── 4. Migration & cleanup ──
       const migration = detectLegacy(config, api.baseDir || ".");
       if (migration.hasLegacy) {
         for (const line of migration.bannerLines) {
@@ -53,39 +85,6 @@ export default definePluginEntry({
         }
       }
       cleanupOldSkills(api.logger);
-
-      // ── 4. Embedding & LLM ──
-      const embedCfg = config.embedding as (EmbeddingConfig & Record<string, unknown>) | undefined;
-      let embedding: ReturnType<typeof createEmbeddingService> | null = null;
-      if (embedCfg?.enabled && embedCfg?.apiKey) {
-        const provider = String(embedCfg.provider || "openai").toLowerCase().trim();
-        const customMap = (embedCfg.providerModels || {}) as Record<string, string>;
-        embedding = createEmbeddingService({
-          apiKey: embedCfg.apiKey,
-          baseUrl: embedCfg.baseUrl || "",
-          model: embedCfg.model || detectEmbedModel(provider, customMap),
-          dimensions: embedCfg.dimensions ?? 1024,
-          timeoutMs: Number(embedCfg.timeoutMs) || 15_000,
-          retries: Number(embedCfg.retries) || 1,
-          maxInputChars: Number(embedCfg.maxInputChars) || 4_000,
-          backoffBaseMs: Number(embedCfg.backoffBaseMs) || 1_000,
-        });
-        api.logger.info?.(`[yaoyao-memory] Embedding service initialized: ${embedding.config.model}`);
-        api.logger.debug?.(`[yaoyao-memory] Embedding config (masked): ${JSON.stringify(maskSensitive(embedding.config))}`);
-      }
-
-      const llmResult = createLLMClient(config, embedCfg);
-      if (llmResult.client) {
-        const sourceLabel = llmResult.source === "explicit" ? "explicit llm config" : "auto-detected from embedding config";
-        api.logger.info?.(`[yaoyao-memory] LLM client initialized (${sourceLabel}): ${llmResult.client.config.model}`);
-        if (llmResult.source === "embedding-auto") {
-          api.logger.info?.(`[yaoyao-memory] LLM pipeline is now active using your embedding API key.`);
-          api.logger.info?.(`[yaoyao-memory] To disable, set llm: { enabled: false } in plugin config.`);
-          api.logger.info?.(`[yaoyao-memory] To customize, add explicit llm.apiKey / llm.baseUrl / llm.model in plugin config.`);
-        }
-      } else {
-        api.logger.info?.("[yaoyao-memory] No LLM available — L1/L2/L3 extraction pipeline disabled (configure embedding or llm API to enable)");
-      }
 
       // ── 5. Database init ──
       const initOk = db.init();
@@ -100,7 +99,7 @@ export default definePluginEntry({
       }
 
       // ── 7. Register features ──
-      const toolCount = registerMemoryTools(api, store, db, embedding);
+      const toolCount = registerMemoryTools(api, store, db, embedding, registry);
 
       // Banner
       showBanner(api.logger, {
@@ -113,19 +112,15 @@ export default definePluginEntry({
 
       // Hooks
       if (config.capture?.enabled !== false) {
-        registerCaptureHook(api, store, db, config);
+        registerCaptureHook(api, store, db, config, verifyActive);
       }
       if (config.recall?.enabled !== false) {
         registerRecallHook(api, db, config, embedding);
       }
 
-      if (!llmResult.client) {
-        api.logger.info?.("[yaoyao-memory] L1/L2/L3 pipeline disabled — install yaoyao-soul for LLM-driven extraction");
-      }
-
       // ── 8. Cleanup scheduler ──
       let cleanerTimer: ReturnType<typeof setInterval> | null = null;
-      if (config.cleanup?.enabled !== false) {
+      if (registry.isActive("cleaner")) {
         const cleaner = createMemoryCleaner(store.baseDir, db, {
           l0l1RetentionDays: config.cleanup?.l0l1RetentionDays as number,
           allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup as boolean,
@@ -142,6 +137,7 @@ export default definePluginEntry({
 
       api.on("gateway_stop", async () => {
         db.close();
+        registry.closeAll(api);
         if (cleanerTimer) { clearInterval(cleanerTimer); cleanerTimer = null; }
       });
 

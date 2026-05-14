@@ -246,6 +246,50 @@
         "default": [],
         "description": "排除的 session label 列表，匹配的 session 不会被捕获/召回"
       },
+      "verify": {
+        "type": "object",
+        "description": "防幻觉检测配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否在 auto-capture 中启用推测性/纠正检测标记"
+          }
+        }
+      },
+      "quality": {
+        "type": "object",
+        "description": "记忆质量分析配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否注册 memory_quality 工具"
+          }
+        }
+      },
+      "retain": {
+        "type": "object",
+        "description": "记忆保留检查配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否注册 memory_retain 工具"
+          }
+        }
+      },
+      "graph": {
+        "type": "object",
+        "description": "知识图谱配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否注册 memory_graph 工具（需要 scenes/ 目录存在）"
+          }
+        }
+      },
       "autoSaveImage": {
         "type": "boolean",
         "default": false,

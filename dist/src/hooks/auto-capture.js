@@ -64,7 +64,7 @@ export function safeStringify(obj, maxLen) {
     }
     return walk(obj, 0).slice(0, maxLen);
 }
-export function registerCaptureHook(api, store, db, config) {
+export function registerCaptureHook(api, store, db, config, verifyActive = true) {
     api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
     // Create session filter with configured blockLabels
     const sessionFilter = createSessionFilter({
@@ -120,12 +120,14 @@ export function registerCaptureHook(api, store, db, config) {
             // Isolated try/catch: verify failure must NOT block capture
             let specCheck = { isSpeculative: false, markers: [], confidence: "high" };
             let corrCheck = { isCorrection: false, markers: [] };
-            try {
-                specCheck = detectSpeculative(asstContent);
-                corrCheck = detectCorrection(userContent);
-            }
-            catch (verifyErr) {
-                api.logger.warn?.(`[yaoyao-memory:capture] Verify detection failed, falling back to no-tag capture: ${verifyErr instanceof Error ? verifyErr.message : String(verifyErr)}`);
+            if (verifyActive) {
+                try {
+                    specCheck = detectSpeculative(asstContent);
+                    corrCheck = detectCorrection(userContent);
+                }
+                catch (verifyErr) {
+                    api.logger.warn?.(`[yaoyao-memory:capture] Verify detection failed, falling back to no-tag capture: ${verifyErr instanceof Error ? verifyErr.message : String(verifyErr)}`);
+                }
             }
             // Build hallucination risk tag for the log
             let riskTag = "";

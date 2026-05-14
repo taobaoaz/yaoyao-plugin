@@ -30,25 +30,12 @@ import { createRemindTool } from "../features/remind/tool.js";
 import { createHealthcheckTool } from "../features/healthcheck/tool.js";
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.js";
-export function registerMemoryTools(api, store, db, embedding) {
+export function registerMemoryTools(api, store, db, embedding, registry) {
     const tools = [];
-    /* ── Search ── */
-    tools.push(createSearchTool(db), createGetTool(store, db), createListTool(store), createSearchTimelineTool(db));
-    /* ── Management ── */
-    tools.push(createSaveTool(store, db), createNoteTool(store, db), createForgetTool(store, db), createTagTool(store, db), createBackupTool(store), createExportTool(db));
-    /* ── Import ── */
-    tools.push(createImportTool(store), createImportOCTool(store, db), createImportWorkspaceTool(store, db));
-    /* ── Analysis ── */
-    tools.push(createStatsTool(store, db), createTimelineTool(db), createTrendsTool(store));
-    /* ── System ── */
-    tools.push(createRecommendTool(db, store.baseDir), createRemindTool(), createHealthcheckTool());
-    /* ── Best-effort / optional ── */
-    // Graph (knowledge graph) — requires scenes directory
-    try {
-        tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding));
-    }
-    catch { /* skip */ }
-    // Enhanced search — vector rerank + keyword highlight
+    /* ── Core tools (always registered) ── */
+    tools.push(createSearchTool(db), createGetTool(store, db), createListTool(store), createSearchTimelineTool(db), createSaveTool(store, db), createNoteTool(store, db), createForgetTool(store, db), createTagTool(store, db), createBackupTool(store), createExportTool(db), createImportTool(store), createImportOCTool(store, db), createImportWorkspaceTool(store, db), createStatsTool(store, db), createTimelineTool(db), createTrendsTool(store), createRecommendTool(db, store.baseDir), createRemindTool(), createHealthcheckTool());
+    /* ── Optional tools (gated by FeatureRegistry) ── */
+    // Enhanced search — requires embedding
     if (embedding) {
         try {
             tools.push(createEnhancedSearchTool(db, embedding));
@@ -61,35 +48,51 @@ export function registerMemoryTools(api, store, db, embedding) {
         }
         catch { /* skip */ }
     }
-    // Quality, Retain, Trends — best-effort
-    try {
-        tools.push(createQualityTool(store, db));
+    // Cloud sync
+    if (registry?.isActive("cloud-sync")) {
+        try {
+            tools.push(createCloudSyncTool(store));
+        }
+        catch (e) {
+            api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${e.message}`);
+        }
     }
-    catch { /* skip */ }
-    try {
-        tools.push(createRetainTool(store, db));
-    }
-    catch { /* skip */ }
-    // Cloud sync — graceful when no credentials
-    try {
-        tools.push(createCloudSyncTool(store));
-    }
-    catch (e) {
-        api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${e.message}`);
-    }
-    // Unified memory — cross-backend status
+    // Unify (cross-backend status)
     try {
         tools.push(createUnifyTool(store));
     }
     catch (e) {
         api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${e.message}`);
     }
-    /* ── Anti-hallucination ── */
-    try {
-        tools.push(createVerifyTool(db));
+    // Quality analysis
+    if (registry?.isActive("quality") ?? true) {
+        try {
+            tools.push(createQualityTool(store, db));
+        }
+        catch { /* skip */ }
     }
-    catch (e) {
-        api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${e.message}`);
+    // Retain check
+    if (registry?.isActive("retain") ?? true) {
+        try {
+            tools.push(createRetainTool(store, db));
+        }
+        catch { /* skip */ }
+    }
+    // Knowledge graph — requires scenes directory
+    if (registry?.isActive("graph") ?? true) {
+        try {
+            tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding));
+        }
+        catch { /* skip */ }
+    }
+    // Anti-hallucination verify
+    if (registry?.isActive("verify") ?? true) {
+        try {
+            tools.push(createVerifyTool(db));
+        }
+        catch (e) {
+            api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${e.message}`);
+        }
     }
     api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);
     for (const tool of tools) {
