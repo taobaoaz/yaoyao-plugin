@@ -12,11 +12,12 @@ export const cleanerFeature = {
                 message: "Memory cleaner disabled",
             };
         }
-        // Cleaner needs store.baseDir and db — but we pass them at registration time
-        // The feature just declares availability here.
         return {
             active: true,
-            service: null, // will be created in entry/index.ts with store/db
+            service: {
+                l0l1RetentionDays: config.cleanup?.l0l1RetentionDays,
+                allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup,
+            },
             message: "Memory cleaner available",
         };
     },

@@ -4,10 +4,10 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.js";
 import type { OptionalFeature, FeatureResult } from "../types.js";
-import { createMemoryCleaner } from "../../utils/memory-cleaner.js";
+import { createMemoryCleaner, type CleanerConfig } from "../../utils/memory-cleaner.js";
 import type { DBBridge } from "../../utils/db-bridge.js";
 
-export const cleanerFeature: OptionalFeature<ReturnType<typeof createMemoryCleaner>> = {
+export const cleanerFeature: OptionalFeature<CleanerConfig> = {
   id: "cleaner",
   name: "Memory Cleaner",
   dependencies: [],
@@ -23,11 +23,12 @@ export const cleanerFeature: OptionalFeature<ReturnType<typeof createMemoryClean
       };
     }
 
-    // Cleaner needs store.baseDir and db — but we pass them at registration time
-    // The feature just declares availability here.
     return {
       active: true,
-      service: null, // will be created in entry/index.ts with store/db
+      service: {
+        l0l1RetentionDays: config.cleanup?.l0l1RetentionDays,
+        allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup,
+      } as CleanerConfig,
       message: "Memory cleaner available",
     };
   },

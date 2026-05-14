@@ -19,7 +19,7 @@ import { showBanner } from "./banner.js";
 import { detectLegacy, cleanupOldSkills } from "./migration.js";
 import { readPluginVersion } from "./version.js";
 // ── Optional feature registry ──
-import { createFeatureRegistry, embeddingFeature, llmFeature, cloudSyncFeature, verifyFeature, cleanerFeature, } from "../optional/index.js";
+import { createFeatureRegistry, embeddingFeature, llmFeature, cloudSyncFeature, verifyFeature, cleanerFeature, qualityFeature, retainFeature, graphFeature, } from "../optional/index.js";
 export default definePluginEntry({
     id: "yaoyao-memory",
     name: "Yaoyao Memory",
@@ -43,11 +43,13 @@ export default definePluginEntry({
             registry.register(cloudSyncFeature);
             registry.register(verifyFeature);
             registry.register(cleanerFeature);
-            const features = registry.initAll(api, config);
+            registry.register(qualityFeature);
+            registry.register(retainFeature);
+            registry.register(graphFeature);
+            registry.initAll(api, config);
             const embedding = registry.service("embedding");
             const llmResult = registry.service("llm");
             const verifyActive = registry.isActive("verify");
-            const cloudActive = registry.isActive("cloud-sync");
             // Log LLM state
             if (llmResult?.client) {
                 const sourceLabel = llmResult.source === "explicit" ? "explicit llm config" : "auto-detected from embedding config";
@@ -97,11 +99,9 @@ export default definePluginEntry({
             }
             // ── 8. Cleanup scheduler ──
             let cleanerTimer = null;
-            if (registry.isActive("cleaner")) {
-                const cleaner = createMemoryCleaner(store.baseDir, db, {
-                    l0l1RetentionDays: config.cleanup?.l0l1RetentionDays,
-                    allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup,
-                }, api.logger);
+            const cleanerCfg = registry.service("cleaner");
+            if (cleanerCfg) {
+                const cleaner = createMemoryCleaner(store.baseDir, db, cleanerCfg, api.logger);
                 const warn = cleaner.validateConfig();
                 if (warn) {
                     api.logger.warn?.(`[yaoyao-memory] Cleanup config: ${warn}`);

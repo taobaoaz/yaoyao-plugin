@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 export const graphFeature = {
     id: "graph",
     name: "Knowledge Graph",
@@ -11,7 +12,16 @@ export const graphFeature = {
         if (graphCfg?.enabled === false) {
             return { active: false, service: null, message: "Knowledge graph disabled" };
         }
-        const baseDir = config.memoryDir || path.join(process.env.HOME || ".", ".openclaw", "workspace", "memory");
+        const home = os.homedir();
+        if (!home) {
+            return {
+                active: false,
+                service: null,
+                message: "Knowledge graph inactive (cannot determine home directory)",
+                warning: "Set memoryDir in plugin config to enable knowledge graph",
+            };
+        }
+        const baseDir = config.memoryDir || path.join(home, ".openclaw", "workspace", "memory");
         const scenesDir = path.join(baseDir, "scenes");
         if (!fs.existsSync(scenesDir)) {
             return {

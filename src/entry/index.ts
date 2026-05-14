@@ -20,7 +20,6 @@ import { runHealthcheck, formatHealthcheck } from "../utils/healthcheck.js";
 import { showBanner } from "./banner.js";
 import { detectLegacy, cleanupOldSkills } from "./migration.js";
 import { readPluginVersion } from "./version.js";
-import { maskSensitive } from "../utils/mask-config.js";
 
 // ── Optional feature registry ──
 import {
@@ -30,6 +29,9 @@ import {
   cloudSyncFeature,
   verifyFeature,
   cleanerFeature,
+  qualityFeature,
+  retainFeature,
+  graphFeature,
 } from "../optional/index.js";
 
 export default definePluginEntry({
@@ -57,13 +59,15 @@ export default definePluginEntry({
       registry.register(cloudSyncFeature);
       registry.register(verifyFeature);
       registry.register(cleanerFeature);
+      registry.register(qualityFeature);
+      registry.register(retainFeature);
+      registry.register(graphFeature);
 
-      const features = registry.initAll(api, config);
+      registry.initAll(api, config);
 
       const embedding = registry.service<ReturnType<typeof import("../utils/embedding.js").createEmbeddingService>>("embedding");
       const llmResult = registry.service<import("../utils/llm-client.js").CreateLLMClientResult>("llm");
       const verifyActive = registry.isActive("verify");
-      const cloudActive = registry.isActive("cloud-sync");
 
       // Log LLM state
       if (llmResult?.client) {
@@ -120,11 +124,9 @@ export default definePluginEntry({
 
       // ── 8. Cleanup scheduler ──
       let cleanerTimer: ReturnType<typeof setInterval> | null = null;
-      if (registry.isActive("cleaner")) {
-        const cleaner = createMemoryCleaner(store.baseDir, db, {
-          l0l1RetentionDays: config.cleanup?.l0l1RetentionDays as number,
-          allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup as boolean,
-        }, api.logger);
+      const cleanerCfg = registry.service<{ l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean }>("cleaner");
+      if (cleanerCfg) {
+        const cleaner = createMemoryCleaner(store.baseDir, db, cleanerCfg, api.logger);
         const warn = cleaner.validateConfig();
         if (warn) {
           api.logger.warn?.(`[yaoyao-memory] Cleanup config: ${warn}`);

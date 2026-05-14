@@ -139,8 +139,8 @@ done
 
 # 3.5 embedding 开启/关闭差异
 echo "  → 3.5 embedding 条件分支..."
-grep -q "if (embedCfg?.enabled" "$ENTRY" && pass "embedding 有条件初始化" || fail "embedding 无条件"
-grep -q "createEmbeddingService" "$ENTRY" && pass "可创建 embedding 服务" || fail "embedding 服务缺失"
+grep -qr "embedCfg?.enabled" dist/src/ && pass "embedding 有条件初始化" || fail "embedding 无条件"
+grep -qr "createEmbeddingService" dist/src/ && pass "可创建 embedding 服务" || fail "embedding 服务缺失"
 
 # 3.6 DB 降级路径
 echo "  → 3.6 DB 降级..."
