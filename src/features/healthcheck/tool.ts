@@ -24,7 +24,9 @@ export function createHealthcheckTool(): ToolRegistration {
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const detail = String(params.detail || "simple");
-      const result = runHealthcheck();
+      const rawResult = runHealthcheck();
+      // Defensive clone: prevent accidental mutation of internal result structure
+      const result = JSON.parse(JSON.stringify(rawResult));
 
       if (detail === "full") {
         return { content: [{ type: "text", text: formatHealthcheck(result) }] };

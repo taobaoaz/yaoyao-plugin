@@ -90,7 +90,8 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
           const resultVecs = await embedding.embedBatch(snippets);
 
           const reranked = ftsResults.map((r, i) => {
-            const vecScore = cosineSimilarity(queryVec, resultVecs[i]);
+            const vec = resultVecs[i];
+            const vecScore = vec ? cosineSimilarity(queryVec, vec) : 0;
             const hybridScore = (r.score * 0.6) + (vecScore * 0.4);
             return { ...r, vecScore, hybridScore };
           });

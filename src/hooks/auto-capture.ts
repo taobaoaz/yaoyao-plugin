@@ -127,7 +127,7 @@ export function registerCaptureHook(
 
       // Bug #12: Skip indexing if assistant content is empty or "(no response)"
       const indexableAsst = (!asstContent || asstContent === "(no response)")
-        ? "[空内容]"
+        ? ""
         : asstContent;
 
       // Anti-hallucination: detect speculative AI output and user corrections

@@ -171,7 +171,8 @@ export class FileDB implements UnifiedDB {
         const idx = lines.findIndex(l => l.toLowerCase().includes(q));
         const snippet = idx >= 0 ? lines[idx].slice(0, 200) : "";
         results.push({
-          rowid: filePath,
+          id: results.length + 1,
+          rowid: results.length + 1,
           date: file.replace(".md", ""),
           snippet: snippet,
           rank: -results.length, // pseudo-rank

@@ -597,7 +597,7 @@ class SambaAdapter implements CloudAdapter {
     }
 
     try {
-      execSync(`net use ${driveLetter} ${unc} /user:"${escShellArg(this.username)}" /persistent:no`, {
+      execFileSync("net", ["use", driveLetter, unc, `/user:${this.username}`, "/persistent:no"], {
         encoding: "utf-8",
         timeout: this.mountTimeoutMs,
         env: { ...process.env as Record<string, string>, PASSWD: this.password },

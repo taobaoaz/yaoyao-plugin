@@ -72,21 +72,31 @@ async function doUpload(adapter: CloudAdapter, store: MemoryStore, dryRun: boole
     }
   }
 
-  const memoryMd = path.join(store.baseDir, "..", "MEMORY.md");
+  // 安全边界：MEMORY.md 位于 workspace 根目录（store.baseDir 的父目录）
+  const workspaceDir = path.dirname(store.baseDir);
+  const memoryMd = path.join(workspaceDir, "MEMORY.md");
   if (fs.existsSync(memoryMd)) {
     try {
-      const stat = fs.statSync(memoryMd);
-      if (!sinceMs || stat.mtimeMs > sinceMs) {
-        const rp = remotePath("MEMORY.md");
-        if (dryRun) {
-          result.uploaded.push("MEMORY.md (dry-run)");
-        } else {
-          const ok = await adapter.upload(memoryMd, rp);
-          if (ok) result.uploaded.push("MEMORY.md");
-          else result.errors.push("MEMORY.md");
+      const realMd = fs.realpathSync(memoryMd);
+      const realWorkspace = fs.realpathSync(workspaceDir);
+      if (!realMd.startsWith(realWorkspace + path.sep) && realMd !== realWorkspace) {
+        result.errors.push("MEMORY.md: 路径安全检查失败，跳过上传");
+      } else {
+        const stat = fs.statSync(memoryMd);
+        if (!sinceMs || stat.mtimeMs > sinceMs) {
+          const rp = remotePath("MEMORY.md");
+          if (dryRun) {
+            result.uploaded.push("MEMORY.md (dry-run)");
+          } else {
+            const ok = await adapter.upload(memoryMd, rp);
+            if (ok) result.uploaded.push("MEMORY.md");
+            else result.errors.push("MEMORY.md");
+          }
         }
       }
-    } catch { /* skip */ }
+    } catch (err: unknown) {
+      result.errors.push(`MEMORY.md: ${(err as Error).message}`);
+    }
   }
 
   return result;
@@ -100,7 +110,13 @@ async function doDownload(adapter: CloudAdapter, store: MemoryStore, dryRun: boo
     for (const remote of remoteFiles) {
       try {
         if (remote.name.endsWith(SYNC_MARKER) || remote.name === SYNC_STATE_FILE) continue;
-        const localPath = path.join(store.baseDir, remote.name);
+        // 防御路径遍历：过滤掉包含 .. 或绝对路径的远程文件名
+        const safeRemoteName = path.normalize(remote.name).replace(/^(\.\.(\/|\\|$))+/, "").replace(/^[\/\\]+/, "");
+        if (safeRemoteName !== remote.name || path.isAbsolute(remote.name)) {
+          result.errors.push(`${remote.name}: 非法文件名（路径遍历嫌疑），已跳过`);
+          continue;
+        }
+        const localPath = path.join(store.baseDir, safeRemoteName);
         const exists = fs.existsSync(localPath);
 
         if (exists) {

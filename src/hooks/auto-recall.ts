@@ -153,7 +153,7 @@ function applyTimeDecay(results: SearchResult[], cfg: RecallThresholds): SearchR
 
   return results
     .map((r, i) => {
-      let daysAgo = 365;
+      let daysAgo = 0;
       // Use r.date first (from the search result), fall back to filename parsing
       const dateStr = r.date || r.filename?.replace(".md", "") || "";
       const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);
@@ -467,5 +467,5 @@ function extractKeywords(text: string): string[] {
     "at", "by", "from", "as", "into", "not", "no", "yes",
   ]);
 
-  return words.filter((w) => !stopwords.has(w) && w.length < 30);
+  return words.filter((w) => !stopwords.has(w) && w.length <= 50);
 }

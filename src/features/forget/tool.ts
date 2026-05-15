@@ -36,12 +36,16 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
       if (date) {
         const fp = path.join(store.baseDir, `${date}.md`);
         let msg = "";
-        if (fs.existsSync(fp)) { fs.unlinkSync(fp); msg += `✅ 已删除 ${date}.md 文件。`; }
-        else { msg += `📄 ${date}.md 文件不存在（跳过）。`; }
+        // 先删 DB（可回滚），再删文件，避免文件已删但 DB 失败造成 orphan
         const deleted = db.deleteByDate(date);
-        msg += ` FTS5 索引中删除了 ${deleted} 条记录。`;
+        msg += `FTS5 索引中删除了 ${deleted} 条记录。`;
+        if (fs.existsSync(fp)) { fs.unlinkSync(fp); msg += ` ✅ 已删除 ${date}.md 文件。`; }
+        else { msg += ` 📄 ${date}.md 文件不存在（跳过）。`; }
         return { content: [{ type: "text", text: msg }] };
       }
+
+      // 先删 DB（可回滚），再改文件，避免文件已改但 DB 失败造成数据不一致
+      const ftsDeleted = db.deleteByKeyword(query);
 
       const files = store.listFiles().filter(f => f.type === "daily");
       let fileDeleted = 0;
@@ -75,7 +79,6 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
         }
       }
 
-      const ftsDeleted = db.deleteByKeyword(query);
       return { content: [{ type: "text", text: (fileDeleted > 0 || ftsDeleted > 0)
         ? `✅ 已删除 ${fileDeleted} 条文件记录 + ${ftsDeleted} 条索引记录（包含 "${query}"）。`
         : `没有找到包含 "${query}" 的记忆。` }]

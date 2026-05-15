@@ -2,9 +2,11 @@
  * features/verify/tool.ts — memory_verify tool registration.
  */
 import type { DBBridge } from "../../utils/db-bridge.js";
+import { withErrorHandling } from "../../tools/common.js";
+import type { ToolRegistration } from "../../tools/common.js";
 import { scoreEvidence, detectSpeculative } from "../../core/verify/verify.ts";
 
-export function createVerifyTool(db: DBBridge) {
+export function createVerifyTool(db: DBBridge): ToolRegistration {
   return {
     name: "memory_verify",
     label: "Memory Verify",
@@ -22,7 +24,7 @@ export function createVerifyTool(db: DBBridge) {
       },
       required: ["claim"],
     },
-    execute: async (_id: string, params: Record<string, unknown>) => {
+    execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const claim = String(params.claim ?? "").trim();
       if (!claim) {
         return { content: [{ type: "text", text: "❌ 请提供待验证的说法（claim 参数）。" }] };
@@ -69,6 +71,6 @@ export function createVerifyTool(db: DBBridge) {
       }
 
       return { content: [{ type: "text", text }] };
-    },
+    }),
   };
 }

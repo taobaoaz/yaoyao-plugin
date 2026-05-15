@@ -47,9 +47,11 @@ export interface DBStats {
 // ──────────────────────────── Helpers ────────────────────────────
 
 /** Compute a normalized score from FTS5 rank (negative = better) */
-function computeScore(rank: number): number {
-  if (rank < 0) {
-    return Math.min(1, Math.max(0.1, -rank / 15));
+function computeScore(rank: number | null | undefined): number {
+  const r = Number(rank);
+  if (!Number.isFinite(r)) return 0.3;
+  if (r < 0) {
+    return Math.min(1, Math.max(0.1, -r / 15));
   }
   return 0.3;
 }
@@ -57,7 +59,11 @@ function computeScore(rank: number): number {
 // ──────────────────────────── DB Bridge ────────────────────────────
 
 export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
-  const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+  let baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+  baseDir = path.resolve(baseDir);
+  if (/[\x00-\x1f]/.test(baseDir)) {
+    throw new TypeError("memoryDir contains invalid control characters");
+  }
   const dbPath = path.join(baseDir, ".yaoyao.db");
   let backend: VectorBackend | null = null;
   let vecEnabled = false;
@@ -169,18 +175,25 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   function indexTurn(userText: string, asstText: string, date: string, meta?: string): number {
     try {
       const d = ensureDB();
-      const stmt = d.prepare(
-        "INSERT INTO memory_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)"
-      );
-      const result = stmt.run(date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen), meta || null);
-      const rowId = Number(result.lastInsertRowid);
+      d.exec("BEGIN TRANSACTION");
+      try {
+        const stmt = d.prepare(
+          "INSERT INTO memory_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)"
+        );
+        const result = stmt.run(date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen), meta || null);
+        const rowId = Number(result.lastInsertRowid);
 
-      const stmt2 = d.prepare(
-        "INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)"
-      );
-      stmt2.run(rowId, date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
+        const stmt2 = d.prepare(
+          "INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)"
+        );
+        stmt2.run(rowId, date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
 
-      return rowId;
+        d.exec("COMMIT");
+        return rowId;
+      } catch (err: unknown) {
+        try { d.exec("ROLLBACK"); } catch { /* ignore rollback failure */ }
+        throw err;
+      }
     } catch (err: unknown) {
       log(`indexTurn error: ${(err as Error).message}`);
       return -1;
@@ -189,6 +202,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
   /** Sanitize query string for FTS5 MATCH syntax.
    * Removes characters that can cause FTS5 syntax errors while keeping search terms readable.
+   * Preserves valid prefix wildcards (e.g.  `word*`) for prefix search.
    * 
    * ⚠️ Security note: this is "sanitization for syntax safety", not a security boundary.
    * FTS5 MATCH uses prepared statements (parametric `?` binding), so SQL injection is not possible.
@@ -197,19 +211,22 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   function sanitizeFTSQuery(query: string): string {
     // FTS5 special chars that cause syntax errors if unescaped:
     //   "  - unmatched quote → syntax error
-    //   *  - prefix operator in wrong position → syntax error
     //   ^  - anchor operator → syntax error on partial match
     //   `  - escape char → syntax error
     //   () - grouping → syntax error when unbalanced
     //   ~  - NEAR operator → requires number param, causes error
     // Remove all of them; keep + (AND sign) and - (exclusion) as they're safe standalone.
-    const s = query
-      .replace(/["*^`()~]/g, "")
+    let s = query
+      .replace(/["^`()~]/g, "")
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 200);
     if (!s) return "";
-    return s;
+    // Remove isolated/leading asterisks that break FTS5 syntax,
+    // but preserve valid prefix wildcards like "word*".
+    s = s.replace(/(^|\s)\*+(?=\s|$)/g, "$1")   // leading or isolated *
+         .replace(/\*{2,}/g, "*");                // collapse multiple *
+    return s.trim();
   }
 
   /** FTS5 full-text search + LIKE fallback for Chinese (FTS5 unicode61 tokenizer doesn't segment CJK) */
@@ -451,6 +468,10 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
 
   /** Close database connection */
   function close(): void {
+    if (rebuildTimer) {
+      clearTimeout(rebuildTimer);
+      rebuildTimer = null;
+    }
     backend?.close();
     if (db) {
       try { db.close(); } catch { /* ignore */ }

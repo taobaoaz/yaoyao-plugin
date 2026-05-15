@@ -110,6 +110,7 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
       let skipped = 0;
       let maxId = lastImportedId;
       const now = new Date().toISOString().slice(0, 10);
+      const newHashes: Array<{ key: string; value: string }> = [];
 
       for (const chunk of newChunks) {
         try {
@@ -128,12 +129,27 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
           if (rowId > 0) {
             imported++;
             maxId = Math.max(maxId, chunk.id);
-            db.setConfig(`oc_hash_${hash}`, String(rowId));
+            newHashes.push({ key: `oc_hash_${hash}`, value: String(rowId) });
           } else {
             skipped++;
           }
         } catch {
           skipped++;
+        }
+      }
+
+      // 批量写入去重 hash，减少 WAL 频繁 checkpoint
+      if (newHashes.length > 0) {
+        try {
+          const rawDb = db.getRawDb();
+          rawDb.exec("BEGIN TRANSACTION");
+          const stmt = rawDb.prepare("INSERT OR REPLACE INTO memory_config (key, value) VALUES (?, ?)");
+          for (const h of newHashes) {
+            stmt.run(h.key, h.value);
+          }
+          rawDb.exec("COMMIT");
+        } catch {
+          // 批量写入失败不阻断主流程，下次导入时 hash 检查会重新处理
         }
       }
 

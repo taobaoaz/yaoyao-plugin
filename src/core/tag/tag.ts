@@ -119,11 +119,12 @@ export function addTagsToQuery(db: UnifiedDB, query: string, tags: string[], lim
   if (!Array.isArray(tags)) throw new TypeError("addTagsToQuery: tags must be an array");
 
   const searchSql = query.trim()
-    ? "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta WHERE user_text LIKE ? OR asst_text LIKE ? LIMIT ?"
+    ? "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' LIMIT ?"
     : "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta LIMIT ?";
   const searchStmt = db.prepare(searchSql);
+  const safeQuery = query.trim().replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = query.trim()
-    ? searchStmt.all(`%${query}%`, `%${query}%`, limit)
+    ? searchStmt.all(`%${safeQuery}%`, `%${safeQuery}%`, limit)
     : searchStmt.all(limit);
 
   let matched = 0;
@@ -176,11 +177,12 @@ export function searchByTagWithQuery(db: UnifiedDB, tag: string, query: string, 
   const trimmedQuery = query.trim();
 
   const sql = trimmedQuery
-    ? "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE AND (m.user_text LIKE ? OR m.asst_text LIKE ?) ORDER BY m.date DESC LIMIT ?"
+    ? "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE AND (m.user_text LIKE ? ESCAPE '\\' OR m.asst_text LIKE ? ESCAPE '\\') ORDER BY m.date DESC LIMIT ?"
     : "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE ORDER BY m.date DESC LIMIT ?";
   const stmt = db.prepare(sql);
+  const safeQuery = trimmedQuery.replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = trimmedQuery
-    ? stmt.all(trimmedTag, `%${trimmedQuery}%`, `%${trimmedQuery}%`, limit)
+    ? stmt.all(trimmedTag, `%${safeQuery}%`, `%${safeQuery}%`, limit)
     : stmt.all(trimmedTag, limit);
 
   return rows.map((r: SQLiteRow) => ({

@@ -187,11 +187,21 @@ export class LLMClient {
       });
 
       if (!res.ok) {
-        const text = await res.text().catch(() => "unknown");
+        const text = await Promise.race([
+          res.text(),
+          new Promise<string>((_, reject) =>
+            setTimeout(() => reject(new Error("Response body read timed out")), 15000)
+          ),
+        ]).catch(() => "unknown");
         throw new Error(`LLM API error ${res.status}: ${text.slice(0, 200)}`);
       }
 
-      const data = await res.json() as Record<string, unknown>;
+      const data = await Promise.race([
+        res.json() as Promise<Record<string, unknown>>,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Response body read timed out")), 15000)
+        ),
+      ]);
       const firstChoice = (data.choices as Array<Record<string, unknown>>)?.[0] as Record<string, unknown> | undefined;
       const message = firstChoice?.message as Record<string, unknown> | undefined;
       return {

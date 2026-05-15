@@ -138,16 +138,20 @@ export function runHealthcheck(baseDir?: string): HealthResult {
   }
 
   // 10. Available disk space (rough)
-  try {
-    const stats = fs.statfsSync(memDir);
-    const freeGb = (stats.bavail * stats.bsize) / (1024 ** 3);
-    if (freeGb > 1) {
-      checks.push({ name: "磁盘空间", status: "pass", message: `${freeGb.toFixed(1)} GB 可用 ✅` });
-    } else {
-      checks.push({ name: "磁盘空间", status: "warn", message: `${freeGb.toFixed(1)} GB ⚠️`, detail: "磁盘空间不足。长期运行可能无法写入新记忆。" });
+  if (typeof fs.statfsSync === "function") {
+    try {
+      const stats = fs.statfsSync(memDir);
+      const freeGb = (stats.bavail * stats.bsize) / (1024 ** 3);
+      if (freeGb > 1) {
+        checks.push({ name: "磁盘空间", status: "pass", message: `${freeGb.toFixed(1)} GB 可用 ✅` });
+      } else {
+        checks.push({ name: "磁盘空间", status: "warn", message: `${freeGb.toFixed(1)} GB ⚠️`, detail: "磁盘空间不足。长期运行可能无法写入新记忆。" });
+      }
+    } catch {
+      checks.push({ name: "磁盘空间", status: "warn", message: "无法检测 ⚠️", detail: "无法获取磁盘空间信息。不影响功能，但建议确保有充足空间。" });
     }
-  } catch {
-    checks.push({ name: "磁盘空间", status: "warn", message: "无法检测 ⚠️", detail: "无法获取磁盘空间信息。不影响功能，但建议确保有充足空间。" });
+  } else {
+    checks.push({ name: "磁盘空间", status: "warn", message: "无法检测 ⚠️", detail: "当前 Node.js 版本不支持 statfsSync（需要 Node 22.7.0+）。建议升级 Node 版本。" });
   }
 
   // 11. git availability (for auto-migration)
