@@ -562,11 +562,13 @@ export function registerRecallHook(
         return buildHookResult(buildRecallContext(ensured, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
       }
 
-      // Hybrid search: FTS5 + optional vector
+      // Hybrid search: FTS5 + optional vector (RRF fusion)
       if (embedding) {
         try {
           const vec = await embedding.embed(userMessage, embedding.recallTimeoutMs);
-          const rawResults = db.hybridSearch(ftsQuery, vec, maxResults);
+          const rawResults = db.rrfHybridSearch
+            ? db.rrfHybridSearch(ftsQuery, vec, maxResults * 2, 60).slice(0, maxResults)
+            : db.hybridSearch(ftsQuery, vec, maxResults); // fallback for older db bridges
           // Brain-style scope filtering: enforce multi-agent memory isolation
           const agentId = (api as Record<string, unknown>).agentId as string | undefined;
           const results = filterByScope(rawResults, scopeManager, agentId);

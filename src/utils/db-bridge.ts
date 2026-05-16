@@ -17,6 +17,8 @@ import type { YaoyaoMemoryConfig } from "./memory-store.js";
 import { createVectorBackend } from "./vector/index.js";
 import type { VectorBackend } from "./vector/types.js";
 
+import { reciprocalRankFusion, type RankedDoc } from "./rrf.ts";
+
 // ──────────────────────────── Types ────────────────────────────
 
 export interface SearchResult {
@@ -365,6 +367,55 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       .slice(0, limit);
   }
 
+  /** RRF Hybrid search: Reciprocal Rank Fusion of FTS5 + vector results.
+   *  Replaces simple weighted combination with rank-based fusion (k=60).
+   */
+  function rrfHybridSearch(query: string, embedding: Float32Array | null, limit: number = 10, k = 60): EmbeddedSearchResult[] {
+    const ftsResults = search(query, limit * 2); // overfetch for better fusion
+
+    if (!embedding || ftsResults.length === 0) {
+      return ftsResults.slice(0, limit).map(r => ({
+        ...r,
+        vectorScore: 0,
+        hybridScore: r.score,
+      }));
+    }
+
+    const vecResults = vectorSearch(embedding, limit * 2);
+
+    // Build ranked doc lists for RRF
+    const ftsRanked: RankedDoc[] = ftsResults.map((r, i) => ({
+      id: `${r.date}|${r.snippet}|${r.id || i}`,
+      doc: { ...r, source: "fts" as const },
+      originalScore: r.score,
+    }));
+
+    const vecRanked: RankedDoc[] = vecResults.map((r, i) => ({
+      id: `${r.date}|${r.snippet}|${r.id || i}`,
+      doc: { ...r, source: "vec" as const },
+      originalScore: r.vectorScore,
+    }));
+
+    const fused = reciprocalRankFusion([ftsRanked, vecRanked], k);
+
+    // Map back to EmbeddedSearchResult
+    const results: EmbeddedSearchResult[] = [];
+    for (const f of fused.slice(0, limit)) {
+      const doc = f.doc as Record<string, unknown>;
+      results.push({
+        id: doc.id as number,
+        filename: String(doc.filename || ""),
+        snippet: String(doc.snippet || ""),
+        score: Number(doc.originalScore || 0),
+        date: String(doc.date || ""),
+        vectorScore: f.ranks[1] >= 0 ? Number(doc.originalScore || 0) : 0,
+        hybridScore: f.rrfScore,
+      });
+    }
+
+    return results;
+  }
+
   /** Store a vector embedding via pluggable backend. */
   function storeVector(metaId: number, embedding: Float32Array): boolean {
     return backend?.storeVector(metaId, embedding) ?? false;
@@ -554,7 +605,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     } catch { /* best effort */ }
   }
 
-  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig, incrementAccessCount };
+  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, rrfHybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig, incrementAccessCount };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;

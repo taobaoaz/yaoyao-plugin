@@ -82,22 +82,21 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
         return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
       }
 
-      // Step 2: 向量重排序
+      // Step 2: RRF hybrid search (FTS5 + vector via reciprocal rank fusion)
       if (embedding) {
         try {
           const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
-          const snippets = ftsResults.map(r => r.snippet.slice(0, snippetMaxLen));
-          const resultVecs = await embedding.embedBatch(snippets);
 
-          const reranked = ftsResults.map((r, i) => {
-            const vec = resultVecs[i];
-            const vecScore = vec ? cosineSimilarity(queryVec, vec) : 0;
-            const hybridScore = (r.score * 0.6) + (vecScore * 0.4);
-            return { ...r, vecScore, hybridScore };
-          });
+          // Use RRF-based hybrid search from DB bridge
+          const rrfResults = db.rrfHybridSearch
+            ? db.rrfHybridSearch(query, queryVec, Math.min(limit * 2, ftsOverfetchMax), 60)
+            : db.hybridSearch(query, queryVec, limit); // fallback for older db bridges
 
-          reranked.sort((a, b) => b.hybridScore - a.hybridScore);
-          const top = reranked.slice(0, limit);
+          if (rrfResults.length === 0) {
+            return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
+          }
+
+          const top = rrfResults.slice(0, limit);
 
           if (format === "json") {
             const results = doHighlight
@@ -105,26 +104,26 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
                   filename: r.filename,
                   snippet: highlightKeywords(r.snippet, keywords),
                   score: r.hybridScore,
-                  vecScore: r.vecScore,
+                  vecScore: r.vectorScore,
                   date: r.date,
                 }))
               : top.map(r => ({
                   filename: r.filename,
                   snippet: r.snippet,
                   score: r.hybridScore,
-                  vecScore: r.vecScore,
+                  vecScore: r.vectorScore,
                   date: r.date,
                 }));
-            return { content: [{ type: "text", text: JSON.stringify({ query, results, rerank: true, count: top.length }, null, 2) }] };
+            return { content: [{ type: "text", text: JSON.stringify({ query, results, rerank: "rrf", count: top.length }, null, 2) }] };
           }
 
           const lines = top.map(r => {
             const snippet = doHighlight ? highlightKeywords(r.snippet, keywords) : r.snippet;
             return formatResult(snippet, r.filename, r.hybridScore);
           });
-          return { content: [{ type: "text", text: ["## 搜索结果（向量重排序）", `查询: ${query}`, "", ...lines].join("\n") }] };
+          return { content: [{ type: "text", text: ["## 搜索结果（RRF 混合排序）", `查询: ${query}`, "", ...lines].join("\n") }] };
         } catch (err) {
-          api.logger?.warn?.(`[yaoyao-memory:enhanced-search] Vector rerank failed, falling back to FTS5: ${err instanceof Error ? err.message : String(err)}`);
+          api.logger?.warn?.(`[yaoyao-memory:enhanced-search] RRF hybrid search failed, falling back to FTS5: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
 
