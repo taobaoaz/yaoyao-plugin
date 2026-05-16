@@ -2,7 +2,7 @@
  * LLM Client — lightweight OpenAI-compatible API caller.
  * Accepts raw plugin config and looks for llm/embedding fields.
  */
-import { getObj } from "./config.js";
+import { getObj } from "./config.ts";
 export interface LLMConfig {
   apiKey: string;
   baseUrl: string;

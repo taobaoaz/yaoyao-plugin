@@ -6,16 +6,16 @@
  * Stores both FTS5 index and vector embeddings in a single .yaoyao.db file.
  */
 
-import { getProp } from "./config.js";
-import { clampNum } from "./clamp.js";
+import { getProp } from "./config.ts";
+import { clampNum } from "./clamp.ts";
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import { createCompatDB, type UnifiedDB, type DBCompatResult } from "../platform/db/compat.js";
+import { createCompatDB, type UnifiedDB, type DBCompatResult } from "../platform/db/compat.ts";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "./memory-store.js";
-import { createVectorBackend } from "./vector/index.js";
-import type { VectorBackend } from "./vector/types.js";
+import type { YaoyaoMemoryConfig } from "./memory-store.ts";
+import { createVectorBackend } from "./vector/index.ts";
+import type { VectorBackend } from "./vector/types.ts";
 
 import { reciprocalRankFusion, type RankedDoc } from "./rrf.ts";
 

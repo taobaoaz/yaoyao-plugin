@@ -2,11 +2,11 @@
  * features/note/tool.ts — memory_note tool (modular).
  */
 
-import type { MemoryStore } from "../../utils/memory-store.js";
-import { clampNum } from "../../utils/clamp.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import { clampNum } from "../../utils/clamp.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createNoteTool(store: MemoryStore, db: DBBridge): ToolRegistration {
   return {

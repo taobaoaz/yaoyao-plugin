@@ -7,9 +7,9 @@
  *   3. Nothing → inactive
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.js";
-import type { OptionalFeature, FeatureResult } from "../types.js";
-import { createLLMClient, type CreateLLMClientResult } from "../../utils/llm-client.js";
+import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
+import type { OptionalFeature, FeatureResult } from "../types.ts";
+import { createLLMClient, type CreateLLMClientResult } from "../../utils/llm-client.ts";
 
 export const llmFeature: OptionalFeature<CreateLLMClientResult> = {
   id: "llm",

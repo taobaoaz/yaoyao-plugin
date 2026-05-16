@@ -4,11 +4,11 @@
  * Creates an EmbeddingService when embedding.enabled=true and apiKey is present.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.js";
-import type { OptionalFeature, FeatureResult } from "../types.js";
-import { createEmbeddingService, detectEmbedModel } from "../../utils/embedding.js";
-import type { EmbeddingConfig } from "../../utils/embedding.js";
-import { maskSensitive } from "../../utils/mask-config.js";
+import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
+import type { OptionalFeature, FeatureResult } from "../types.ts";
+import { createEmbeddingService, detectEmbedModel } from "../../utils/embedding.ts";
+import type { EmbeddingConfig } from "../../utils/embedding.ts";
+import { maskSensitive } from "../../utils/mask-config.ts";
 
 export const embeddingFeature: OptionalFeature<ReturnType<typeof createEmbeddingService>> = {
   id: "embedding",

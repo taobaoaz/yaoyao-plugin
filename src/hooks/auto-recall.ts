@@ -13,10 +13,10 @@
  *          Feedback learning moved to yaoyao-soul.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
-import type { DBBridge, SearchResult } from "../utils/db-bridge.js";
-import type { EmbeddingService } from "../utils/embedding.js";
-import { detectSentiment } from "../utils/sentiment.js";
+import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import type { DBBridge, SearchResult } from "../utils/db-bridge.ts";
+import type { EmbeddingService } from "../utils/embedding.ts";
+import { detectSentiment } from "../utils/sentiment.ts";
 import { RetrievalStatsCollector } from "../utils/retrieval-stats.ts";
 import { computeReflectionLogistic, computePresetReflectionScore } from "../utils/reflection-ranking.ts";
 import { parseAccessMetadata, buildUpdatedMetadata, computeEffectiveHalfLife } from "../utils/access-tracker.ts";
@@ -48,9 +48,9 @@ interface RecallThresholds {
   maxChars: number;
 }
 
-import { clampNum } from "../utils/clamp.js";
+import { clampNum } from "../utils/clamp.ts";
 
-import { getBool, getProp } from "../utils/config.js";
+import { getBool, getProp } from "../utils/config.ts";
 
 // ── Config helper: read from flat config keys with range clamping ──
 function cfgVal(config: YaoyaoMemoryConfig, key: string, defaultVal: number, min: number, max: number): number {

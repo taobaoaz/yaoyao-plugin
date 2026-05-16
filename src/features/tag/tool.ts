@@ -6,13 +6,13 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { clampNum } from "../../utils/clamp.js";
-import type { MemoryStore } from "../../utils/memory-store.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import type { UnifiedDB } from "../../platform/db/types.js";
-import { createCompatDB } from "../../platform/db/compat.js";
+import { clampNum } from "../../utils/clamp.ts";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import type { UnifiedDB } from "../../platform/db/types.ts";
+import { createCompatDB } from "../../platform/db/compat.ts";
 import {
   ensureTagTable,
   addTagsToQuery,
@@ -21,7 +21,7 @@ import {
   cleanOrphanTags,
   getPopularTags,
   searchByTagWithQuery,
-} from "../../core/tag/tag.js";
+} from "../../core/tag/tag.ts";
 
 function getDbPath(store: MemoryStore): string {
   return path.join(store.baseDir, ".yaoyao.db");

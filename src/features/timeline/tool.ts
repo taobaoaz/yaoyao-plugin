@@ -2,10 +2,10 @@
  * features/timeline/tool.ts — memory_timeline tool (modular).
  */
 
-import { clampNum } from "../../utils/clamp.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
+import { clampNum } from "../../utils/clamp.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
 
 export function createTimelineTool(db: DBBridge): ToolRegistration {
   return {

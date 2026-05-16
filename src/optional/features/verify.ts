@@ -4,8 +4,8 @@
  * Controls whether auto-capture runs speculative/correction detection.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.js";
-import type { OptionalFeature, FeatureResult } from "../types.js";
+import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
+import type { OptionalFeature, FeatureResult } from "../types.ts";
 
 export const verifyFeature: OptionalFeature<boolean> = {
   id: "verify",

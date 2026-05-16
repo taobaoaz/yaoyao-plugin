@@ -4,12 +4,12 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { clampNum } from "../../utils/clamp.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import type { UnifiedDB } from "../../platform/db/compat.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import { diversifiedSelect, formatRecommendations, type Candidate } from "../../core/recommend/recommend.js";
+import { clampNum } from "../../utils/clamp.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import type { UnifiedDB } from "../../platform/db/compat.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import { diversifiedSelect, formatRecommendations, type Candidate } from "../../core/recommend/recommend.ts";
 
 export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegistration {
   return {

@@ -3,8 +3,8 @@
  * Requires scenes directory to exist.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.js";
-import type { OptionalFeature, FeatureResult } from "../types.js";
+import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
+import type { OptionalFeature, FeatureResult } from "../types.ts";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";

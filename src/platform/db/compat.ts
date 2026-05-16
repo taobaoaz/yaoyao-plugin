@@ -15,12 +15,12 @@
  */
 
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { DBCompatResult, DBBackend } from "./types.js";
-import { createNativeDB, isNativeAvailable } from "./native.js";
-import { createNpmDB, isNpmAvailable } from "./npm.js";
-import { createFileDB } from "./file.js";
+import type { DBCompatResult, DBBackend } from "./types.ts";
+import { createNativeDB, isNativeAvailable } from "./native.ts";
+import { createNpmDB, isNpmAvailable } from "./npm.ts";
+import { createFileDB } from "./file.ts";
 
-export type { UnifiedDB, UnifiedStatement, DBCompatResult, DBBackend } from "./types.js";
+export type { UnifiedDB, UnifiedStatement, DBCompatResult, DBBackend } from "./types.ts";
 
 export function createCompatDB(
   dbPath: string,

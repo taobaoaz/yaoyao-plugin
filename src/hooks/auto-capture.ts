@@ -11,8 +11,8 @@
 import { clampNum } from "../utils/clamp.ts";
 import fs from "node:fs";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
-import type { DBBridge } from "../utils/db-bridge.js";
+import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import type { DBBridge } from "../utils/db-bridge.ts";
 import { getObj, getProp, getBool } from "../utils/config.ts";
 import { appendSelfImprovementEntry } from "../utils/self-improvement.ts";
 import { createSessionFilter } from "../utils/session-filter.ts";

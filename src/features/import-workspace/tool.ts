@@ -2,13 +2,13 @@
  * features/import-workspace/tool.ts — memory_import_workspace tool (modular).
  */
 
-import { withErrorHandling } from "../../tools/common.js";
+import { withErrorHandling } from "../../tools/common.ts";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import type { MemoryStore } from "../../utils/memory-store.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 
 const DEFAULT_WORKSPACE = path.join(os.homedir(), ".openclaw", "workspace");
 

@@ -4,12 +4,12 @@
  * Assembles core search logic + platform DB + sentiment formatting.
  */
 
-import { clampNum } from "../../utils/clamp.js";
-import { detectSentiment } from "../../utils/sentiment.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { searchFTS } from "../../core/search/search.js";
+import { clampNum } from "../../utils/clamp.ts";
+import { detectSentiment } from "../../utils/sentiment.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { searchFTS } from "../../core/search/search.ts";
 
 export function createSearchTool(db: DBBridge): ToolRegistration {
   return {

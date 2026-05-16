@@ -2,10 +2,10 @@
  * features/retain/tool.ts — memory_retain tool (modular).
  */
 
-import type { ToolRegistration } from "../../tools/common.js";
-import type { MemoryStore } from "../../utils/memory-store.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { withErrorHandling } from "../../tools/common.js";
+import type { ToolRegistration } from "../../tools/common.ts";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { withErrorHandling } from "../../tools/common.ts";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -16,7 +16,7 @@ import {
   type BoostRecord,
   type ImportantTag,
   type MemoryItem,
-} from "../../core/retain/retain.js";
+} from "../../core/retain/retain.ts";
 
 function pipelineDir(): string {
   return ".pipeline";

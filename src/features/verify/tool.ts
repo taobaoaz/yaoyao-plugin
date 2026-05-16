@@ -1,9 +1,9 @@
 /**
  * features/verify/tool.ts — memory_verify tool registration.
  */
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 import { scoreEvidence, detectSpeculative } from "../../core/verify/verify.ts";
 
 export function createVerifyTool(db: DBBridge): ToolRegistration {

@@ -2,11 +2,11 @@
  * features/search-timeline/tool.ts — memory_search_timeline tool (modular).
  */
 
-import { clampNum } from "../../utils/clamp.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { detectSentiment } from "../../utils/sentiment.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import { clampNum } from "../../utils/clamp.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { detectSentiment } from "../../utils/sentiment.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createSearchTimelineTool(db: DBBridge): ToolRegistration {
   return {

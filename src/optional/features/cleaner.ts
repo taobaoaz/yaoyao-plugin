@@ -2,10 +2,10 @@
  * Cleaner feature — optional daily memory cleanup.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.js";
-import type { OptionalFeature, FeatureResult } from "../types.js";
-import { createMemoryCleaner, type CleanerConfig } from "../../utils/memory-cleaner.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
+import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
+import type { OptionalFeature, FeatureResult } from "../types.ts";
+import { createMemoryCleaner, type CleanerConfig } from "../../utils/memory-cleaner.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
 
 export const cleanerFeature: OptionalFeature<CleanerConfig> = {
   id: "cleaner",

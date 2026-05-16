@@ -2,10 +2,10 @@
  * features/remind/tool.ts — memory_remind tool (modular).
  */
 
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import { clampNum } from "../../utils/clamp.js";
-import { convertHumanToCron } from "../../core/remind/cron.js";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import { clampNum } from "../../utils/clamp.ts";
+import { convertHumanToCron } from "../../core/remind/cron.ts";
 
 export function createRemindTool(): ToolRegistration {
   return {

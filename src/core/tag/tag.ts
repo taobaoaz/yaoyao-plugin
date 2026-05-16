@@ -2,7 +2,7 @@
  * core/tag/tag.ts — Pure tag logic, zero platform awareness.
  */
 
-import type { UnifiedDB, SQLiteRow } from "../../platform/db/types.js";
+import type { UnifiedDB, SQLiteRow } from "../../platform/db/types.ts";
 
 export interface TagSearchResult {
   memory_id: number;

@@ -2,10 +2,10 @@
  * features/list/tool.ts — memory_list tool (modular).
  */
 
-import type { MemoryStore } from "../../utils/memory-store.js";
-import { clampNum } from "../../utils/clamp.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import { clampNum } from "../../utils/clamp.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createListTool(store: MemoryStore): ToolRegistration {
   return {

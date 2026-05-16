@@ -13,10 +13,10 @@
 import path from "node:path";
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import type { UnifiedDB } from "../../platform/db/compat.js";
+import type { UnifiedDB } from "../../platform/db/compat.ts";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../memory-store.js";
-import type { VectorBackend, EmbeddedSearchResult } from "./types.js";
+import type { YaoyaoMemoryConfig } from "../memory-store.ts";
+import type { VectorBackend, EmbeddedSearchResult } from "./types.ts";
 
 interface HnswlibModule {
   HierarchicalNSW: new (space: string, dimensions: number) => HnswIndex;

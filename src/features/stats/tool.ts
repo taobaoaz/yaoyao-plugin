@@ -2,10 +2,10 @@
  * features/stats/tool.ts — memory_stats tool (modular).
  */
 
-import type { MemoryStore } from "../../utils/memory-store.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 import { globalRetrievalStats } from "../../utils/retrieval-stats.ts";
 import fs from "node:fs";
 import path from "node:path";

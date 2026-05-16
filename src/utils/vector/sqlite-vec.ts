@@ -3,10 +3,10 @@
  * Zero external dependencies beyond the sqlite-vec npm package.
  */
 import { createRequire } from "node:module";
-import type { UnifiedDB } from "../../platform/db/compat.js";
+import type { UnifiedDB } from "../../platform/db/compat.ts";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../memory-store.js";
-import type { VectorBackend, EmbeddedSearchResult } from "./types.js";
+import type { YaoyaoMemoryConfig } from "../memory-store.ts";
+import type { VectorBackend, EmbeddedSearchResult } from "./types.ts";
 
 const _require = createRequire(import.meta.url);
 

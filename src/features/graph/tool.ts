@@ -2,14 +2,14 @@
  * features/graph/tool.ts — memory_graph tool (modular).
  */
 
-import { clampNum } from "../../utils/clamp.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import type { EmbeddingService } from "../../utils/embedding.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import { clampNum } from "../../utils/clamp.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import type { EmbeddingService } from "../../utils/embedding.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 import fs from "node:fs";
 import path from "node:path";
-import { buildGraph, formatGraph, type GraphWeights } from "../../core/graph/graph.js";
+import { buildGraph, formatGraph, type GraphWeights } from "../../core/graph/graph.ts";
 
 function loadScenes(memoryDir: string): Map<string, { name: string; memories: string[] }> {
   const scenes = new Map<string, { name: string; memories: string[] }>();

@@ -2,13 +2,13 @@
  * features/enhanced-search/tool.ts — memory_search_enhanced tool (modular).
  */
 
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { clampNum } from "../../utils/clamp.js";
-import type { EmbeddingService } from "../../utils/embedding.js";
-import { detectSentiment } from "../../utils/sentiment.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import { highlightKeywords, extractKeywords, cosineSimilarity } from "../../core/search/enhanced.js";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { clampNum } from "../../utils/clamp.ts";
+import type { EmbeddingService } from "../../utils/embedding.ts";
+import { detectSentiment } from "../../utils/sentiment.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import { highlightKeywords, extractKeywords, cosineSimilarity } from "../../core/search/enhanced.ts";
 
 function formatResult(snippet: string, filename: string, score: number): string {
   const mood = detectSentiment(snippet);

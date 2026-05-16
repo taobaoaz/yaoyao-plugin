@@ -2,10 +2,10 @@
  * features/trends/tool.ts — memory_trends tool (modular).
  */
 
-import { clampNum } from "../../utils/clamp.js";
-import type { MemoryStore } from "../../utils/memory-store.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import { clampNum } from "../../utils/clamp.ts";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 import path from "node:path";
 import {
   extractTokens,
@@ -13,7 +13,7 @@ import {
   daysAgo,
   computeTrends,
   formatTrendsReport,
-} from "../../core/trends/trends.js";
+} from "../../core/trends/trends.ts";
 
 export function createTrendsTool(store: MemoryStore): ToolRegistration {
   return {

@@ -10,8 +10,8 @@ import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
-import { readVersionRequirements, satisfiesVersion } from "./version-check.js";
-import { getDBCapability } from "../platform/db/compat.js";
+import { readVersionRequirements, satisfiesVersion } from "./version-check.ts";
+import { getDBCapability } from "../platform/db/compat.ts";
 
 export interface CapabilityReport {
   canRun: boolean;      // always true — we never refuse

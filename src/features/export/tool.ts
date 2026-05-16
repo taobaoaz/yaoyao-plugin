@@ -2,11 +2,11 @@
  * features/export/tool.ts — memory_export tool (modular).
  */
 
-import { clampNum } from "../../utils/clamp.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import type { DBBridge } from "../../utils/db-bridge.js";
-import { queryForExport, formatJSONL } from "../../core/export/export.js";
+import { clampNum } from "../../utils/clamp.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import type { DBBridge } from "../../utils/db-bridge.ts";
+import { queryForExport, formatJSONL } from "../../core/export/export.ts";
 
 export function createExportTool(dbBridge: DBBridge): ToolRegistration {
   return {

@@ -5,7 +5,7 @@
  * implements this interface so the registry can manage them uniformly.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
+import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 
 /** Result of initializing a feature */
 export interface FeatureResult<T = unknown> {

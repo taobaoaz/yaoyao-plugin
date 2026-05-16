@@ -7,45 +7,45 @@
  * is declarative and consistent across entry + tools + hooks.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { MemoryStore } from "../utils/memory-store.js";
-import type { DBBridge } from "../utils/db-bridge.js";
-import type { EmbeddingService } from "../utils/embedding.js";
-import type { FeatureRegistry } from "../optional/registry.js";
+import type { MemoryStore } from "../utils/memory-store.ts";
+import type { DBBridge } from "../utils/db-bridge.ts";
+import type { EmbeddingService } from "../utils/embedding.ts";
+import type { FeatureRegistry } from "../optional/registry.ts";
 
 /* ── Search ─────────────────────────────────────────── */
-import { createSearchTool } from "../features/search/tool.js";
-import { createGetTool } from "../features/get/tool.js";
-import { createListTool } from "../features/list/tool.js";
-import { createSearchTimelineTool } from "../features/search-timeline/tool.js";
-import { createEnhancedSearchTool } from "../features/enhanced-search/tool.js";
+import { createSearchTool } from "../features/search/tool.ts";
+import { createGetTool } from "../features/get/tool.ts";
+import { createListTool } from "../features/list/tool.ts";
+import { createSearchTimelineTool } from "../features/search-timeline/tool.ts";
+import { createEnhancedSearchTool } from "../features/enhanced-search/tool.ts";
 
 /* ── Management ────────────────────────────────────── */
-import { createSaveTool } from "../features/save/tool.js";
-import { createNoteTool } from "../features/note/tool.js";
-import { createForgetTool } from "../features/forget/tool.js";
-import { createTagTool } from "../features/tag/tool.js";
-import { createBackupTool } from "../features/backup/tool.js";
-import { createExportTool } from "../features/export/tool.js";
-import { createCloudSyncTool } from "../features/cloud-sync/tool.js";
-import { createUnifyTool } from "../features/unify/tool.js";
+import { createSaveTool } from "../features/save/tool.ts";
+import { createNoteTool } from "../features/note/tool.ts";
+import { createForgetTool } from "../features/forget/tool.ts";
+import { createTagTool } from "../features/tag/tool.ts";
+import { createBackupTool } from "../features/backup/tool.ts";
+import { createExportTool } from "../features/export/tool.ts";
+import { createCloudSyncTool } from "../features/cloud-sync/tool.ts";
+import { createUnifyTool } from "../features/unify/tool.ts";
 
 /* ── Analysis ──────────────────────────────────────── */
-import { createStatsTool } from "../features/stats/tool.js";
-import { createTimelineTool } from "../features/timeline/tool.js";
-import { createTrendsTool } from "../features/trends/tool.js";
-import { createQualityTool } from "../features/quality/tool.js";
-import { createRetainTool } from "../features/retain/tool.js";
-import { createGraphTool } from "../features/graph/tool.js";
+import { createStatsTool } from "../features/stats/tool.ts";
+import { createTimelineTool } from "../features/timeline/tool.ts";
+import { createTrendsTool } from "../features/trends/tool.ts";
+import { createQualityTool } from "../features/quality/tool.ts";
+import { createRetainTool } from "../features/retain/tool.ts";
+import { createGraphTool } from "../features/graph/tool.ts";
 
 /* ── Import ────────────────────────────────────────── */
-import { createImportTool } from "../features/import/tool.js";
-import { createImportOCTool } from "../features/import-oc/tool.js";
-import { createImportWorkspaceTool } from "../features/import-workspace/tool.js";
+import { createImportTool } from "../features/import/tool.ts";
+import { createImportOCTool } from "../features/import-oc/tool.ts";
+import { createImportWorkspaceTool } from "../features/import-workspace/tool.ts";
 
 /* ── System ────────────────────────────────────────── */
-import { createRecommendTool } from "../features/recommend/tool.js";
-import { createRemindTool } from "../features/remind/tool.js";
-import { createHealthcheckTool } from "../features/healthcheck/tool.js";
+import { createRecommendTool } from "../features/recommend/tool.ts";
+import { createRemindTool } from "../features/remind/tool.ts";
+import { createHealthcheckTool } from "../features/healthcheck/tool.ts";
 
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.ts";

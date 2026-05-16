@@ -6,10 +6,10 @@
  * - Optionally archives before deletion
  * - Evicts cold session checkpoints
  */
-import { clampNum } from "./clamp.js";
+import { clampNum } from "./clamp.ts";
 import path from "node:path";
 import fs from "node:fs";
-import type { DBBridge } from "./db-bridge.js";
+import type { DBBridge } from "./db-bridge.ts";
 
 export function parseCleanTime(cleanTime?: string): { hour: number; minute: number } | null {
   if (!cleanTime) return null;

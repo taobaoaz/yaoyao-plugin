@@ -5,8 +5,8 @@
  * and tools/index.ts with a declarative, dependency-aware system.
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
-import type { OptionalFeature, FeatureResult, ResolvedFeatures } from "./types.js";
+import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import type { OptionalFeature, FeatureResult, ResolvedFeatures } from "./types.ts";
 
 export class FeatureRegistry {
   private features = new Map<string, OptionalFeature>();

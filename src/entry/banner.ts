@@ -6,8 +6,8 @@
  */
 
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { CapabilityReport } from "../utils/install-check.js";
-import type { HealthResult } from "../utils/healthcheck.js";
+import type { CapabilityReport } from "../utils/install-check.ts";
+import type { HealthResult } from "../utils/healthcheck.ts";
 
 export interface BannerContext {
   pluginVersion: string;

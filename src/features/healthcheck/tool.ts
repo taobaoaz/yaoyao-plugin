@@ -2,9 +2,9 @@
  * features/healthcheck/tool.ts — memory_healthcheck tool (modular).
  */
 
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import { runHealthcheck, formatHealthcheck } from "../../utils/healthcheck.js";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import { runHealthcheck, formatHealthcheck } from "../../utils/healthcheck.ts";
 
 export function createHealthcheckTool(): ToolRegistration {
   return {

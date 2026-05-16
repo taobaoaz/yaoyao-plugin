@@ -14,7 +14,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import type { UnifiedDB, UnifiedStatement, SQLiteRow } from "./types.js";
+import type { UnifiedDB, UnifiedStatement, SQLiteRow } from "./types.ts";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB cap per file
 

@@ -7,12 +7,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import type { MemoryStore } from "../../utils/memory-store.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import type { UnifiedDB } from "../../platform/db/types.js";
-import { createCompatDB } from "../../platform/db/compat.js";
-import { parseJSONL, batchImport, getTotalCount } from "../../core/import/import.js";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import type { UnifiedDB } from "../../platform/db/types.ts";
+import { createCompatDB } from "../../platform/db/compat.ts";
+import { parseJSONL, batchImport, getTotalCount } from "../../core/import/import.ts";
 
 const _require = createRequire(import.meta.url);
 

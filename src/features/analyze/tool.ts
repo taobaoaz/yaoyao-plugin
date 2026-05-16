@@ -5,8 +5,8 @@
  * This file exists to prevent import errors if the tool registry attempts to load it.
  */
 
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createAnalyzeTool(): ToolRegistration {
   return {

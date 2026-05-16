@@ -5,9 +5,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { getBool, getProp } from "../utils/config.js";
+import { getBool, getProp } from "../utils/config.ts";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
+import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 
 export interface MigrationResult {
   hasLegacy: boolean;

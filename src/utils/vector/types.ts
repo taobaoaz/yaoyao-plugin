@@ -5,9 +5,9 @@
  *
  * All backends share the same contract so db-bridge.ts stays clean.
  */
-import type { UnifiedDB } from "../../platform/db/compat.js";
+import type { UnifiedDB } from "../../platform/db/compat.ts";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../memory-store.js";
+import type { YaoyaoMemoryConfig } from "../memory-store.ts";
 
 export interface EmbeddedSearchResult {
   id: number;

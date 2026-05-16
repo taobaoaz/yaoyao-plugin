@@ -2,19 +2,19 @@
  * features/unify/tool.ts — memory_unify tool (modular).
  */
 
-import { withErrorHandling } from "../../tools/common.js";
+import { withErrorHandling } from "../../tools/common.ts";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { createCompatDB } from "../../platform/db/compat.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import type { MemoryStore } from "../../utils/memory-store.js";
+import { createCompatDB } from "../../platform/db/compat.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import type { MemoryStore } from "../../utils/memory-store.ts";
 
 function getOpenClawMemoryDir() {
   return path.join(os.homedir(), ".openclaw", "memory");
 }
 
-import type { SQLiteRow } from "../../platform/db/types.js";
+import type { SQLiteRow } from "../../platform/db/types.ts";
 
 function queryOpenClawDB(sql: string, params?: unknown[]): SQLiteRow[] | null {
   const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");

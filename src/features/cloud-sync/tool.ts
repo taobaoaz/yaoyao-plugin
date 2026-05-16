@@ -2,15 +2,15 @@
  * features/cloud-sync/tool.ts — memory_cloud_sync tool (modular).
  */
 
-import { clampNum } from "../../utils/clamp.js";
+import { clampNum } from "../../utils/clamp.ts";
 import fs from "node:fs";
 import path from "node:path";
-import type { MemoryStore } from "../../utils/memory-store.js";
-import { createAdapters, createAdapter, type CloudAdapter } from "../../utils/cloud-adapter.js";
-import { loadSecrets, getSecretsPath } from "../../utils/secrets-loader.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
-import { formatSyncResult, formatStatus, type SyncResult, type SyncState } from "../../core/cloud/cloud.js";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import { createAdapters, createAdapter, type CloudAdapter } from "../../utils/cloud-adapter.ts";
+import { loadSecrets, getSecretsPath } from "../../utils/secrets-loader.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
+import { formatSyncResult, formatStatus, type SyncResult, type SyncState } from "../../core/cloud/cloud.ts";
 
 const REMOTE_BASE = "yaoyao-memory";
 const SYNC_STATE_FILE = ".cloud-sync-state.json";

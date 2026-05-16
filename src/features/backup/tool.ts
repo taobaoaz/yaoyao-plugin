@@ -4,11 +4,11 @@
  * Assembles utils/backup logic + MemoryStore + formatting.
  */
 
-import type { MemoryStore } from "../../utils/memory-store.js";
-import { createBackupManager } from "../../utils/backup.js";
-import { clampNum } from "../../utils/clamp.js";
-import { withErrorHandling } from "../../tools/common.js";
-import type { ToolRegistration } from "../../tools/common.js";
+import type { MemoryStore } from "../../utils/memory-store.ts";
+import { createBackupManager } from "../../utils/backup.ts";
+import { clampNum } from "../../utils/clamp.ts";
+import { withErrorHandling } from "../../tools/common.ts";
+import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createBackupTool(store: MemoryStore): ToolRegistration {
   return {

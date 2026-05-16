@@ -8,7 +8,7 @@
  */
 
 import { createRequire } from "node:module";
-import type { UnifiedDB, UnifiedStatement } from "./types.js";
+import type { UnifiedDB, UnifiedStatement } from "./types.ts";
 
 export function createNpmDB(dbPath: string): UnifiedDB | null {
   try {

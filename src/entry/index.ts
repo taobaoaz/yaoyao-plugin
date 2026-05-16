@@ -8,18 +8,18 @@
  */
 
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
-import { runInstallCheck, formatInstallCheck } from "../utils/install-check.js";
-import { createMemoryStore } from "../utils/memory-store.js";
-import { createDB } from "../utils/db-bridge.js";
-import { registerMemoryTools } from "../tools/index.js";
-import { registerCaptureHook } from "../hooks/auto-capture.js";
-import { registerRecallHook } from "../hooks/auto-recall.js";
-import { createMemoryCleaner, getNextCleanTimeMs } from "../utils/memory-cleaner.js";
-import { runHealthcheck, formatHealthcheck } from "../utils/healthcheck.js";
-import { showBanner } from "./banner.js";
-import { detectLegacy, cleanupOldSkills } from "./migration.js";
-import { readPluginVersion } from "./version.js";
+import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import { runInstallCheck, formatInstallCheck } from "../utils/install-check.ts";
+import { createMemoryStore } from "../utils/memory-store.ts";
+import { createDB } from "../utils/db-bridge.ts";
+import { registerMemoryTools } from "../tools/index.ts";
+import { registerCaptureHook } from "../hooks/auto-capture.ts";
+import { registerRecallHook } from "../hooks/auto-recall.ts";
+import { createMemoryCleaner, getNextCleanTimeMs } from "../utils/memory-cleaner.ts";
+import { runHealthcheck, formatHealthcheck } from "../utils/healthcheck.ts";
+import { showBanner } from "./banner.ts";
+import { detectLegacy, cleanupOldSkills } from "./migration.ts";
+import { readPluginVersion } from "./version.ts";
 import { initManifest } from "../utils/manifest.ts";
 import { runTextCompaction } from "../utils/memory-compactor.ts";
 import { SimpleScopeManager, resolveMemoryScope } from "../utils/scope-manager.ts";
@@ -37,7 +37,7 @@ import {
   qualityFeature,
   retainFeature,
   graphFeature,
-} from "../optional/index.js";
+} from "../optional/index.ts";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
