@@ -202,11 +202,13 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
   function pruneBackups(keepCount: number = 10): void {
     try {
       ensureDir(backupDir);
-      let backups: string[];
-      try { backups = fs.readdirSync(backupDir); } catch { backups = []; }
-        .filter(f => f.startsWith("memory-backup-"))
-        .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
-        .sort((a, b) => b.mtime - a.mtime);
+      let backups: { name: string; mtime: number }[];
+      try {
+        backups = fs.readdirSync(backupDir)
+          .filter(f => f.startsWith("memory-backup-"))
+          .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
+          .sort((a, b) => b.mtime - a.mtime);
+      } catch { backups = []; }
       for (const d of backups.slice(keepCount)) {
         fs.rmSync(path.join(backupDir, d.name), { recursive: true, force: true });
         log(`Pruned: ${d.name}`);

@@ -21,6 +21,12 @@ export interface AtomicFact {
   source: "llm" | "heuristic";
 }
 
+/** Logger interface for [l1-debug] diagnostics */
+export interface L1Logger {
+  debug?: (msg: string) => void;
+  info?: (msg: string) => void;
+}
+
 const L1_SYSTEM_PROMPT = `You are a memory extraction engine. Given a conversation turn, extract atomic facts.
 
 Rules:
@@ -39,7 +45,8 @@ Output JSON:
 If nothing extractable, return {"facts": []}.`;
 
 /** Lightweight heuristic extraction (zero-dep fallback) */
-export function extractHeuristic(userText: string, asstText: string): AtomicFact[] {
+export function extractHeuristic(userText: string, asstText: string, logger?: L1Logger): AtomicFact[] {
+  logger?.debug?.("[l1-debug] RESOLVE heuristic mode");
   const facts: AtomicFact[] = [];
   const combined = (userText + " " + asstText).trim();
 
@@ -111,6 +118,12 @@ export function extractHeuristic(userText: string, asstText: string): AtomicFact
     }
   }
 
+  for (const f of facts) {
+    logger?.debug?.(`[l1-debug] ENTRY heuristic ${f.type} conf=${f.confidence} "${f.content.slice(0, 80)}"`);
+  }
+  if (facts.length === 0) {
+    logger?.debug?.("[l1-debug] EMPTY_DUMP heuristic: no patterns matched");
+  }
   return facts;
 }
 
@@ -119,12 +132,22 @@ export async function extractLLM(
   client: LLMClient,
   userText: string,
   asstText: string,
+  logger?: L1Logger,
 ): Promise<AtomicFact[]> {
   const prompt = `User: ${userText.slice(0, 2000)}\n\nAssistant: ${asstText.slice(0, 2000)}`;
+  logger?.debug?.(`[l1-debug] INVOKE llm userChars=${userText.length} asstChars=${asstText.length}`);
   try {
     const raw = await client.extract(L1_SYSTEM_PROMPT, prompt);
-    const parsed = JSON.parse(raw) as { facts?: Array<{ type: string; content: string; confidence: number }> };
-    return (parsed.facts || [])
+    logger?.debug?.(`[l1-debug] RESULT llm rawLen=${raw.length}`);
+    let parsed: { facts?: Array<{ type: string; content: string; confidence: number }> } = { facts: [] };
+    try {
+      parsed = JSON.parse(raw) as typeof parsed;
+    } catch (parseErr) {
+      logger?.debug?.(`[l1-debug] NO_JSON llm raw="${raw.slice(0, 200).replace(/\s+/g, " ")}" err=${(parseErr as Error).message}`);
+      return extractHeuristic(userText, asstText, logger);
+    }
+
+    const facts = (parsed.facts || [])
       .filter(f => f.content && f.content.length > 3)
       .map(f => ({
         type: (["fact", "preference", "task", "identity", "event", "correction"].includes(f.type) ? f.type : "fact") as AtomicFact["type"],
@@ -132,9 +155,18 @@ export async function extractLLM(
         confidence: Math.max(0, Math.min(1, f.confidence || 0.7)),
         source: "llm" as const,
       }));
-  } catch {
+
+    for (const f of facts) {
+      logger?.debug?.(`[l1-debug] ENTRY llm ${f.type} conf=${f.confidence} "${f.content.slice(0, 80)}"`);
+    }
+    if (facts.length === 0) {
+      logger?.debug?.("[l1-debug] EMPTY_DUMP llm: no facts extracted");
+    }
+    return facts;
+  } catch (err) {
+    logger?.debug?.(`[l1-debug] RESULT llm failed: ${(err as Error).message}`);
     // LLM failed → fallback to heuristic
-    return extractHeuristic(userText, asstText);
+    return extractHeuristic(userText, asstText, logger);
   }
 }
 
@@ -142,10 +174,11 @@ export async function extractLLM(
 export async function extractFacts(
   userText: string,
   asstText: string,
-  options: { brainMode?: "lite" | "full"; llmClient?: LLMClient | null },
+  options: { brainMode?: "lite" | "full"; llmClient?: LLMClient | null; logger?: L1Logger },
 ): Promise<AtomicFact[]> {
+  options.logger?.debug?.(`[l1-debug] RESOLVE brainMode=${options.brainMode || "lite"} hasLLM=${!!options.llmClient}`);
   if (options.brainMode === "full" && options.llmClient) {
-    return extractLLM(options.llmClient, userText, asstText);
+    return extractLLM(options.llmClient, userText, asstText, options.logger);
   }
-  return extractHeuristic(userText, asstText);
+  return extractHeuristic(userText, asstText, options.logger);
 }

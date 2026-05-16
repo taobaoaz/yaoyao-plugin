@@ -39,6 +39,7 @@ export const embeddingFeature: OptionalFeature<ReturnType<typeof createEmbedding
       retries: Number(embedCfg.retries) || 1,
       maxInputChars: Number(embedCfg.maxInputChars) || 4_000,
       backoffBaseMs: Number(embedCfg.backoffBaseMs) || 1_000,
+      logger: api.logger,
     });
 
     api.logger.debug?.(

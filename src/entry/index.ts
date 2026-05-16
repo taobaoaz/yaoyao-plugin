@@ -15,11 +15,12 @@ import { createDB } from "../utils/db-bridge.js";
 import { registerMemoryTools } from "../tools/index.js";
 import { registerCaptureHook } from "../hooks/auto-capture.js";
 import { registerRecallHook } from "../hooks/auto-recall.js";
-import { createMemoryCleaner } from "../utils/memory-cleaner.js";
+import { createMemoryCleaner, getNextCleanTimeMs } from "../utils/memory-cleaner.js";
 import { runHealthcheck, formatHealthcheck } from "../utils/healthcheck.js";
 import { showBanner } from "./banner.js";
 import { detectLegacy, cleanupOldSkills } from "./migration.js";
 import { readPluginVersion } from "./version.js";
+import { initManifest } from "../utils/manifest.ts";
 import { runTextCompaction } from "../utils/memory-compactor.ts";
 import { SimpleScopeManager, resolveMemoryScope } from "../utils/scope-manager.ts";
 import { readCrossSessionMemories, resolveSessionSearchDirs } from "../utils/session-recovery.ts";
@@ -55,6 +56,10 @@ export default definePluginEntry({
       const store = createMemoryStore(config, api.logger);
       const db = createDB(config, api.logger);
       const pluginVersion = readPluginVersion();
+
+      // Tencent-style manifest: record store binding and version history
+      const manifest = initManifest(store.baseDir, pluginVersion);
+      api.logger.debug?.(`[yaoyao-memory:manifest] Initialized v${manifest.pluginVersion}, first init: ${manifest.firstInitAt}`);
 
       // ── 3. Optional features registry ──
       const registry = createFeatureRegistry();
@@ -228,8 +233,18 @@ export default definePluginEntry({
           api.logger.warn?.(`[yaoyao-memory] Cleanup config: ${warn}`);
         } else {
           cleaner.cleanup();
-          cleanerTimer = setInterval(() => cleaner.cleanup(), 24 * 60 * 60 * 1000).unref();
-          api.logger.info?.("[yaoyao-memory] Memory cleaner scheduled (daily)");
+          // Tencent-style cleanTime: schedule at specific time (e.g. "03:00")
+          const delayMs = getNextCleanTimeMs(cleanerCfg.cleanTime);
+          if (delayMs > 0) {
+            setTimeout(() => {
+              cleaner.cleanup();
+              cleanerTimer = setInterval(() => cleaner.cleanup(), 24 * 60 * 60 * 1000).unref();
+            }, delayMs).unref();
+            api.logger.info?.(`[yaoyao-memory] Memory cleaner scheduled at ${cleanerCfg.cleanTime} (in ${Math.round(delayMs / 60000)}min)`);
+          } else {
+            cleanerTimer = setInterval(() => cleaner.cleanup(), 24 * 60 * 60 * 1000).unref();
+            api.logger.info?.("[yaoyao-memory] Memory cleaner scheduled (daily interval)");
+          }
         }
       }
 

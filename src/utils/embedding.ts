@@ -13,8 +13,12 @@ export interface EmbeddingConfig {
   baseUrl: string;
   model: string;
   dimensions: number;
-  /** Request timeout in milliseconds (default: 15000) */
+  /** Global request timeout in milliseconds (default: 15000) */
   timeoutMs?: number;
+  /** Timeout for recall-side embedding calls (overrides timeoutMs if set) */
+  recallTimeoutMs?: number;
+  /** Timeout for capture-side embedding calls (overrides timeoutMs if set) */
+  captureTimeoutMs?: number;
   /** Retry count on network/timeout errors (default: 1) */
   retries?: number;
   /** Max input chars per text, truncates beyond this (default: 4000) */
@@ -23,6 +27,8 @@ export interface EmbeddingConfig {
   backoffBaseMs?: number;
   /** Max batch size for embedBatch (default: 100, max 500) */
   batchSize?: number;
+  /** Optional logger for timing metrics */
+  logger?: { info?: (s: string) => void; debug?: (s: string) => void };
 }
 
 /** Provider → default embedding model mapping (overridable via config.providerModels) */
@@ -127,10 +133,11 @@ export function createEmbeddingService(config: EmbeddingConfig) {
    * Generate an embedding vector for the given text.
    * Returns a Float32Array of `dimensions` floats.
    */
-  async function embed(text: string): Promise<Float32Array> {
-    // Handle baseUrl that already contains /v1 prefix (e.g. https://ai.gitee.com/v1)
+  async function embed(text: string, overrideTimeoutMs?: number): Promise<Float32Array> {
+    const t0 = performance.now();
     const path = baseUrl.endsWith("/v1") ? "" : "/v1";
     const url = `${baseUrl}${path}/embeddings`;
+    const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
     try {
       const res = await fetchWithRetry(url, {
         method: "POST",
@@ -142,6 +149,7 @@ export function createEmbeddingService(config: EmbeddingConfig) {
           input: text.slice(0, maxInputChars),
           model: config.model,
         }),
+        timeoutMs: effectiveTimeout,
       });
 
       if (!res.ok) {
@@ -155,8 +163,12 @@ export function createEmbeddingService(config: EmbeddingConfig) {
         throw new Error("Invalid embedding response");
       }
 
+      const elapsed = Math.round(performance.now() - t0);
+      config.logger?.info?.(`[embed] /embeddings ${elapsed}ms (${text.length} chars)`);
       return new Float32Array(embedding);
     } catch (err: unknown) {
+      const elapsed = Math.round(performance.now() - t0);
+      config.logger?.debug?.(`[embed] /embeddings failed after ${elapsed}ms`);
       if (err instanceof Error && err.name === "AbortError") {
         throw new Error("Embedding request timed out");
       }
@@ -168,12 +180,14 @@ export function createEmbeddingService(config: EmbeddingConfig) {
    * Generate embeddings for multiple texts in a batch.
    * Automatically chunks large arrays to avoid OOM / timeout.
    */
-  async function embedBatch(texts: string[]): Promise<Float32Array[]> {
+  async function embedBatch(texts: string[], overrideTimeoutMs?: number): Promise<Float32Array[]> {
     const results: Float32Array[] = [];
     const path = baseUrl.endsWith("/v1") ? "" : "/v1";
     const url = `${baseUrl}${path}/embeddings`;
+    const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
 
     for (let i = 0; i < texts.length; i += batchSize) {
+      const t0 = performance.now();
       const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
       try {
         const res = await fetchWithRetry(url, {
@@ -186,6 +200,7 @@ export function createEmbeddingService(config: EmbeddingConfig) {
             input: chunk,
             model: config.model,
           }),
+          timeoutMs: effectiveTimeout,
         });
 
         if (!res.ok) {
@@ -200,7 +215,11 @@ export function createEmbeddingService(config: EmbeddingConfig) {
         }
 
         results.push(...dataArr.map((d: { embedding: number[] }) => new Float32Array(d.embedding)));
+        const elapsed = Math.round(performance.now() - t0);
+        config.logger?.info?.(`[embedBatch] /embeddings ${elapsed}ms (batch ${i / batchSize + 1}, ${chunk.length} texts)`);
       } catch (err: unknown) {
+        const elapsed = Math.round(performance.now() - t0);
+        config.logger?.debug?.(`[embedBatch] /embeddings failed after ${elapsed}ms (batch ${i / batchSize + 1})`);
         if (err instanceof Error && err.name === "AbortError") {
           throw new Error("Embedding batch request timed out");
         }
@@ -210,7 +229,7 @@ export function createEmbeddingService(config: EmbeddingConfig) {
     return results;
   }
 
-  return { embed, embedBatch, config };
+  return { embed, embedBatch, config, recallTimeoutMs: config.recallTimeoutMs, captureTimeoutMs: config.captureTimeoutMs };
 }
 
 export type EmbeddingService = ReturnType<typeof createEmbeddingService>;

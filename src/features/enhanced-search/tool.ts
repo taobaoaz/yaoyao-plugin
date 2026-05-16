@@ -85,7 +85,7 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
       // Step 2: 向量重排序
       if (embedding) {
         try {
-          const queryVec = await embedding.embed(query);
+          const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
           const snippets = ftsResults.map(r => r.snippet.slice(0, snippetMaxLen));
           const resultVecs = await embedding.embedBatch(snippets);
 

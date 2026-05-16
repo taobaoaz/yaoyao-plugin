@@ -110,7 +110,7 @@ export function createGraphTool(db: DBBridge, _dbPath: string, memoryDir: string
       let queryVec: Float32Array | null = null;
       if (embedding) {
         try {
-          queryVec = await embedding.embed(query);
+          queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
         } catch { /* best effort */ }
       }
 

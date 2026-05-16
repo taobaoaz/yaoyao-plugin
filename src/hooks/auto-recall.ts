@@ -73,6 +73,7 @@ function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
     excludeRecentMS: clampNum(config.recall?.excludeRecentMS, 0, 0, 60000),
     minResults: clampNum(config.recall?.minResults, 0, 0, 20),
     maxChars: clampNum(config.recall?.maxChars, 0, 0, 8000),
+    scoreThreshold: clampNum(config.recall?.scoreThreshold, 0, 0, 1),
   };
 }
 
@@ -418,8 +419,7 @@ function filterByScope(
 const CONTROL_PROMPT_SKIP_PATTERNS = [
   /A new session was started via \/new or \/reset/i,
   /Execute your Session Startup sequence now/i,
-  /(^|
-)\s*\/note\b/i,
+  /(^|\n)\s*\/note\b/i,
 ];
 
 const SKIP_PATTERNS = [
@@ -444,9 +444,7 @@ const FORCE_RETRIEVE_PATTERNS = [
 
 function normalizeQuery(query: string): string {
   let s = query.trim();
-  const metadataPattern = /^(Conversation info|Sender) \(untrusted metadata\):[\s\S]*?
-\s*
-/gim;
+  const metadataPattern = /^(Conversation info|Sender) \(untrusted metadata\):[\s\S]*?\s*$/gim;
   s = s.replace(metadataPattern, '');
   s = s.trim().replace(/^\[cron:[^\]]+\]\s*/i, '');
   s = s.trim().replace(/^\[[A-Za-z]{3}\s\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}\s[^\]]+\]\s*/, '');
@@ -567,7 +565,7 @@ export function registerRecallHook(
       // Hybrid search: FTS5 + optional vector
       if (embedding) {
         try {
-          const vec = await embedding.embed(userMessage);
+          const vec = await embedding.embed(userMessage, embedding.recallTimeoutMs);
           const rawResults = db.hybridSearch(ftsQuery, vec, maxResults);
           // Brain-style scope filtering: enforce multi-agent memory isolation
           const agentId = (api as Record<string, unknown>).agentId as string | undefined;
@@ -611,7 +609,18 @@ export function registerRecallHook(
         if (results.length < rawResults.length) {
           api.logger.debug?.(`[yaoyao-memory:recall] Scope filter excluded ${rawResults.length - results.length} memories`);
         }
+        // Apply score threshold filtering (Tencent-style)
+      if (cfg.scoreThreshold > 0) {
+        const before = results.length;
+        results = results.filter(r => (r.score ?? 0) >= cfg.scoreThreshold);
+        api.logger.debug?.(`[yaoyao-memory:recall] Score threshold ${cfg.scoreThreshold}: ${before} → ${results.length} results`);
         if (results.length === 0) {
+          api.logger.debug?.("[yaoyao-memory:recall] All results below score threshold, skipping injection");
+          return;
+        }
+      }
+
+      if (results.length === 0) {
           api.logger.debug?.("[yaoyao-memory:recall] No relevant memories found");
           return;
         }

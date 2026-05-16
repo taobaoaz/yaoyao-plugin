@@ -11,6 +11,29 @@ import path from "node:path";
 import fs from "node:fs";
 import type { DBBridge } from "./db-bridge.js";
 
+export function parseCleanTime(cleanTime?: string): { hour: number; minute: number } | null {
+  if (!cleanTime) return null;
+  const m = cleanTime.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hour = parseInt(m[1], 10);
+  const minute = parseInt(m[2], 10);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return { hour, minute };
+}
+
+/** Compute milliseconds until next clean time */
+export function getNextCleanTimeMs(cleanTime?: string): number {
+  const parsed = parseCleanTime(cleanTime);
+  if (!parsed) return 0;
+
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parsed.hour, parsed.minute, 0, 0);
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 1);
+  }
+  return target.getTime() - now.getTime();
+}
+
 export interface CleanerConfig {
   /** Retain daily logs for this many days (default: 30, 0 = never clean) */
   l0l1RetentionDays?: number;
@@ -18,6 +41,8 @@ export interface CleanerConfig {
   allowAggressiveCleanup?: boolean;
   /** Number of backups to keep (default: 10) */
   maxBackups?: number;
+  /** Daily cleanup time in HH:MM format (default: empty = interval-based) */
+  cleanTime?: string;
 }
 
 type Logger = { info?: (s: string) => void; error?: (s: string) => void };

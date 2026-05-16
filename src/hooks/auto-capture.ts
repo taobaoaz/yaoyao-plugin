@@ -25,8 +25,11 @@ import { enrichMetadata } from "../utils/memory-upgrader.ts";
 import { smartChunk } from "../utils/chunker.ts";
 import { isDuplicateOfRecent } from "../utils/batch-dedup.ts";
 import { isExcludedAgent } from "../utils/glob-match.ts";
-import { extractFacts } from "../utils/l1-extractor.ts";
+import { extractFacts, type L1Logger } from "../utils/l1-extractor.ts";
 import { maybeOffload } from "../utils/mermaid-canvas.ts";
+import { isMMDBlock } from "../utils/mmd-filter.ts";
+import { recordSessionActivity, isSessionActive, pruneStaleSessions } from "../utils/session-activity.ts";
+import { computeCompressLevel, estimateContextSize } from "../utils/context-watermark.ts";
 
 /** Safely extract text content from a message, handling string/array/object formats */
 export function extractContent(msg: unknown, maxLen?: number): string {
@@ -150,6 +153,19 @@ export function registerCaptureHook(
         }
       }
 
+      // Tencent-style: track session activity for active-window decisions
+      const activeWindowHours = clampNum(getProp(config, "capture.sessionActiveWindowHours", 24), 24, 1, 168);
+      const sessionActivity = recordSessionActivity(sessionKey);
+      const wasActive = isSessionActive(sessionKey, activeWindowHours);
+      if (!wasActive && sessionActivity.turnCount > 1) {
+        api.logger.debug?.(`[yaoyao-memory:capture] Session ${sessionKey} resumed after ${Math.round((Date.now() - sessionActivity.lastActiveMs) / 3600000)}h idle`);
+      }
+      // Prune old sessions periodically (every 50 turns)
+      if (sessionActivity.turnCount % 50 === 0) {
+        const pruned = pruneStaleSessions(activeWindowHours);
+        if (pruned > 0) api.logger.debug?.(`[yaoyao-memory:capture] Pruned ${pruned} stale sessions`);
+      }
+
       const lastUserMsg = [...messages].reverse().find((m: Record<string, unknown>) => (m as Record<string, unknown>).role === "user");
       const lastAsstMsg = [...messages].reverse().find((m: Record<string, unknown>) => (m as Record<string, unknown>).role === "assistant");
 
@@ -211,9 +227,46 @@ export function registerCaptureHook(
         }
       }
 
+      // Tencent-style three-level context watermark monitoring
+      const mildRatio = clampNum(getProp(config, "capture.mildOffloadRatio", 0.6), 0.6, 0.3, 0.7);
+      const aggressiveRatio = clampNum(getProp(config, "capture.aggressiveCompressRatio", 0.8), 0.8, 0.5, 0.95);
+      const emergencyRatio = clampNum(getProp(config, "capture.emergencyCompressRatio", 0.95), 0.95, 0.8, 0.99);
+      const windowTokens = clampNum(getProp(config, "capture.contextWindowTokens", 128_000), 128_000, 32_000, 256_000);
+      const currentTokens = estimateContextSize(messages);
+      const { level, ratio } = computeCompressLevel(currentTokens, {
+        contextWindowTokens: windowTokens,
+        mildOffloadRatio: mildRatio,
+        aggressiveCompressRatio: aggressiveRatio,
+        emergencyCompressRatio: emergencyRatio,
+      });
+      if (level !== "none") {
+        api.logger.info?.(`[yaoyao-memory:capture] Context watermark ${level} (${(ratio * 100).toFixed(1)}%, ${currentTokens}/${windowTokens} tokens)`);
+      }
+
+      // Watermark-driven compression actions
+      let skipL1 = false;
+      let skipFTS5 = false;
+      if (level === "emergency") {
+        // Emergency: only keep L0 log, skip all indexing and extraction to save tokens
+        skipL1 = true;
+        skipFTS5 = true;
+        api.logger.warn?.("[yaoyao-memory:capture] Emergency watermark — skipping FTS5/L1 to save tokens");
+      } else if (level === "aggressive") {
+        // Aggressive: skip L1 extraction, keep FTS5
+        skipL1 = true;
+        api.logger.info?.("[yaoyao-memory:capture] Aggressive watermark — skipping L1 extraction");
+      }
+      // Mild: normal capture, but offload below will be triggered
+
       // Brain-style noise filter: skip greetings, refusals, meta-questions
       if (isNoise(userContent) && isNoise(asstContent)) {
         api.logger.debug?.("[yaoyao-memory:capture] Skipped noise turn");
+        return;
+      }
+
+      // Tencent-style MMD block filter: exclude Mermaid Canvas / offload injected content
+      if (isMMDBlock(userContent) || isMMDBlock(asstContent)) {
+        api.logger.debug?.("[yaoyao-memory:capture] Skipped MMD block (offload intermediate)");
         return;
       }
 
@@ -282,14 +335,23 @@ export function registerCaptureHook(
 
       // Brain-style L1 extraction: atomic facts (lite = heuristic, full = LLM)
       const enableL1 = getBool(config, "capture.enableL1", false);
-      if (enableL1) {
+      if (enableL1 && !skipL1) {
         try {
-          const facts = await extractFacts(userContent, asstContent, { brainMode, llmClient });
+          const facts = await extractFacts(userContent, asstContent, { brainMode, llmClient, logger: api.logger as L1Logger });
           if (facts.length > 0) {
-            metaObj.l1Facts = facts;
-            api.logger.debug?.(`[yaoyao-memory:capture] L1 extracted ${facts.length} facts`);
+            // Tencent-style: limit max memories per session
+            const maxMemories = clampNum(getProp(config, "capture.maxMemoriesPerSession", 20), 20, 1, 100);
+            const limited = facts.slice(0, maxMemories);
+            metaObj.l1Facts = limited;
+            if (facts.length > maxMemories) {
+              api.logger.debug?.(`[yaoyao-memory:capture] L1 truncated ${facts.length} → ${maxMemories} facts (maxMemoriesPerSession)`);
+            } else {
+              api.logger.debug?.(`[yaoyao-memory:capture] L1 extracted ${facts.length} facts`);
+            }
           }
         } catch { /* best effort */ }
+      } else if (skipL1) {
+        api.logger.debug?.("[yaoyao-memory:capture] L1 extraction skipped (watermark compression)");
       }
 
       const meta = Object.keys(metaObj).length > 1 ? JSON.stringify(metaObj) : undefined;
@@ -316,20 +378,24 @@ export function registerCaptureHook(
 
       // Brain-style chunking: split long assistant replies for better retrieval precision
       const CHUNK_THRESHOLD = 4000;
-      if (indexableAsst.length > CHUNK_THRESHOLD) {
-        const chunkResult = smartChunk(indexableAsst, CHUNK_THRESHOLD);
-        api.logger.debug?.(`[yaoyao-memory:capture] Chunked long reply into ${chunkResult.chunkCount} pieces`);
-        for (let i = 0; i < chunkResult.chunks.length; i++) {
-          const chunkMeta = { ...metaObj, chunkIndex: i + 1, totalChunks: chunkResult.chunkCount };
-          const chunkMetaStr = Object.keys(chunkMeta).length > 1 ? JSON.stringify(chunkMeta) : undefined;
-          try {
-            db.indexTurn(userContent, chunkResult.chunks[i], date, chunkMetaStr);
-          } catch (chunkErr: unknown) {
-            api.logger.error(`[yaoyao-memory:capture] Chunk ${i + 1}/${chunkResult.chunkCount} index failed: ${chunkErr instanceof Error ? chunkErr.message : String(chunkErr)}`);
+      if (!skipFTS5) {
+        if (indexableAsst.length > CHUNK_THRESHOLD) {
+          const chunkResult = smartChunk(indexableAsst, CHUNK_THRESHOLD);
+          api.logger.debug?.(`[yaoyao-memory:capture] Chunked long reply into ${chunkResult.chunkCount} pieces`);
+          for (let i = 0; i < chunkResult.chunks.length; i++) {
+            const chunkMeta = { ...metaObj, chunkIndex: i + 1, totalChunks: chunkResult.chunkCount };
+            const chunkMetaStr = Object.keys(chunkMeta).length > 1 ? JSON.stringify(chunkMeta) : undefined;
+            try {
+              db.indexTurn(userContent, chunkResult.chunks[i], date, chunkMetaStr);
+            } catch (chunkErr: unknown) {
+              api.logger.error(`[yaoyao-memory:capture] Chunk ${i + 1}/${chunkResult.chunkCount} index failed: ${chunkErr instanceof Error ? chunkErr.message : String(chunkErr)}`);
+            }
           }
+        } else {
+          db.indexTurn(userContent, indexableAsst, date, meta);
         }
       } else {
-        db.indexTurn(userContent, indexableAsst, date, meta);
+        api.logger.warn?.("[yaoyao-memory:capture] FTS5 indexing skipped (emergency watermark)");
       }
 
       // NOTE: Implicit observation tagging removed in v1.5.0.
