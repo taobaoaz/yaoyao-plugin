@@ -20,6 +20,10 @@ import { runHealthcheck, formatHealthcheck } from "../utils/healthcheck.js";
 import { showBanner } from "./banner.js";
 import { detectLegacy, cleanupOldSkills } from "./migration.js";
 import { readPluginVersion } from "./version.js";
+import { runTextCompaction } from "../utils/memory-compactor.ts";
+import { SimpleScopeManager, resolveMemoryScope } from "../utils/scope-manager.ts";
+import { readCrossSessionMemories, resolveSessionSearchDirs } from "../utils/session-recovery.ts";
+import { evaluateAllTiers, DEFAULT_TIER_CONFIG, type TierableMemory } from "../utils/tier-manager.ts";
 
 // ── Optional feature registry ──
 import {
@@ -81,7 +85,36 @@ export default definePluginEntry({
         api.logger.info?.("[yaoyao-memory] No LLM available — L1/L2/L3 extraction pipeline disabled (configure embedding or llm API to enable)");
       }
 
-      // ── 4. Migration & cleanup ──
+      // ── 5. Scope Manager (Brain-style multi-agent isolation) ──
+      const scopeManager = new SimpleScopeManager();
+      const agentId = (api as Record<string, unknown>).agentId as string | undefined;
+      if (agentId) {
+        scopeManager.grantAccess(agentId, ["global", `agent:${agentId}`]);
+      }
+
+      // ── 5.5 Session Recovery (Brain-style cross-session context) ──
+      try {
+        const searchDirs = resolveSessionSearchDirs({
+          context: (api as Record<string, unknown>).context || {},
+          cfg: api.pluginConfig || {},
+          workspaceDir: api.baseDir || ".",
+          currentSessionFile: (api as Record<string, unknown>).sessionFile as string | undefined,
+          sourceAgentId: agentId,
+        });
+        const crossSessionMemories = readCrossSessionMemories(searchDirs, {
+          maxMemories: (config.sessionRecovery?.maxMemories as number) ?? 10,
+          maxAgeMs: (config.sessionRecovery?.maxAgeMs as number) ?? 7 * 24 * 60 * 60 * 1000,
+        });
+        if (crossSessionMemories.length > 0) {
+          api.logger.info?.(`[yaoyao-memory:recovery] Loaded ${crossSessionMemories.length} cross-session memories from ${searchDirs.length} dirs`);
+          // Store cross-session context as ephemeral system context
+          (api as Record<string, unknown>)._crossSessionContext = crossSessionMemories;
+        }
+      } catch (recoveryErr) {
+        api.logger.debug?.(`[yaoyao-memory:recovery] Cross-session recovery skipped: ${recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr)}`);
+      }
+
+      // ── 6. Migration & cleanup ──
       const migration = detectLegacy(config, api.baseDir || ".");
       if (migration.hasLegacy) {
         for (const line of migration.bannerLines) {
@@ -90,19 +123,82 @@ export default definePluginEntry({
       }
       cleanupOldSkills(api.logger);
 
-      // ── 5. Database init ──
+      // ── 7. Database init ──
       const initOk = db.init();
       if (!initOk) {
         api.logger.error?.("[yaoyao-memory] DB init failed, operating without persistent index");
       }
 
-      // ── 6. Healthcheck ──
+      // ── 8. Memory compactor (Brain-style progressive summarization) ──
+      try {
+        const allEntries = db.getAllMeta ? db.getAllMeta() : [];
+        const compactorConfig = {
+          enabled: (config.compaction?.enabled as boolean) ?? true,
+          minAgeDays: (config.compaction?.minAgeDays as number) ?? 7,
+          similarityThreshold: (config.compaction?.similarityThreshold as number) ?? 0.5,
+          minClusterSize: (config.compaction?.minClusterSize as number) ?? 2,
+          maxEntriesToScan: (config.compaction?.maxEntriesToScan as number) ?? 200,
+          dryRun: (config.compaction?.dryRun as boolean) ?? false,
+        };
+        const compactionResult = runTextCompaction(allEntries.map(e => ({
+          id: String(e.id),
+          text: e.filename,
+          category: "general",
+          importance: 0.5,
+          timestamp: Date.now(),
+          scope: "global",
+        })), compactorConfig);
+        if (compactionResult.clustersFound > 0) {
+          api.logger.info?.(`[yaoyao-memory:compactor] Scanned ${compactionResult.scanned} entries, found ${compactionResult.clustersFound} clusters`);
+          if (!compactionResult.dryRun) {
+            api.logger.info?.(`[yaoyao-memory:compactor] Would merge ${compactionResult.entriesDeleted} → ${compactionResult.entriesCreated} entries`);
+          }
+        }
+      } catch (compactorErr) {
+        api.logger.debug?.(`[yaoyao-memory:compactor] Startup compaction skipped: ${compactorErr instanceof Error ? compactorErr.message : String(compactorErr)}`);
+      }
+
+      // ── 8.5 Tier Manager (Brain-style memory promotion/demotion) ──
+      try {
+        const rawDb = db.getRawDb ? db.getRawDb() : null;
+        if (rawDb) {
+          const rows = rawDb.prepare(
+            "SELECT id, metadata, access_count, created_at FROM memory_meta WHERE metadata IS NOT NULL"
+          ).all() as Array<{ id: number; metadata: string | null; access_count: number | null; created_at: number | null }>;
+          const tierable: TierableMemory[] = rows.map(r => {
+            let tier = "working" as import("../utils/tier-manager.ts").MemoryTier;
+            let importance = 0.5;
+            let accessCount = r.access_count ?? 0;
+            let createdAt = r.created_at ?? Date.now();
+            let decayScore = 0.5;
+            try {
+              const meta = JSON.parse(r.metadata || "{}") as Record<string, unknown>;
+              tier = (meta.tier as MemoryTier) || "working";
+              importance = typeof meta.importance === "number" ? meta.importance : 0.5;
+              accessCount = typeof meta.accessCount === "number" ? meta.accessCount : (r.access_count ?? 0);
+              decayScore = typeof meta.decayScore === "number" ? meta.decayScore : 0.5;
+            } catch { /* ignore */ }
+            return { id: String(r.id), tier, importance, accessCount, createdAt, decayScore };
+          });
+          const transitions = evaluateAllTiers(tierable, DEFAULT_TIER_CONFIG);
+          if (transitions.length > 0) {
+            api.logger.info?.(`[yaoyao-memory:tier] Evaluated ${tierable.length} memories, ${transitions.length} tier transitions pending`);
+            for (const t of transitions.slice(0, 5)) {
+              api.logger.debug?.(`[yaoyao-memory:tier] ${t.memoryId}: ${t.fromTier} → ${t.toTier} (${t.reason})`);
+            }
+          }
+        }
+      } catch (tierErr) {
+        api.logger.debug?.(`[yaoyao-memory:tier] Startup tier evaluation skipped: ${tierErr instanceof Error ? tierErr.message : String(tierErr)}`);
+      }
+
+      // ── 9. Healthcheck ──
       const health = runHealthcheck(store.baseDir);
       for (const line of formatHealthcheck(health).split("\n")) {
         api.logger.info?.(`[yaoyao-memory:health] ${line}`);
       }
 
-      // ── 7. Register features ──
+      // ── 10. Register features ──
       const toolCount = registerMemoryTools(api, store, db, embedding, registry);
 
       // Banner
@@ -116,13 +212,13 @@ export default definePluginEntry({
 
       // Hooks
       if (config.capture?.enabled !== false) {
-        registerCaptureHook(api, store, db, config, verifyActive);
+        registerCaptureHook(api, store, db, config, verifyActive, scopeManager, llmResult?.client ?? null);
       }
       if (config.recall?.enabled !== false) {
-        registerRecallHook(api, db, config, embedding);
+        registerRecallHook(api, db, config, embedding, scopeManager);
       }
 
-      // ── 8. Cleanup scheduler ──
+      // ── 11. Cleanup scheduler ──
       let cleanerTimer: ReturnType<typeof setInterval> | null = null;
       const cleanerCfg = registry.service<{ l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean }>("cleaner");
       if (cleanerCfg) {

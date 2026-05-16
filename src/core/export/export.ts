@@ -24,7 +24,11 @@ export function queryForExport(
 
   if (dateFrom) { sql += " AND date >= ?"; args.push(dateFrom); }
   if (dateTo)   { sql += " AND date <= ?"; args.push(dateTo); }
-  if (keyword)  { sql += " AND (user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\')"; args.push(`%${keyword}%`, `%${keyword}%`); }
+  if (keyword)  {
+    const safeKw = keyword.replace(/\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    sql += " AND (user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\')";
+    args.push(`%${safeKw}%`, `%${safeKw}%`);
+  }
 
   sql += " ORDER BY date DESC LIMIT ?";
   args.push(limit);

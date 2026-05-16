@@ -123,7 +123,9 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
             return formatResult(snippet, r.filename, r.hybridScore);
           });
           return { content: [{ type: "text", text: ["## 搜索结果（向量重排序）", `查询: ${query}`, "", ...lines].join("\n") }] };
-        } catch { /* 向量重排序失败，降级到 FTS5 */ }
+        } catch (err) {
+          api.logger?.warn?.(`[yaoyao-memory:enhanced-search] Vector rerank failed, falling back to FTS5: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
 
       // Step 3: FTS5-only

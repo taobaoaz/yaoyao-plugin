@@ -97,7 +97,7 @@ export class SqliteVecBackend implements VectorBackend {
         this.db.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
         this.db.exec("COMMIT");
       } catch (txErr: unknown) {
-        this.db.exec("ROLLBACK");
+        try { this.db.exec("ROLLBACK"); } catch { /* ignore secondary failure */ }
         throw txErr;
       }
       return true;

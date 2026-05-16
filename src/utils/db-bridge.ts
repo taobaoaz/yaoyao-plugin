@@ -141,6 +141,9 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
           "user_text TEXT, " +
           "asst_text TEXT, " +
           "meta TEXT, " +
+          "access_count INTEGER DEFAULT 0, " +
+          "tier TEXT DEFAULT 'active', " +
+          "importance REAL DEFAULT 0.5, " +
           "created_at TEXT DEFAULT (datetime('now'))" +
         ")"
       );
@@ -264,8 +267,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
       // FTS5 unicode61 tokenizer treats each Chinese character as a separate token,
       // so multi-character words like "天气" or "今天" fail to match.
       // LIKE is character-based and handles CJK correctly.
-      const safeLikeQuery = query.slice(0, 200);
-      const likeQuery = `%${safeLikeQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+      const safeLikeQuery = query.slice(0, 200).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const likeQuery = `%${safeLikeQuery}%`;
       const likeStmt = d.prepare(
         "SELECT id, date, user_text, asst_text FROM memory_meta " +
         "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
@@ -405,7 +408,8 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   function deleteByKeyword(keyword: string): number {
     try {
       const d = ensureDB();
-      const pattern = `%${keyword.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+      const safeKw = keyword.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+      const pattern = `%${safeKw}%`;
       const result = d.prepare(
         "DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
       ).run(pattern, pattern);
@@ -535,7 +539,22 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     } catch { /* best effort */ }
   }
 
-  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig };
+  /** Increment access_count for a memory row and promote tier if threshold reached */
+  function incrementAccessCount(id: number): void {
+    const d = ensureDB();
+    if (!d) return;
+    try {
+      const row = d.prepare("SELECT access_count, tier, importance FROM memory_meta WHERE id = ?").get(id) as { access_count: number; tier: string; importance: number } | undefined;
+      if (!row) return;
+      const newCount = (row.access_count || 0) + 1;
+      let newTier = row.tier || "active";
+      if (newCount >= 10 && (row.importance || 0) >= 0.8) newTier = "core";
+      else if (newCount >= 3) newTier = "working";
+      d.prepare("UPDATE memory_meta SET access_count = ?, tier = ? WHERE id = ?").run(newCount, newTier, id);
+    } catch { /* best effort */ }
+  }
+
+  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig, incrementAccessCount };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;

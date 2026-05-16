@@ -39,7 +39,9 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
         // 先删 DB（可回滚），再删文件，避免文件已删但 DB 失败造成 orphan
         const deleted = db.deleteByDate(date);
         msg += `FTS5 索引中删除了 ${deleted} 条记录。`;
-        if (fs.existsSync(fp)) { fs.unlinkSync(fp); msg += ` ✅ 已删除 ${date}.md 文件。`; }
+        if (fs.existsSync(fp)) {
+          try { fs.unlinkSync(fp); msg += ` ✅ 已删除 ${date}.md 文件。`; } catch (unlinkErr) { msg += ` ⚠️ 文件删除失败: ${(unlinkErr as Error).message}`; }
+        }
         else { msg += ` 📄 ${date}.md 文件不存在（跳过）。`; }
         return { content: [{ type: "text", text: msg }] };
       }
@@ -75,7 +77,12 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
         }
         if (filtered.length !== lines.length) {
           fileDeleted += matchingBlocks.size;
-          fs.writeFileSync(f.path, filtered.join("\n"), "utf-8");
+          try {
+            fs.writeFileSync(f.path, filtered.join("\n"), "utf-8");
+          } catch (writeErr) {
+            api.logger?.error?.(`[yaoyao-memory:forget] Failed to write ${f.path}: ${(writeErr as Error).message}`);
+            continue;
+          }
         }
       }
 

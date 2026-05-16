@@ -80,7 +80,8 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
           "SELECT date, user_text, asst_text FROM memory_meta " +
           "WHERE user_text LIKE ? OR asst_text LIKE ? ORDER BY date DESC LIMIT ?"
         );
-        const likeResults = likeStmt.all(`%${context}%`, `%${context}%`, limit) as Array<{ date: string; user_text: string; asst_text: string }>;
+        const safeCtx = context.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+        const likeResults = likeStmt.all(`%${safeCtx}%`, `%${safeCtx}%`, limit) as Array<{ date: string; user_text: string; asst_text: string }>;
         if (likeResults.length === 0) {
           return { content: [{ type: "text", text: "没有找到相关的记忆。" }] };
         }

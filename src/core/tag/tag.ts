@@ -122,7 +122,7 @@ export function addTagsToQuery(db: UnifiedDB, query: string, tags: string[], lim
     ? "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' LIMIT ?"
     : "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta LIMIT ?";
   const searchStmt = db.prepare(searchSql);
-  const safeQuery = query.trim().replace(/%/g, '\\%').replace(/_/g, '\\_');
+  const safeQuery = query.trim().replace(/\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = query.trim()
     ? searchStmt.all(`%${safeQuery}%`, `%${safeQuery}%`, limit)
     : searchStmt.all(limit);
@@ -146,8 +146,8 @@ export function removeTags(db: UnifiedDB, tags: string[]): number {
   if (!db) throw new TypeError("removeTags: db is required");
   if (!Array.isArray(tags)) throw new TypeError("removeTags: tags must be an array");
   let total = 0;
+  const stmt = db.prepare("DELETE FROM memory_tags WHERE tag = ? COLLATE NOCASE");
   for (const tag of tags) {
-    const stmt = db.prepare("DELETE FROM memory_tags WHERE tag = ? COLLATE NOCASE");
     const result = stmt.run(tag.trim().toLowerCase());
     total += Number(result.changes ?? 0);
   }
@@ -180,7 +180,7 @@ export function searchByTagWithQuery(db: UnifiedDB, tag: string, query: string, 
     ? "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE AND (m.user_text LIKE ? ESCAPE '\\' OR m.asst_text LIKE ? ESCAPE '\\') ORDER BY m.date DESC LIMIT ?"
     : "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE ORDER BY m.date DESC LIMIT ?";
   const stmt = db.prepare(sql);
-  const safeQuery = trimmedQuery.replace(/%/g, '\\%').replace(/_/g, '\\_');
+  const safeQuery = trimmedQuery.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = trimmedQuery
     ? stmt.all(trimmedTag, `%${safeQuery}%`, `%${safeQuery}%`, limit)
     : stmt.all(trimmedTag, limit);

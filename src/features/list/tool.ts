@@ -21,11 +21,17 @@ export function createListTool(store: MemoryStore): ToolRegistration {
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
       const limit = clampNum(params.limit, 20, 1, 500);
+      const offset = clampNum(params.offset, 0, 0, 10000);
       let files = store.listFiles();
       if (params.type && typeof params.type === "string") {
         files = files.filter(f => f.type === params.type);
       }
-      files = files.slice(0, limit);
+      if (params.sort === "score") {
+        files.sort((a, b) => (b.importance || 0) - (a.importance || 0));
+      } else {
+        files.sort((a, b) => b.modified - a.modified);
+      }
+      files = files.slice(offset, offset + limit);
       if (files.length === 0) return { content: [{ type: "text", text: "没有找到记忆文件。" }] };
 
       const lines = files.map(f => {

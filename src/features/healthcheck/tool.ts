@@ -26,7 +26,12 @@ export function createHealthcheckTool(): ToolRegistration {
       const detail = String(params.detail || "simple");
       const rawResult = runHealthcheck();
       // Defensive clone: prevent accidental mutation of internal result structure
-      const result = JSON.parse(JSON.stringify(rawResult));
+      let result: Record<string, unknown>;
+      try {
+        result = JSON.parse(JSON.stringify(rawResult));
+      } catch {
+        result = { ok: false, checks: [] };
+      }
 
       if (detail === "full") {
         return { content: [{ type: "text", text: formatHealthcheck(result) }] };

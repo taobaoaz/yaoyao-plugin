@@ -6,6 +6,7 @@
  */
 
 import { clampNum } from "./clamp.ts";
+import { isTransientUpstreamError, isNonRetryError } from "./reflection-retry.ts";
 
 export interface EmbeddingConfig {
   apiKey: string;
@@ -48,14 +49,21 @@ export function detectEmbedModel(provider: string, customMap?: Record<string, st
 /** SSRF protection: block internal / link-local / private IP ranges */
 const FORBIDDEN_HOSTS = [
   "localhost", "127.0.0.1", "0.0.0.0", "::1",
-  "169.254", "192.168", "10.", "172.", "fc00", "fe80",
+  "169.254", "192.168", "10.", "fc00", "fe80",
 ];
+
+function isForbidden172(host: string): boolean {
+  // 172.16.0.0/12 is private, but 172.0-15 and 172.32-255 are public
+  if (!host.startsWith("172.")) return false;
+  const second = parseInt(host.split(".")[1], 10);
+  return second >= 16 && second <= 31;
+}
 
 function isForbiddenHost(urlStr: string): boolean {
   try {
     const url = new URL(urlStr);
     const host = url.hostname.toLowerCase();
-    return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
+    return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h)) || isForbidden172(host);
   } catch {
     return true; // malformed URL is also forbidden
   }
@@ -100,8 +108,12 @@ export function createEmbeddingService(config: EmbeddingConfig) {
       } catch (err: unknown) {
         const isLast = attempt === _retries;
         if (isLast) throw err;
-        // Retry on all network errors (timeout, ECONNREFUSED, ETIMEDOUT, system errors) and HTTP 5xx
-        if ((err as Error).name === "AbortError" || (err as { code?: string }).code === "ECONNREFUSED" || (err as { code?: string }).code === "ETIMEDOUT" || (err as { type?: string }).type === "system" || (err as Error).message?.startsWith("HTTP 5")) {
+        // Brain-style retry classification: never retry auth/quota/policy errors
+        if (isNonRetryError(err)) {
+          throw err;
+        }
+        // Retry on transient upstream failures (5xx, timeout, network)
+        if ((err as Error).name === "AbortError" || isTransientUpstreamError(err) || (err as Error).message?.startsWith("HTTP 5")) {
           await new Promise(r => setTimeout(r, backoffBaseMs * (attempt + 1))); // backoff
           continue;
         }

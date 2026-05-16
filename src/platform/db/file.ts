@@ -32,7 +32,12 @@ export class FileDB implements UnifiedDB {
     try {
       if (fs.existsSync(this.indexPath)) {
         const raw = fs.readFileSync(this.indexPath, "utf-8");
-        const parsed = JSON.parse(raw) as Record<string, string[]>;
+        let parsed: Record<string, string[]>;
+        try {
+          parsed = JSON.parse(raw) as Record<string, string[]>;
+        } catch {
+          parsed = {};
+        }
         for (const [k, v] of Object.entries(parsed)) {
           if (Array.isArray(v)) this.index.set(k, v);
         }

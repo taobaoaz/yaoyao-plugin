@@ -46,7 +46,11 @@ function readDreams(memoryDir: string) {
   } catch { /* best effort */ }
   try {
     if (fs.existsSync(recallPath)) {
-      result.shortTermRecall = JSON.parse(fs.readFileSync(recallPath, "utf8"));
+      try {
+        result.shortTermRecall = JSON.parse(fs.readFileSync(recallPath, "utf8"));
+      } catch {
+        result.shortTermRecall = [];
+      }
     }
   } catch { /* best effort */ }
   return result;

@@ -1,0 +1,151 @@
+/**
+ * L1 Extractor — Atomic fact extraction via LLM (Tencent-style)
+ * 
+ * Extracts structured atomic facts from a conversation turn:
+ * - facts: objective observations
+ * - preferences: user likes/dislikes
+ * - tasks: action items or TODOs
+ * - identity: user self-description
+ * - events: temporal happenings
+ * 
+ * brainMode: "lite" skips LLM, uses regex heuristics (zero-dep)
+ * brainMode: "full" uses LLM for high-quality extraction
+ */
+
+import type { LLMClient } from "./llm-client.ts";
+
+export interface AtomicFact {
+  type: "fact" | "preference" | "task" | "identity" | "event" | "correction";
+  content: string;
+  confidence: number; // 0-1
+  source: "llm" | "heuristic";
+}
+
+const L1_SYSTEM_PROMPT = `You are a memory extraction engine. Given a conversation turn, extract atomic facts.
+
+Rules:
+1. Only extract facts the user explicitly stated or strongly implied
+2. Do NOT infer, guess, or hallucinate
+3. Each fact must be self-contained (no "he", "it", "this" references)
+4. Confidence: 1.0 = explicit, 0.8 = strongly implied, 0.5 = weakly implied
+
+Output JSON:
+{
+  "facts": [
+    {"type": "fact|preference|task|identity|event|correction", "content": "...", "confidence": 0.9}
+  ]
+}
+
+If nothing extractable, return {"facts": []}.`;
+
+/** Lightweight heuristic extraction (zero-dep fallback) */
+export function extractHeuristic(userText: string, asstText: string): AtomicFact[] {
+  const facts: AtomicFact[] = [];
+  const combined = (userText + " " + asstText).trim();
+
+  // Identity patterns
+  const identityPatterns = [
+    /我是(.+?)[，。！]/,
+    /我叫(.+?)[，。！]/,
+    /我的名字是(.+?)[，。！]/,
+    /I am (.+?)[,.!]/,
+    /My name is (.+?)[,.!]/,
+  ];
+  for (const p of identityPatterns) {
+    const m = combined.match(p);
+    if (m) {
+      facts.push({ type: "identity", content: `User identifies as: ${m[1].trim()}`, confidence: 0.9, source: "heuristic" });
+    }
+  }
+
+  // Preference patterns
+  const prefPatterns = [
+    /我喜欢(.+?)[，。！]/,
+    /我爱(.+?)[，。！]/,
+    /我讨厌(.+?)[，。！]/,
+    /我不喜欢(.+?)[，。！]/,
+    /I like (.+?)[,.!]/,
+    /I love (.+?)[,.!]/,
+    /I hate (.+?)[,.!]/,
+    /I don't like (.+?)[,.!]/,
+    /I prefer (.+?)[,.!]/,
+  ];
+  for (const p of prefPatterns) {
+    const m = combined.match(p);
+    if (m) {
+      facts.push({ type: "preference", content: `User preference: ${m[1].trim()}`, confidence: 0.85, source: "heuristic" });
+    }
+  }
+
+  // Task patterns
+  const taskPatterns = [
+    /我要(.+?)[，。！]/,
+    /我需要(.+?)[，。！]/,
+    /记得(.+?)[，。！]/,
+    /别忘了(.+?)[，。！]/,
+    /I need to (.+?)[,.!]/,
+    /I want to (.+?)[,.!]/,
+    /Don't forget to (.+?)[,.!]/,
+    /Remember to (.+?)[,.!]/,
+  ];
+  for (const p of taskPatterns) {
+    const m = combined.match(p);
+    if (m) {
+      facts.push({ type: "task", content: `Task: ${m[1].trim()}`, confidence: 0.8, source: "heuristic" });
+    }
+  }
+
+  // Correction patterns
+  const corrPatterns = [
+    /不对，(.+?)[，。！]/,
+    /错了，(.+?)[，。！]/,
+    /不是(.+?)[，。！]/,
+    /No, (.+?)[,.!]/,
+    /That's wrong[, .!]/,
+    /Incorrect[, .!]/,
+  ];
+  for (const p of corrPatterns) {
+    const m = combined.match(p);
+    if (m && m[1]) {
+      facts.push({ type: "correction", content: `Correction: ${m[1].trim()}`, confidence: 0.75, source: "heuristic" });
+    }
+  }
+
+  return facts;
+}
+
+/** LLM-based extraction (brainMode: full) */
+export async function extractLLM(
+  client: LLMClient,
+  userText: string,
+  asstText: string,
+): Promise<AtomicFact[]> {
+  const prompt = `User: ${userText.slice(0, 2000)}\n\nAssistant: ${asstText.slice(0, 2000)}`;
+  try {
+    const raw = await client.extract(L1_SYSTEM_PROMPT, prompt);
+    const parsed = JSON.parse(raw) as { facts?: Array<{ type: string; content: string; confidence: number }> };
+    return (parsed.facts || [])
+      .filter(f => f.content && f.content.length > 3)
+      .map(f => ({
+        type: (["fact", "preference", "task", "identity", "event", "correction"].includes(f.type) ? f.type : "fact") as AtomicFact["type"],
+        content: f.content.trim(),
+        confidence: Math.max(0, Math.min(1, f.confidence || 0.7)),
+        source: "llm" as const,
+      }));
+  } catch {
+    // LLM failed → fallback to heuristic
+    return extractHeuristic(userText, asstText);
+  }
+}
+
+/** Unified extractor: auto-selects based on brainMode and LLM availability */
+export async function extractFacts(
+  userText: string,
+  asstText: string,
+  options: { brainMode?: "lite" | "full"; llmClient?: LLMClient | null },
+): Promise<AtomicFact[]> {
+  if (options.brainMode === "full" && options.llmClient) {
+    return extractLLM(options.llmClient, userText, asstText);
+  }
+  return extractHeuristic(userText, asstText);
+}

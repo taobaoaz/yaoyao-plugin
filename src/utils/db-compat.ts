@@ -133,7 +133,12 @@ class FileDB implements UnifiedDB {
   private _loadIndex() {
     try {
       if (fs.existsSync(this.indexPath)) {
-        const raw = JSON.parse(fs.readFileSync(this.indexPath, "utf-8"));
+        let raw: unknown;
+        try {
+          raw = JSON.parse(fs.readFileSync(this.indexPath, "utf-8"));
+        } catch {
+          raw = {};
+        }
         for (const [k, v] of Object.entries(raw)) {
           this.index.set(k, v as string[]);
         }
@@ -236,7 +241,8 @@ class FileDB implements UnifiedDB {
   // ── FileDB search implementation ──
   private _search(query: string, limit: number): SQLiteRow[] {
     const results: SQLiteRow[] = [];
-    const files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+    let files: string[];
+    try { files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/)); } catch { files = []; }
     const q = query.toLowerCase();
 
     for (const file of files) {

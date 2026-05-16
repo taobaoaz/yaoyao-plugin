@@ -60,7 +60,9 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
 
     // Clean up old daily .md files
     if (fs.existsSync(baseDir)) {
-      for (const f of fs.readdirSync(baseDir)) {
+      let files: string[];
+      try { files = fs.readdirSync(baseDir); } catch { files = []; }
+      for (const f of files) {
         if (!/^\d{4}-\d{2}-\d{2}/.test(f)) continue; // only daily files
 
         const fp = path.join(baseDir, f);
@@ -83,7 +85,9 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
     // Clean up empty scene_blocks and stale pipeline checkpoints
     const scenesDir = path.join(baseDir, "scene_blocks");
     if (fs.existsSync(scenesDir)) {
-      for (const f of fs.readdirSync(scenesDir)) {
+      let files: string[];
+      try { files = fs.readdirSync(scenesDir); } catch { files = []; }
+      for (const f of files) {
         const fp = path.join(scenesDir, f);
         try {
           if (fs.statSync(fp).size === 0) {
@@ -95,7 +99,9 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
 
     const pipelineDir = path.join(baseDir, ".pipeline");
     if (fs.existsSync(pipelineDir)) {
-      for (const f of fs.readdirSync(pipelineDir)) {
+      let files: string[];
+      try { files = fs.readdirSync(pipelineDir); } catch { files = []; }
+      for (const f of files) {
         const fp = path.join(pipelineDir, f);
         try {
           const stat = fs.statSync(fp);
@@ -109,11 +115,13 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
     // Prune old backups (keep last 10)
     const backupDir = path.join(baseDir, ".backups");
     if (fs.existsSync(backupDir)) {
-      const backups = fs.readdirSync(backupDir)
+      let backups: string[];
+      try { backups = fs.readdirSync(backupDir); } catch { backups = []; }
+      const backupEntries = backups
         .filter(f => f.startsWith("memory-backup-"))
         .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
         .sort((a, b) => b.mtime - a.mtime);
-      for (const b of backups.slice(cfg.maxBackups)) {
+      for (const b of backupEntries.slice(cfg.maxBackups)) {
         fs.rmSync(path.join(backupDir, b.name), { recursive: true, force: true });
       }
     }

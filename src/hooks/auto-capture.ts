@@ -13,9 +13,20 @@ import fs from "node:fs";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
 import type { DBBridge } from "../utils/db-bridge.js";
-import { getObj, getProp } from "../utils/config.ts";
+import { getObj, getProp, getBool } from "../utils/config.ts";
+import { appendSelfImprovementEntry } from "../utils/self-improvement.ts";
 import { createSessionFilter } from "../utils/session-filter.ts";
+import { isNoise } from "../utils/noise-filter.ts";
+import { classifyTemporal, inferExpiry } from "../utils/temporal-classifier.ts";
 import { detectSpeculative, detectCorrection } from "../core/verify/verify.ts";
+import { extractIdentityCandidates } from "../utils/identity-addressing.ts";
+import { compressTexts, estimateConversationValue } from "../utils/session-compressor.ts";
+import { enrichMetadata } from "../utils/memory-upgrader.ts";
+import { smartChunk } from "../utils/chunker.ts";
+import { isDuplicateOfRecent } from "../utils/batch-dedup.ts";
+import { isExcludedAgent } from "../utils/glob-match.ts";
+import { extractFacts } from "../utils/l1-extractor.ts";
+import { maybeOffload } from "../utils/mermaid-canvas.ts";
 
 /** Safely extract text content from a message, handling string/array/object formats */
 export function extractContent(msg: unknown, maxLen?: number): string {
@@ -71,7 +82,9 @@ export function registerCaptureHook(
   store: MemoryStore,
   db: DBBridge,
   config: YaoyaoMemoryConfig,
-  verifyActive = true, // anti-hallucination detection can be disabled via config
+  verifyActive = true,
+  scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
+  llmClient?: import("../utils/llm-client.ts").LLMClient | null,
 ) {
   api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
 
@@ -93,8 +106,49 @@ export function registerCaptureHook(
         return;
       }
 
-      const messages = ((e as Record<string, unknown>).messages as unknown[]) ?? [];
-      if (messages.length === 0) return;
+      // Tencent-style: skip capture for excluded agents (glob patterns)
+      const excludeAgents = getProp(config, "capture.excludeAgents", []) as string[];
+      const agentId = (api as Record<string, unknown>).agentId as string | undefined;
+      if (agentId && excludeAgents.length > 0 && isExcludedAgent(agentId, excludeAgents)) {
+        api.logger.debug?.(`[yaoyao-memory:capture] Skipped excluded agent: ${agentId}`);
+        return;
+      }
+
+      // Tencent-style warmup mode: new session triggers capture at 1→2→4→8... rounds
+      const enableWarmup = getBool(config, "capture.enableWarmup", false);
+      const warmupRound = getProp(config, "capture.warmupRound", 1) as number;
+      if (enableWarmup) {
+        const roundCount = messages.filter((m: Record<string, unknown>) => m.role === "user").length;
+        const nextTrigger = Math.pow(2, Math.floor(Math.log2(Math.max(1, roundCount))));
+        if (roundCount !== nextTrigger && roundCount !== 1) {
+          api.logger.debug?.(`[yaoyao-memory:capture] Warmup skip: round ${roundCount}, next trigger at ${nextTrigger}`);
+          return;
+        }
+      }
+
+      // Tencent-style: fixed-interval capture (every N user turns)
+      const everyN = clampNum(getProp(config, "capture.everyNConversations", 0), 0, 0, 100);
+      if (everyN > 0 && !enableWarmup) {
+        const roundCount = messages.filter((m: Record<string, unknown>) => m.role === "user").length;
+        if (roundCount % everyN !== 0) {
+          api.logger.debug?.(`[yaoyao-memory:capture] Every-N skip: round ${roundCount}, trigger every ${everyN}`);
+          return;
+        }
+      }
+
+      // Tencent-style: exclude messages matching user-defined regex patterns
+      const excludePatterns = (getProp(config, "capture.excludePatterns", []) as string[])
+        .map(p => { try { return new RegExp(p, "i"); } catch { return null; } })
+        .filter((r): r is RegExp => r !== null);
+      if (excludePatterns.length > 0) {
+        const fullText = messages.map((m: Record<string, unknown>) => (m.content || m.text || "")).join(" ");
+        for (const pattern of excludePatterns) {
+          if (pattern.test(fullText)) {
+            api.logger.debug?.(`[yaoyao-memory:capture] Skipped excluded pattern: ${pattern.source}`);
+            return;
+          }
+        }
+      }
 
       const lastUserMsg = [...messages].reverse().find((m: Record<string, unknown>) => (m as Record<string, unknown>).role === "user");
       const lastAsstMsg = [...messages].reverse().find((m: Record<string, unknown>) => (m as Record<string, unknown>).role === "assistant");
@@ -119,8 +173,49 @@ export function registerCaptureHook(
       const captureMaxLen = clampNum(getProp(captureCfg, "maxContentLen", 500), 500, 50, 5000);
       const minContentLen = clampNum(getProp(captureCfg, "minContentLen", 3), 3, 0, 100);
 
+      // Brain-style Session Compressor: if conversation is long, compress to high-signal turns
+      let conversationTexts: string[] = [];
+      for (const m of messages) {
+        const role = (m as Record<string, unknown>).role;
+        const text = extractContent(m, 200);
+        if (text && (role === "user" || role === "assistant")) {
+          conversationTexts.push(text);
+        }
+      }
+
+      // Estimate if this conversation is worth capturing
+      const convValue = estimateConversationValue(conversationTexts);
+      if (convValue < 0.2 && conversationTexts.length > 4) {
+        api.logger.debug?.("[yaoyao-memory:capture] Conversation value too low, skipping");
+        return;
+      }
+
+      // Compress long conversations before extraction
+      if (conversationTexts.length > 6) {
+        const maxChars = captureMaxLen * 3;
+        const compressed = compressTexts(conversationTexts, maxChars, { minTexts: 3, minScoreToKeep: 0.3 });
+        api.logger.debug?.(`[yaoyao-memory:capture] Compressed ${conversationTexts.length} → ${compressed.texts.length} turns (dropped ${compressed.dropped})`);
+      }
+
       const userContent = extractContent(lastUserMsg, captureMaxLen);
       const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, captureMaxLen) : "(no response)";
+
+      // Tencent-style Mermaid Canvas: offload long tool logs to refs/
+      const brainMode = (getProp(config, "brainMode", "lite") as "lite" | "full");
+      const enableOffload = getBool(config, "capture.enableContextOffload", false);
+      if (enableOffload) {
+        const offloadThreshold = clampNum(getProp(config, "capture.offloadThreshold", 4000), 4000, 1000, 10000);
+        const offloadResult = maybeOffload(store.baseDir, sessionKey, userContent + "\n" + asstContent, offloadThreshold);
+        if (offloadResult.offloaded) {
+          api.logger.debug?.(`[yaoyao-memory:capture] Context offloaded to ${offloadResult.refPath}`);
+        }
+      }
+
+      // Brain-style noise filter: skip greetings, refusals, meta-questions
+      if (isNoise(userContent) && isNoise(asstContent)) {
+        api.logger.debug?.("[yaoyao-memory:capture] Skipped noise turn");
+        return;
+      }
 
       // Skip trivial entries
       if (userContent.length < minContentLen) return;
@@ -155,23 +250,86 @@ export function registerCaptureHook(
       // Write to daily Markdown log (L0)
       const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${asstContent}${riskTag}\n`;
 
+      // Temporal classification: static (permanent fact) vs dynamic (time-sensitive)
+      const temporalType = classifyTemporal(userContent + " " + asstContent);
+      const expiryAt = temporalType === "dynamic" ? inferExpiry(userContent + " " + asstContent) : undefined;
+
       // Risk metadata goes into the structured meta column — NOT into asst_text,
       // so FTS5 search space isn't polluted with "⚠️ 推测性" / "🚫 用户纠正" tokens.
-      const meta = specCheck.isSpeculative || corrCheck.isCorrection
-        ? JSON.stringify({ speculative: specCheck.isSpeculative, confidence: specCheck.confidence, correction: corrCheck.isCorrection })
-        : undefined;
+      const metaObj: Record<string, unknown> = { temporal: temporalType };
 
-      // Issue #12: Make file append and DB index atomic — if index fails, log error but do NOT rollback.
+      // Brain-style scope tagging: mark memory with agent scope for isolation
+      if (scopeManager) {
+        const agentId = (api as Record<string, unknown>).agentId as string | undefined;
+        const scope = scopeManager.getDefaultScope(agentId);
+        metaObj.scope = scope;
+      }
+
+      // Brain-style identity extraction: detect name / addressing preference
+      const identityInfo = extractIdentityCandidates(userContent + " " + asstContent);
+      if (identityInfo.length > 0) {
+        metaObj.identities = identityInfo;
+        api.logger.debug?.(`[yaoyao-memory:capture] Detected identity info: ${identityInfo.map(i => i.kind + '=' + i.value).join(', ')}`);
+      }
+      if (expiryAt) metaObj.expiryAt = expiryAt;
+      if (specCheck.isSpeculative) {
+        metaObj.speculative = specCheck.isSpeculative;
+        metaObj.confidence = specCheck.confidence;
+      }
+      if (corrCheck.isCorrection) {
+        metaObj.correction = corrCheck.isCorrection;
+      }
+
+      // Brain-style L1 extraction: atomic facts (lite = heuristic, full = LLM)
+      const enableL1 = getBool(config, "capture.enableL1", false);
+      if (enableL1) {
+        try {
+          const facts = await extractFacts(userContent, asstContent, { brainMode, llmClient });
+          if (facts.length > 0) {
+            metaObj.l1Facts = facts;
+            api.logger.debug?.(`[yaoyao-memory:capture] L1 extracted ${facts.length} facts`);
+          }
+        } catch { /* best effort */ }
+      }
+
+      const meta = Object.keys(metaObj).length > 1 ? JSON.stringify(metaObj) : undefined;
+
+      // Brain-style memory enrichment: auto-generate L0/L1/L2 summaries
+      enrichMetadata(metaObj, userContent + " " + asstContent);
       // Rationale: L0 (daily file) and L1 (FTS5 index) are independent systems.
       // Rolling back file writes introduces race conditions under concurrent agent_end hooks.
       // It's safer to let L0 succeed and L1 fail separately, than to corrupt L0 trying to undo it.
-      try {
-        store.appendToDaily(date, entry);
+      // Brain-style batch dedup: skip if this turn is nearly identical to a recent memory
+      const enableDedup = getBool(config, "capture.enableDedup", true);
+      if (enableDedup) {
+        const dedupThreshold = clampNum(getProp(config, "capture.dedupThreshold", 0.92), 0.92, 0.7, 0.99);
+        const dedupLookback = clampNum(getProp(config, "capture.dedupLookback", 5), 5, 1, 20);
+        try {
+          const recent = db.getLatestMemory(dedupLookback);
+          const combinedText = (userContent + " " + indexableAsst).trim();
+          if (isDuplicateOfRecent(combinedText, recent, dedupThreshold)) {
+            api.logger.debug?.("[yaoyao-memory:capture] Skipped duplicate turn (recent memory similarity >= threshold)");
+            return;
+          }
+        } catch { /* best-effort dedup, ignore errors */ }
+      }
+
+      // Brain-style chunking: split long assistant replies for better retrieval precision
+      const CHUNK_THRESHOLD = 4000;
+      if (indexableAsst.length > CHUNK_THRESHOLD) {
+        const chunkResult = smartChunk(indexableAsst, CHUNK_THRESHOLD);
+        api.logger.debug?.(`[yaoyao-memory:capture] Chunked long reply into ${chunkResult.chunkCount} pieces`);
+        for (let i = 0; i < chunkResult.chunks.length; i++) {
+          const chunkMeta = { ...metaObj, chunkIndex: i + 1, totalChunks: chunkResult.chunkCount };
+          const chunkMetaStr = Object.keys(chunkMeta).length > 1 ? JSON.stringify(chunkMeta) : undefined;
+          try {
+            db.indexTurn(userContent, chunkResult.chunks[i], date, chunkMetaStr);
+          } catch (chunkErr: unknown) {
+            api.logger.error(`[yaoyao-memory:capture] Chunk ${i + 1}/${chunkResult.chunkCount} index failed: ${chunkErr instanceof Error ? chunkErr.message : String(chunkErr)}`);
+          }
+        }
+      } else {
         db.indexTurn(userContent, indexableAsst, date, meta);
-      } catch (indexErr: unknown) {
-        api.logger.error(`[yaoyao-memory:capture] Index failed after file append: ${indexErr instanceof Error ? indexErr.message : String(indexErr)}`);
-        // Note: daily file already has the entry; next DB rebuild (startup check) will catch it.
-        return;
       }
 
       // NOTE: Implicit observation tagging removed in v1.5.0.
@@ -179,7 +337,20 @@ export function registerCaptureHook(
 
       api.logger.debug?.("[yaoyao-memory:capture] Captured turn to " + date);
     } catch (err) {
-      api.logger.error(`[yaoyao-memory:capture] Error: ${err instanceof Error ? err.message : String(err)}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      api.logger.error(`[yaoyao-memory:capture] Error: ${errMsg}`);
+      // Brain-style self-improvement: log capture errors for later analysis
+      try {
+        const baseDir = (config as any).dataDir || ".";
+        appendSelfImprovementEntry({
+          baseDir,
+          type: "error",
+          summary: `Auto-capture failed: ${errMsg.slice(0, 100)}`,
+          details: err instanceof Error ? err.stack || errMsg : errMsg,
+          area: "capture",
+          source: "yaoyao-memory/auto-capture",
+        }).catch(() => { /* ignore secondary errors */ });
+      } catch { /* ignore */ }
     }
   });
 }

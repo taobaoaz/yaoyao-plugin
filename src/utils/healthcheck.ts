@@ -162,6 +162,17 @@ export function runHealthcheck(baseDir?: string): HealthResult {
     checks.push({ name: "Git 可用性", status: "warn", message: "不可用 ⚠️", detail: "git 命令未找到。自动迁移（yaoyao-soul 安装）将不可用，需手动安装。" });
   }
 
+  // Brain-style health stats: query DB for memory distribution
+  try {
+    const { createCompatDB } = require("../platform/db/compat.js");
+    const { db: statsDb } = createCompatDB(baseDir ? path.join(baseDir, "memory.db") : path.join(memDir, "memory.db"));
+    const total = statsDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as { c: number };
+    const tierDist = statsDb.prepare("SELECT tier, COUNT(*) as c FROM memory_meta GROUP BY tier").all() as { tier: string; c: number }[];
+    const avgAge = statsDb.prepare("SELECT AVG(julianday('now') - julianday(created_at)) as d FROM memory_meta").get() as { d: number };
+    statsDb.close();
+    checks.push({ name: "记忆统计", status: "pass", message: `共 ${total?.c ?? 0} 条记忆`, detail: `层级分布: ${tierDist?.map(t => `${t.tier}=${t.c}`).join(", ") || "active=0"} | 平均天数: ${(avgAge?.d ?? 0).toFixed(1)}` });
+  } catch { /* skip if no DB yet */ }
+
   const failures = checks.filter(c => c.status === "fail").length;
   const warns = checks.filter(c => c.status === "warn").length;
   const ok = failures === 0;

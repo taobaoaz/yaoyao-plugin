@@ -12,6 +12,7 @@
  */
 import path from "node:path";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import type { UnifiedDB } from "../../platform/db/compat.js";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../memory-store.js";
@@ -88,7 +89,12 @@ export class HnswlibBackend implements VectorBackend {
 
       // Try load existing index
       if (fs.existsSync(this.indexPath) && fs.existsSync(this.metaPath)) {
-        const meta: HnswMeta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
+        let meta: HnswMeta;
+        try {
+          meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
+        } catch {
+          meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType };
+        }
         if (meta.dimensions === this.dimensions) {
           this.index.readIndexSync(this.indexPath);
           this.isAvailable = true;
@@ -210,7 +216,9 @@ export class HnswlibBackend implements VectorBackend {
     if (!this.dirty || !this.index) return;
     this.dirty = false;
     try {
-      this.index.writeIndexSync(this.indexPath);
+      if (sync) {
+        this.index.writeIndexSync(this.indexPath);
+      }
       const meta: HnswMeta = {
         dimensions: this.dimensions,
         model: this.config.embedding?.model,
@@ -232,8 +240,8 @@ export class HnswlibBackend implements VectorBackend {
 /** Dynamically require hnswlib-node. Returns null if not installed or incompatible. */
 function requireHnswlib(): HnswlibModule | null {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require("hnswlib-node") as { HierarchicalNSW: new (space: string, dimensions: number) => HnswIndex };
+    const req = createRequire(import.meta.url);
+    const mod = req("hnswlib-node") as { HierarchicalNSW: new (space: string, dimensions: number) => HnswIndex };
     if (mod && mod.HierarchicalNSW) return mod;
   } catch { /* not installed or platform incompatible */ }
   return null;

@@ -23,7 +23,11 @@ function remotePath(filename: string): string {
 function loadSyncState(baseDir: string): SyncState {
   const fp = path.join(baseDir, SYNC_STATE_FILE);
   try {
-    return JSON.parse(fs.readFileSync(fp, "utf-8"));
+    try {
+      return JSON.parse(fs.readFileSync(fp, "utf-8"));
+    } catch {
+      return [];
+    }
   } catch {
     return { lastSync: 0, uploaded: [], downloaded: [] };
   }

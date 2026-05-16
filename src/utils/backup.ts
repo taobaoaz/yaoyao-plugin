@@ -43,7 +43,12 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
       if (mode === "incremental") {
         try {
           if (fs.existsSync(lastBackupFile)) {
-            const meta: { timestamp: string } = JSON.parse(fs.readFileSync(lastBackupFile, "utf-8"));
+            let meta: { timestamp: string };
+            try {
+              meta = JSON.parse(fs.readFileSync(lastBackupFile, "utf-8"));
+            } catch {
+              meta = { timestamp: new Date().toISOString() };
+            }
             lastBackupMs = new Date(meta.timestamp).getTime();
             log(`Incremental backup, last backup at ${meta.timestamp}`);
           }
@@ -52,7 +57,9 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
 
       // Backup .md files (daily logs)
       if (fs.existsSync(baseDir)) {
-        for (const f of fs.readdirSync(baseDir).filter(f => f.endsWith(".md"))) {
+        let files: string[];
+        try { files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md")); } catch { files = []; }
+        for (const f of files) {
           const filePath = path.join(baseDir, f);
           if (lastBackupMs > 0 && fs.statSync(filePath).mtimeMs <= lastBackupMs) continue;
           fs.copyFileSync(filePath, path.join(backupPath, f));
@@ -64,7 +71,9 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
         if (fs.existsSync(sceneDir)) {
           const sceneBackupDir = path.join(backupPath, "scene_blocks");
           fs.mkdirSync(sceneBackupDir, { recursive: true });
-          for (const f of fs.readdirSync(sceneDir).filter(f => f.endsWith(".md"))) {
+          let files: string[];
+          try { files = fs.readdirSync(sceneDir).filter(f => f.endsWith(".md")); } catch { files = []; }
+          for (const f of files) {
             const filePath = path.join(sceneDir, f);
             if (lastBackupMs > 0 && fs.statSync(filePath).mtimeMs <= lastBackupMs) continue;
             fs.copyFileSync(filePath, path.join(sceneBackupDir, f));
@@ -118,7 +127,10 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
     try {
       ensureDir(backupDir);
       const results: BackupEntry[] = [];
-      for (const name of fs.readdirSync(backupDir).filter(f => f.startsWith("memory-backup-")).slice(-30)) {
+      for (const name of fs.readdirSync(backupDir)
+        .filter(f => f.startsWith("memory-backup-"))
+        .sort((a, b) => b.localeCompare(a))
+        .slice(0, 30)) {
         const p = path.join(backupDir, name);
         try {
           const stat = fs.statSync(p);
@@ -149,7 +161,8 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
         return false;
       }
 
-      const files = fs.readdirSync(backupPath);
+      let files: string[];
+      try { files = fs.readdirSync(backupPath); } catch { files = []; }
 
       // Pre-restore snapshot
       const preDir = path.join(backupDir, `pre-restore-${Date.now()}`);
@@ -157,8 +170,24 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
 
       for (const f of files) {
         const src = path.join(baseDir, f);
-        if (fs.existsSync(src)) fs.copyFileSync(src, path.join(preDir, f));
-        fs.copyFileSync(path.join(backupPath, f), src);
+        const backupSrc = path.join(backupPath, f);
+        const stat = fs.statSync(backupSrc);
+        if (stat.isDirectory()) {
+          // Restore subdirectory (e.g., scene_blocks/)
+          const destDir = src;
+          fs.mkdirSync(destDir, { recursive: true });
+          fs.mkdirSync(path.join(preDir, f), { recursive: true });
+          let subs: string[];
+          try { subs = fs.readdirSync(backupSrc); } catch { subs = []; }
+          for (const sub of subs) {
+            const subSrc = path.join(destDir, sub);
+            if (fs.existsSync(subSrc)) fs.copyFileSync(subSrc, path.join(preDir, f, sub));
+            fs.copyFileSync(path.join(backupSrc, sub), subSrc);
+          }
+        } else {
+          if (fs.existsSync(src)) fs.copyFileSync(src, path.join(preDir, f));
+          fs.copyFileSync(backupSrc, src);
+        }
       }
 
       log(`Restored from ${backupName} (snapshot: ${preDir})`);
@@ -173,7 +202,8 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
   function pruneBackups(keepCount: number = 10): void {
     try {
       ensureDir(backupDir);
-      const backups = fs.readdirSync(backupDir)
+      let backups: string[];
+      try { backups = fs.readdirSync(backupDir); } catch { backups = []; }
         .filter(f => f.startsWith("memory-backup-"))
         .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
         .sort((a, b) => b.mtime - a.mtime);

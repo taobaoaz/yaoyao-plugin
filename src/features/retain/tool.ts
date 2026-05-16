@@ -45,7 +45,9 @@ function loadBoostRecords(baseDir: string): BoostRecord[] {
     const raw = fs.readFileSync(fp, "utf-8");
     for (const line of raw.split("\n").filter(Boolean)) {
       try {
-        records.push(JSON.parse(line) as BoostRecord);
+        try {
+          records.push(JSON.parse(line) as BoostRecord);
+        } catch { /* skip malformed line */ }
       } catch { /* skip malformed line */ }
     }
   } catch { /* best effort */ }
@@ -57,7 +59,11 @@ function loadImportantTags(baseDir: string): ImportantTag[] {
   try {
     if (!fs.existsSync(fp)) return [];
     const raw = fs.readFileSync(fp, "utf-8");
-    return JSON.parse(raw) as ImportantTag[];
+    try {
+      return JSON.parse(raw) as ImportantTag[];
+    } catch {
+      return [];
+    }
   } catch { return []; }
 }
 
