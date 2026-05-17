@@ -13,6 +13,7 @@ export interface WriteTask {
   timestamp: string;
   userContent: string;
   asstContent: string;
+  meta?: string;
 }
 
 export type FlushHandler = (tasks: WriteTask[]) => Promise<void>;

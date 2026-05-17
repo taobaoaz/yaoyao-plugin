@@ -233,7 +233,7 @@ export default definePluginEntry({
 
       // Hooks
       if (config.capture?.enabled !== false) {
-        registerCaptureHook(api, store, db, config, verifyActive, scopeManager, llmResult?.client ?? null, audit);
+        registerCaptureHook(api, store, db, config, verifyActive, scopeManager, llmResult?.client ?? null, audit, embedding);
       }
       if (config.recall?.enabled !== false) {
         registerRecallHook(api, db, config, embedding, scopeManager, audit);

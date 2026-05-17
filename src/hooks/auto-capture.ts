@@ -30,6 +30,7 @@ import { maybeOffload } from "../utils/mermaid-canvas.ts";
 import { isMMDBlock } from "../utils/mmd-filter.ts";
 import { isTrivial } from "../utils/trivial-detector.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
+import { createWriteQueue, type WriteTask } from "../utils/write-queue.ts";
 import { recordSessionActivity, isSessionActive, pruneStaleSessions } from "../utils/session-activity.ts";
 import { computeCompressLevel, estimateContextSize } from "../utils/context-watermark.ts";
 
@@ -91,8 +92,46 @@ export function registerCaptureHook(
   scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
   llmClient?: import("../utils/llm-client.ts").LLMClient | null,
   audit?: AuditLog,
+  embedding?: import("../utils/embedding.ts").EmbeddingService | null,
 ) {
-  api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
+  api.logger.info(`[yaoyao-memory] Registering agent_end hook (auto-capture mode=${captureMode}${embedding ? " + vector" : ""})`);
+
+  // ── Async write queue: buffers L1 (FTS5) + optional L2 (vector) writes off main thread ──
+  const captureMode = (config.capture?.mode as string) || "async";
+  const writeQueue = captureMode === "async"
+    ? createWriteQueue(
+        async (tasks) => {
+          const rows: { rowId: number; text: string; meta?: string }[] = [];
+          for (const task of tasks) {
+            try {
+              const rowId = db.indexTurn(task.userContent, task.asstContent, task.date, task.meta);
+              if (rowId > 0 && embedding) {
+                rows.push({ rowId, text: `${task.userContent}\n${task.asstContent}`, meta: task.meta });
+              }
+            } catch (err: unknown) {
+              api.logger.error(`[yaoyao-memory:capture] indexTurn failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+          // Batch vector embedding (optional L2)
+          if (rows.length > 0 && embedding) {
+            try {
+              const texts = rows.map(r => r.text);
+              const vectors = await embedding.embedBatch(texts);
+              for (let i = 0; i < rows.length; i++) {
+                const vec = vectors[i];
+                if (vec) {
+                  db.storeVector(rows[i].rowId, vec);
+                }
+              }
+            } catch (err: unknown) {
+              api.logger.debug?.(`[yaoyao-memory:capture] Batch vector store failed: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+        },
+        api.logger,
+        audit,
+      )
+    : null;
 
   // Create session filter with configured blockLabels
   const sessionFilter = createSessionFilter({
@@ -403,14 +442,22 @@ export function registerCaptureHook(
           for (let i = 0; i < chunkResult.chunks.length; i++) {
             const chunkMeta = { ...metaObj, chunkIndex: i + 1, totalChunks: chunkResult.chunkCount };
             const chunkMetaStr = Object.keys(chunkMeta).length > 1 ? JSON.stringify(chunkMeta) : undefined;
-            try {
-              db.indexTurn(userContent, chunkResult.chunks[i], date, chunkMetaStr);
-            } catch (chunkErr: unknown) {
-              api.logger.error(`[yaoyao-memory:capture] Chunk ${i + 1}/${chunkResult.chunkCount} index failed: ${chunkErr instanceof Error ? chunkErr.message : String(chunkErr)}`);
+            if (writeQueue) {
+              writeQueue.enqueue({ date, timestamp, userContent, asstContent: chunkResult.chunks[i], meta: chunkMetaStr });
+            } else {
+              try {
+                db.indexTurn(userContent, chunkResult.chunks[i], date, chunkMetaStr);
+              } catch (chunkErr: unknown) {
+                api.logger.error(`[yaoyao-memory:capture] Chunk ${i + 1}/${chunkResult.chunkCount} index failed: ${chunkErr instanceof Error ? chunkErr.message : String(chunkErr)}`);
+              }
             }
           }
         } else {
-          db.indexTurn(userContent, indexableAsst, date, meta);
+          if (writeQueue) {
+            writeQueue.enqueue({ date, timestamp, userContent, asstContent: indexableAsst, meta });
+          } else {
+            db.indexTurn(userContent, indexableAsst, date, meta);
+          }
         }
       } else {
         api.logger.warn?.("[yaoyao-memory:capture] FTS5 indexing skipped (emergency watermark)");
