@@ -80,7 +80,7 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
           try {
             fs.writeFileSync(f.path, filtered.join("\n"), "utf-8");
           } catch (writeErr) {
-            api.logger?.error?.(`[yaoyao-memory:forget] Failed to write ${f.path}: ${(writeErr as Error).message}`);
+            console.error(`[yaoyao-memory:forget] Failed to write ${f.path}: ${(writeErr as Error).message}`);
             continue;
           }
         }

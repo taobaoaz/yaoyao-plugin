@@ -123,7 +123,7 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
           });
           return { content: [{ type: "text", text: ["## 搜索结果（RRF 混合排序）", `查询: ${query}`, "", ...lines].join("\n") }] };
         } catch (err) {
-          api.logger?.warn?.(`[yaoyao-memory:enhanced-search] RRF hybrid search failed, falling back to FTS5: ${err instanceof Error ? err.message : String(err)}`);
+          console.warn(`[yaoyao-memory:enhanced-search] RRF hybrid search failed, falling back to FTS5: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
 

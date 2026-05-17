@@ -233,8 +233,10 @@ export default definePluginEntry({
       });
 
       // Hooks
+      let captureDrain: (() => Promise<void>) | undefined;
       if (config.capture?.enabled !== false) {
-        registerCaptureHook(api, store, db, config, verifyActive, scopeManager, llmResult?.client ?? null, audit, embedding);
+        const captureHandle = registerCaptureHook(api, store, db, config, verifyActive, scopeManager, llmResult?.client ?? null, audit, embedding);
+        captureDrain = captureHandle?.drain?.bind(captureHandle);
       }
       if (config.recall?.enabled !== false) {
         registerRecallHook(api, db, config, embedding, scopeManager, audit);
@@ -242,7 +244,7 @@ export default definePluginEntry({
 
       // ── 11. Cleanup scheduler ──
       let cleanerTimer: ReturnType<typeof setInterval> | null = null;
-      const cleanerCfg = registry.service<{ l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean }>("cleaner");
+      const cleanerCfg = registry.service<{ l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean; cleanTime?: string }>("cleaner");
       if (cleanerCfg) {
         const cleaner = createMemoryCleaner(store.baseDir, db, cleanerCfg, api.logger);
         const warn = cleaner.validateConfig();
@@ -266,6 +268,15 @@ export default definePluginEntry({
       }
 
       api.on("gateway_stop", async () => {
+        // Drain write queue before closing DB to prevent L1/L2 loss
+        if (captureDrain) {
+          try {
+            await captureDrain();
+            api.logger.info?.("[yaoyao-memory] Write queue drained before shutdown");
+          } catch (drainErr) {
+            api.logger.error?.(`[yaoyao-memory] Write queue drain failed: ${drainErr instanceof Error ? drainErr.message : String(drainErr)}`);
+          }
+        }
         db.close();
         registry.closeAll(api);
         if (cleanerTimer) { clearInterval(cleanerTimer); cleanerTimer = null; }

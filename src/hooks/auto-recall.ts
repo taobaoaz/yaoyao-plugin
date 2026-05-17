@@ -149,9 +149,9 @@ function applyTimeDecay(results: SearchResult[], cfg: RecallThresholds, mode: "w
       }
       const originalScore = typeof r.score === "number" ? r.score : Math.max(0.1, 1.0 - i * 0.1);
       // Brain-style composite decay: recency * frequency * intrinsic
-      const accessCount = (r as Record<string, unknown>).accessCount as number || 0;
-      const importance = (r as Record<string, unknown>).importance as number || 0.5;
-      const tier = ((r as Record<string, unknown>).tier as string) || "active";
+      const accessCount = (r as unknown as Record<string, unknown>).accessCount as number || 0;
+      const importance = (r as unknown as Record<string, unknown>).importance as number || 0.5;
+      const tier = ((r as unknown as Record<string, unknown>).tier as string) || "active";
       const beta = tier === "core" ? 0.8 : tier === "working" ? 1.0 : 1.3;
 
       let recency: number;
@@ -196,7 +196,7 @@ function applyLengthNormalization(results: SearchResult[]): SearchResult[] {
 
 function applyImportanceWeighting(results: SearchResult[]): SearchResult[] {
   return results.map((r) => {
-    const imp = ((r as Record<string, unknown>).importance as number) || 0.5;
+    const imp = ((r as unknown as Record<string, unknown>).importance as number) || 0.5;
     const weight = 0.7 + 0.3 * imp;
     return { ...r, score: (r.score ?? 0) * weight };
   });
@@ -538,8 +538,8 @@ export function registerRecallHook(
             ? db.rrfHybridSearch(ftsQuery, vec, maxResults * 2, 60).slice(0, maxResults)
             : db.hybridSearch(ftsQuery, vec, maxResults); // fallback for older db bridges
           // Brain-style scope filtering: enforce multi-agent memory isolation
-          const agentId = (api as Record<string, unknown>).agentId as string | undefined;
-          const results = filterByScope(rawResults, scopeManager, agentId);
+          const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
+          let results = filterByScope(rawResults, scopeManager, agentId);
           if (results.length < rawResults.length) {
             api.logger.debug?.(`[yaoyao-memory:recall] Scope filter excluded ${rawResults.length - results.length} memories`);
           }
@@ -574,8 +574,8 @@ export function registerRecallHook(
       try {
         const rawResults = db.search(ftsQuery, maxResults);
         // Brain-style scope filtering: enforce multi-agent memory isolation
-        const agentId = (api as Record<string, unknown>).agentId as string | undefined;
-        const results = filterByScope(rawResults, scopeManager, agentId);
+        const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
+        let results = filterByScope(rawResults, scopeManager, agentId);
         if (results.length < rawResults.length) {
           api.logger.debug?.(`[yaoyao-memory:recall] Scope filter excluded ${rawResults.length - results.length} memories`);
         }

@@ -21,10 +21,34 @@ import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 export interface YaoyaoMemoryConfig {
   capture?: {
     enabled?: boolean;
+    mode?: "sync" | "async";
+    maxContentLen?: number;
+    minContentLen?: number;
+    batchSize?: number;
+    debounceMs?: number;
+    excludeAgents?: string[];
   };
   recall?: {
     enabled?: boolean;
+    strategy?: "hybrid" | "fts" | "vector";
     maxResults?: number;
+    topK?: number;
+    minScore?: number;
+    cacheTTL?: number;
+    maxCacheSize?: number;
+    halfLife?: number;
+    jaccardBase?: number;
+    jaccardMin?: number;
+    maxSessions?: number;
+    maxContextKeywords?: number;
+    decayMode?: string;
+    position?: string;
+    timeoutMs?: number;
+    excludeRecentMS?: number;
+    minResults?: number;
+    maxChars?: number;
+    scoreThreshold?: number;
+    hintText?: string;
   };
   memoryDir?: string;
   embedding?: {
@@ -83,6 +107,7 @@ export interface MemoryEntry {
   date?: string;
   size: number;
   modified: number;
+  importance?: number;
 }
 
 export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) {

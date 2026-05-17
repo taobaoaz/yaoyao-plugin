@@ -141,6 +141,7 @@ export function registerCaptureHook(
   api.on("agent_end", async (event, ctx) => {
     try {
       const e = event as Record<string, unknown>;
+      const messages = (e.messages ?? []) as Array<Record<string, unknown>>;
       if (!e.success) return;
 
       // Session filter: skip internal/system sessions
@@ -151,7 +152,7 @@ export function registerCaptureHook(
 
       // Tencent-style: skip capture for excluded agents (glob patterns)
       const excludeAgents = getProp(config, "capture.excludeAgents", []) as string[];
-      const agentId = (api as Record<string, unknown>).agentId as string | undefined;
+      const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
       if (agentId && excludeAgents.length > 0 && isExcludedAgent(agentId, excludeAgents)) {
         api.logger.debug?.(`[yaoyao-memory:capture] Skipped excluded agent: ${agentId}`);
         return;
@@ -368,7 +369,7 @@ export function registerCaptureHook(
 
       // Brain-style scope tagging: mark memory with agent scope for isolation
       if (scopeManager) {
-        const agentId = (api as Record<string, unknown>).agentId as string | undefined;
+        const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
         const scope = scopeManager.getDefaultScope(agentId);
         metaObj.scope = scope;
       }
@@ -482,4 +483,6 @@ export function registerCaptureHook(
       } catch { /* ignore */ }
     }
   });
+  // Return cleanup handle for graceful shutdown
+  return { drain: async () => writeQueue?.drain() ?? Promise.resolve() };
 }

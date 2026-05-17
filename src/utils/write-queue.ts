@@ -64,26 +64,36 @@ export function createWriteQueue(
       logger?.debug?.(`[yaoyao-memory:write-queue] Flushed ${batch.length} tasks`);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      logger?.error?.(
-        `[yaoyao-memory:write-queue] Flush failed: ${errMsg}`,
+      logger?.warn?.(
+        `[yaoyao-memory:write-queue] Flush failed: ${errMsg} — retrying once`,
       );
-      // Audit: record dropped tasks
-      if (audit) {
-        audit.write({
-          component: "write-queue",
-          event: "flush-failed",
-          summary: `L1/L2 异步写入失败，${batch.length} 条任务被丢弃（L0 .md 已同步落盘）`,
-          details: {
-            "丢弃任务数": batch.length,
-            "影响日期": batch.map(t => t.date).join(", "),
-            "错误类型": errMsg.slice(0, 200),
-            "建议": "检查磁盘空间、权限、或切换 capture.mode 为 sync",
-          },
-        });
+      // Retry once
+      try {
+        await flushHandler(batch);
+        logger?.debug?.(`[yaoyao-memory:write-queue] Retry succeeded for ${batch.length} tasks`);
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        logger?.error?.(
+          `[yaoyao-memory:write-queue] Retry failed: ${retryMsg}`,
+        );
+        // Audit: record dropped tasks
+        if (audit) {
+          audit.write({
+            component: "write-queue",
+            event: "flush-failed",
+            summary: `L1/L2 异步写入失败（重试一次后仍失败），${batch.length} 条任务被丢弃（L0 .md 已同步落盘）`,
+            details: {
+              "丢弃任务数": batch.length,
+              "影响日期": batch.map(t => t.date).join(", "),
+              "错误类型": retryMsg.slice(0, 200),
+              "建议": "检查磁盘空间、权限、或切换 capture.mode 为 sync",
+            },
+          });
+        }
+        // Best-effort: re-enqueue tasks that failed?  For now we drop them
+        // to avoid infinite retry loops.  L0 markdown already written synchronously
+        // as safety net, so data loss is minimal.
       }
-      // Best-effort: re-enqueue tasks that failed?  For now we drop them
-      // to avoid infinite retry loops.  L0 markdown already written synchronously
-      // as safety net, so data loss is minimal.
     } finally {
       flushing = false;
       // If new tasks arrived while we were flushing, schedule again
@@ -94,5 +104,24 @@ export function createWriteQueue(
     }
   }
 
-  return { enqueue, get pendingCount() { return pending.length; } };
+  return { enqueue, get pendingCount() { return pending.length; }, drain: async () => {
+    if (flushing) {
+      // Wait for current flush to complete
+      while (flushing) {
+        await new Promise(r => setTimeout(r, 10));
+      }
+    }
+    if (pending.length > 0) {
+      await runFlush();
+    }
+    // Double-check after any async gap
+    while (flushing) {
+      await new Promise(r => setTimeout(r, 10));
+    }
+  }, retry: async () => {
+    // Re-run flush for any remaining tasks (used after a failure)
+    if (pending.length > 0 && !flushing) {
+      await runFlush();
+    }
+  } };
 }

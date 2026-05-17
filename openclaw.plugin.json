@@ -24,6 +24,12 @@
             "default": true,
             "description": "是否启用自动对话捕获"
           },
+          "mode": {
+            "type": "string",
+            "default": "async",
+            "description": "L1/L2 写入模式：sync=同步写入（实时落盘但阻塞），async=异步批量写入（默认，通过 write-queue 缓冲）",
+            "enum": ["sync", "async"]
+          },
           "maxContentLen": {
             "type": "number",
             "default": 500,
@@ -33,6 +39,22 @@
             "type": "number",
             "default": 3,
             "description": "忽略过短的用户输入阈值（字符数，默认 3）"
+          },
+          "batchSize": {
+            "type": "number",
+            "default": 10,
+            "description": "异步模式下的批量写入上限（默认 10）"
+          },
+          "debounceMs": {
+            "type": "number",
+            "default": 300,
+            "description": "异步模式下触发 flush 的最小延迟（毫秒，默认 300）"
+          },
+          "excludeAgents": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "description": "不参与捕获的 agent label 列表"
           }
         }
       },
@@ -45,10 +67,26 @@
             "default": true,
             "description": "是否启用自动记忆召回"
           },
+          "strategy": {
+            "type": "string",
+            "default": "hybrid",
+            "description": "召回策略：hybrid=混合搜索（FTS5 + 向量），fts=仅 FTS5，vector=仅向量搜索",
+            "enum": ["hybrid", "fts", "vector"]
+          },
           "maxResults": {
             "type": "number",
             "default": 3,
             "description": "召回最大结果数"
+          },
+          "topK": {
+            "type": "number",
+            "default": 5,
+            "description": "向量搜索候选数（默认 5）"
+          },
+          "minScore": {
+            "type": "number",
+            "default": 0.5,
+            "description": "向量搜索结果最低相似度阈值（默认 0.5）"
           },
           "cacheTTL": {
             "type": "number",

@@ -26,7 +26,7 @@ function loadSyncState(baseDir: string): SyncState {
     try {
       return JSON.parse(fs.readFileSync(fp, "utf-8"));
     } catch {
-      return [];
+      return { lastSync: 0, uploaded: [], downloaded: [] };
     }
   } catch {
     return { lastSync: 0, uploaded: [], downloaded: [] };

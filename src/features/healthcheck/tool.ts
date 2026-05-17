@@ -4,7 +4,7 @@
 
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import { runHealthcheck, formatHealthcheck } from "../../utils/healthcheck.ts";
+import { runHealthcheck, formatHealthcheck, type HealthResult } from "../../utils/healthcheck.ts";
 
 export function createHealthcheckTool(): ToolRegistration {
   return {
@@ -26,11 +26,11 @@ export function createHealthcheckTool(): ToolRegistration {
       const detail = String(params.detail || "simple");
       const rawResult = runHealthcheck();
       // Defensive clone: prevent accidental mutation of internal result structure
-      let result: Record<string, unknown>;
+      let result: HealthResult;
       try {
         result = JSON.parse(JSON.stringify(rawResult));
       } catch {
-        result = { ok: false, checks: [] };
+        result = { ok: false, checks: [], summary: "Health check failed" };
       }
 
       if (detail === "full") {
