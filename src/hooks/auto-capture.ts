@@ -28,6 +28,8 @@ import { isExcludedAgent } from "../utils/glob-match.ts";
 import { extractFacts, type L1Logger } from "../utils/l1-extractor.ts";
 import { maybeOffload } from "../utils/mermaid-canvas.ts";
 import { isMMDBlock } from "../utils/mmd-filter.ts";
+import { isTrivial } from "../utils/trivial-detector.ts";
+import type { AuditLog } from "../utils/audit-log.ts";
 import { recordSessionActivity, isSessionActive, pruneStaleSessions } from "../utils/session-activity.ts";
 import { computeCompressLevel, estimateContextSize } from "../utils/context-watermark.ts";
 
@@ -88,6 +90,7 @@ export function registerCaptureHook(
   verifyActive = true,
   scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
   llmClient?: import("../utils/llm-client.ts").LLMClient | null,
+  audit?: AuditLog,
 ) {
   api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
 
@@ -271,7 +274,22 @@ export function registerCaptureHook(
       }
 
       // Skip trivial entries
-      if (userContent.length < minContentLen) return;
+      const trivialCheck = isTrivial(userContent);
+      if (trivialCheck.isTrivial) {
+        audit?.write({
+          component: "auto-capture",
+          event: "skipped-trivial",
+          summary: `消息被判定为低价值（${trivialCheck.reason}），未写入记忆`,
+          details: {
+            length: userContent.length,
+            reason: trivialCheck.reason,
+            confidence: trivialCheck.confidence,
+            preview: userContent.slice(0, 50),
+            sessionKey,
+          },
+        });
+        return;
+      }
 
       // Bug #12: Skip indexing if assistant content is empty or "(no response)"
       const indexableAsst = (!asstContent || asstContent === "(no response)")

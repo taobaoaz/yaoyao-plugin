@@ -25,6 +25,9 @@ import { runTextCompaction } from "../utils/memory-compactor.ts";
 import { SimpleScopeManager, resolveMemoryScope } from "../utils/scope-manager.ts";
 import { readCrossSessionMemories, resolveSessionSearchDirs } from "../utils/session-recovery.ts";
 import { evaluateAllTiers, DEFAULT_TIER_CONFIG, type TierableMemory } from "../utils/tier-manager.ts";
+import { validateConfig, logValidationResults } from "../utils/config-validator.ts";
+import { createAuditLog } from "../utils/audit-log.ts";
+import { isTrivial } from "../utils/trivial-detector.ts";
 
 // ── Optional feature registry ──
 import {
@@ -51,6 +54,19 @@ export default definePluginEntry({
     for (const w of cap.warnings) api.logger.warn?.(`[yaoyao-memory:install] ${w}`);
 
     try {
+      // ── 1.5. Config validation ──
+      const validationResults = validateConfig(config);
+      const hasErrors = logValidationResults(validationResults, api.logger);
+      if (hasErrors) {
+        api.logger.warn?.("[yaoyao-memory] Configuration has errors — some features may be disabled");
+      }
+
+      // ── 1.6. Audit log ──
+      const audit = createAuditLog(store.baseDir, api.logger, {
+        bufferSize: 50,
+        flushIntervalMs: 5000,
+      });
+
       // ── 2. Core initialization ──
       const config = (api.pluginConfig || {}) as YaoyaoMemoryConfig & Record<string, unknown>;
       const store = createMemoryStore(config, api.logger);
@@ -217,10 +233,10 @@ export default definePluginEntry({
 
       // Hooks
       if (config.capture?.enabled !== false) {
-        registerCaptureHook(api, store, db, config, verifyActive, scopeManager, llmResult?.client ?? null);
+        registerCaptureHook(api, store, db, config, verifyActive, scopeManager, llmResult?.client ?? null, audit);
       }
       if (config.recall?.enabled !== false) {
-        registerRecallHook(api, db, config, embedding, scopeManager);
+        registerRecallHook(api, db, config, embedding, scopeManager, audit);
       }
 
       // ── 11. Cleanup scheduler ──

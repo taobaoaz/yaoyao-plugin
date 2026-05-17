@@ -25,6 +25,8 @@ import { scoreConfidenceSupport } from "../utils/confidence-scorer.ts";
 import { parseSupportInfo, type SupportInfoV2 } from "../utils/support-info.ts";
 
 
+import type { AuditLog } from "../utils/audit-log.ts";
+
 // ── Configurable thresholds (read from plugin config) ──
 interface RecallThresholds {
   cacheTTL: number;
@@ -473,6 +475,7 @@ export function registerRecallHook(
   config: YaoyaoMemoryConfig,
   embedding?: import("../utils/embedding.js").EmbeddingService | null,
   scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
+  audit?: AuditLog,
 ) {
   api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})`);
 
