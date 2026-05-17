@@ -84,4 +84,4 @@ All code is auditable. No obfuscation, no bundled binaries.
 
 ---
 
-*Last updated: 2026-05-08*
+*Last updated: 2026-05-17*

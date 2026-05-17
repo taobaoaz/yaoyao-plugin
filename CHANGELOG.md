@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.5.1-beta2 (2026-05-17)
+
+### 🔧 Fixes (Step 1 — Code Quality)
+- 27 tool modules: added required `id` field for OpenClaw tool registration compatibility
+- `forget`: file deletion before DB record removal (prevents orphan records)
+- `list`: `offset`/`sort` parameters added to JSON Schema properties
+- `recommend`/`graph`: added mtime-based scene cache to avoid re-reading directories on every call
+- `unify`: simplified `queryOpenClawDB` connection management (removed redundant per-call open/close)
+- `quality`: `db.search("", 50)` → `db.search("*", 50)` to avoid undefined FTS5 empty-string behavior
+
+### 🚀 Performance (Step 2)
+- `db-bridge`: hourly `PRAGMA wal_checkpoint(PASSIVE)` to prevent unbounded WAL growth
+- `auto-recall`: capped `_sessionContextKeywords` to 100 sessions (LRU eviction) to prevent memory leak
+- `embedding`: concurrency limiter (max 2 inflight requests) with queue to avoid upstream API bombing
+- `entry/index`: saved `setTimeout` reference for cleaner scheduling, properly cleared on `gateway_stop`
+- `import/tool`: unified `PRAGMA cache_size = -65536` (consistent with main connection)
+
+### 🔗 Compatibility (Step 3)
+- `_crossSessionContext`: added existence check before writing to avoid clobbering other plugins' data
+
+### v1.5.1-beta2 — 462 tests pass / 0 fail
+
 ## v1.5.1 (2026-05-14)
 
 ### 🔒 Security Hardening (Phase 12 — P0/P1)
