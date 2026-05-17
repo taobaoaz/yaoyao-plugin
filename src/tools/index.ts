@@ -57,7 +57,7 @@ export function registerMemoryTools(
   embedding?: EmbeddingService | null,
   registry?: FeatureRegistry,
 ) {
-  const tools: Array<import("./common.js").ToolRegistration> = [];
+  const tools: Array<import("./common.ts").ToolRegistration> = [];
 
   /* ── Core tools (always registered) ── */
   tools.push(

@@ -24,7 +24,7 @@ import { initManifest } from "../utils/manifest.ts";
 import { runTextCompaction } from "../utils/memory-compactor.ts";
 import { SimpleScopeManager, resolveMemoryScope } from "../utils/scope-manager.ts";
 import { readCrossSessionMemories, resolveSessionSearchDirs } from "../utils/session-recovery.ts";
-import { evaluateAllTiers, DEFAULT_TIER_CONFIG, type TierableMemory } from "../utils/tier-manager.ts";
+import { evaluateAllTiers, DEFAULT_TIER_CONFIG, type TierableMemory, type MemoryTier } from "../utils/tier-manager.ts";
 import { validateConfig, logValidationResults } from "../utils/config-validator.ts";
 import { createAuditLog } from "../utils/audit-log.ts";
 import { isTrivial } from "../utils/trivial-detector.ts";
@@ -54,9 +54,15 @@ export default definePluginEntry({
     for (const w of cap.warnings) api.logger.warn?.(`[yaoyao-memory:install] ${w}`);
 
     try {
+      // ── 2. Core initialization ──
+      const config = (api.pluginConfig || {}) as YaoyaoMemoryConfig & Record<string, unknown>;
+      const store = createMemoryStore(config, api.logger);
+      const db = createDB(config, api.logger);
+
       // ── 1.5. Config validation ──
       const validationResults = validateConfig(config);
-      const hasErrors = logValidationResults(validationResults, api.logger);
+      const hasErrors = validationResults.some(r => r.level === "error");
+      logValidationResults(validationResults, api.logger);
       if (hasErrors) {
         api.logger.warn?.("[yaoyao-memory] Configuration has errors — some features may be disabled");
       }
@@ -66,11 +72,6 @@ export default definePluginEntry({
         bufferSize: 50,
         flushIntervalMs: 5000,
       });
-
-      // ── 2. Core initialization ──
-      const config = (api.pluginConfig || {}) as YaoyaoMemoryConfig & Record<string, unknown>;
-      const store = createMemoryStore(config, api.logger);
-      const db = createDB(config, api.logger);
       const pluginVersion = readPluginVersion();
 
       // Tencent-style manifest: record store binding and version history
@@ -90,8 +91,8 @@ export default definePluginEntry({
 
       registry.initAll(api, config);
 
-      const embedding = registry.service<ReturnType<typeof import("../utils/embedding.js").createEmbeddingService>>("embedding");
-      const llmResult = registry.service<import("../utils/llm-client.js").CreateLLMClientResult>("llm");
+      const embedding = registry.service<ReturnType<typeof import("../utils/embedding.ts").createEmbeddingService>>("embedding");
+      const llmResult = registry.service<import("../utils/llm-client.ts").CreateLLMClientResult>("llm");
       const verifyActive = registry.isActive("verify");
 
       // Log LLM state

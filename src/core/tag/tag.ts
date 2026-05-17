@@ -122,7 +122,7 @@ export function addTagsToQuery(db: UnifiedDB, query: string, tags: string[], lim
     ? "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' LIMIT ?"
     : "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta LIMIT ?";
   const searchStmt = db.prepare(searchSql);
-  const safeQuery = query.trim().replace(/\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  const safeQuery = query.trim().replace(/\//g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = query.trim()
     ? searchStmt.all(`%${safeQuery}%`, `%${safeQuery}%`, limit)
     : searchStmt.all(limit);

@@ -21,7 +21,7 @@ export function readPluginVersion(): string {
     try {
       pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
     } catch {
-      return "{ nodeRange: ">=18.0.0", pluginApiRange: ">=1.0.0", pluginVersion: "0.0.0" }";
+      return "0.0.0";
     }
     return (pkg.version as string | undefined) || "dev";
   } catch {

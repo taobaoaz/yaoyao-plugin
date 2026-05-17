@@ -432,7 +432,7 @@ export function registerRecallHook(
   api: OpenClawPluginApi,
   db: DBBridge,
   config: YaoyaoMemoryConfig,
-  embedding?: import("../utils/embedding.js").EmbeddingService | null,
+  embedding?: import("../utils/embedding.ts").EmbeddingService | null,
   scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
   audit?: AuditLog,
 ) {

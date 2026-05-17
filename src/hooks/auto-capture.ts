@@ -94,10 +94,8 @@ export function registerCaptureHook(
   audit?: AuditLog,
   embedding?: import("../utils/embedding.ts").EmbeddingService | null,
 ) {
-  api.logger.info(`[yaoyao-memory] Registering agent_end hook (auto-capture mode=${captureMode}${embedding ? " + vector" : ""})`);
-
-  // ── Async write queue: buffers L1 (FTS5) + optional L2 (vector) writes off main thread ──
   const captureMode = (config.capture?.mode as string) || "async";
+  api.logger.info(`[yaoyao-memory] Registering agent_end hook (auto-capture mode=${captureMode}${embedding ? " + vector" : ""})`);
   const writeQueue = captureMode === "async"
     ? createWriteQueue(
         async (tasks) => {

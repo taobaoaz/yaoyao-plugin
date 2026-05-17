@@ -164,7 +164,7 @@ export function runHealthcheck(baseDir?: string): HealthResult {
 
   // Brain-style health stats: query DB for memory distribution
   try {
-    const { createCompatDB } = require("../platform/db/compat.js");
+    const { createCompatDB } = require("../platform/db/compat.ts");
     const { db: statsDb } = createCompatDB(baseDir ? path.join(baseDir, "memory.db") : path.join(memDir, "memory.db"));
     const total = statsDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as { c: number };
     const tierDist = statsDb.prepare("SELECT tier, COUNT(*) as c FROM memory_meta GROUP BY tier").all() as { tier: string; c: number }[];
