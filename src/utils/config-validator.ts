@@ -182,7 +182,7 @@ export function validateConfig(config: YaoyaoMemoryConfig): ConfigValidation[] {
       }
     }
     const strategy = recall.strategy;
-    if (strategy && strategy !== "hybrid" && strategy !== "fts5" && strategy !== "vector") {
+    if (strategy && strategy !== "hybrid" && strategy !== "fts" && strategy !== "vector") {
       results.push({
         level: "error",
         field: "recall.strategy",
@@ -193,7 +193,7 @@ export function validateConfig(config: YaoyaoMemoryConfig): ConfigValidation[] {
   }
 
   // ── cloudSync ──
-  const cloud = config.cloudSync;
+  const cloud = config.cloudSync as { enabled?: boolean; provider?: string; endpoint?: string } | undefined;
   if (cloud?.enabled === true) {
     if (!cloud.provider || !["webdav", "s3", "sftp", "samba"].includes(cloud.provider)) {
       results.push({

@@ -55,7 +55,7 @@ export default definePluginEntry({
 
     try {
       // ── 2. Core initialization ──
-      const config = (api.pluginConfig || {}) as YaoyaoMemoryConfig & Record<string, unknown>;
+      const config = (api.pluginConfig || {}) as unknown as YaoyaoMemoryConfig & Record<string, unknown>;
       const store = createMemoryStore(config, api.logger);
       const db = createDB(config, api.logger);
 
@@ -117,7 +117,7 @@ export default definePluginEntry({
       // ── 5.5 Session Recovery (Brain-style cross-session context) ──
       try {
         const searchDirs = resolveSessionSearchDirs({
-          context: (api as Record<string, unknown>).context || {},
+          context: ((api as unknown as Record<string, unknown>).context || {}) as Record<string, unknown>,
           cfg: api.pluginConfig || {},
           workspaceDir: api.baseDir || ".",
           currentSessionFile: (api as Record<string, unknown>).sessionFile as string | undefined,

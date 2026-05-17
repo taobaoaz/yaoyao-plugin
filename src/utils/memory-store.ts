@@ -67,6 +67,8 @@ export interface YaoyaoMemoryConfig {
     retries?: number;
     maxInputChars?: number;
     backoffBaseMs?: number;
+    authType?: string;
+    customHeaders?: Record<string, string>;
   };
   llm?: {
     enabled?: boolean;
@@ -78,6 +80,18 @@ export interface YaoyaoMemoryConfig {
     enabled?: boolean;
     l0l1RetentionDays?: number;
     allowAggressiveCleanup?: boolean;
+  };
+  compaction?: {
+    enabled?: boolean;
+    minAgeDays?: number;
+    similarityThreshold?: number;
+    minClusterSize?: number;
+    maxEntriesToScan?: number;
+    dryRun?: boolean;
+  };
+  sessionRecovery?: {
+    maxMemories?: number;
+    maxAgeMs?: number;
   };
   snippetMaxLen?: number;
   searchMaxLimit?: number;

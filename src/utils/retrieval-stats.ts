@@ -6,9 +6,6 @@
 
 import type { RetrievalTrace } from "./retrieval-trace.ts";
 
-/** Global retrieval stats collector — shared across auto-recall and memory_stats tool */
-export const globalRetrievalStats = new RetrievalStatsCollector(100);
-
 export interface AggregateStats {
   totalQueries: number;
   zeroResultQueries: number;
@@ -110,3 +107,6 @@ export class RetrievalStatsCollector {
     return this._count;
   }
 }
+
+/** Global retrieval stats collector — shared across auto-recall and memory_stats tool */
+export const globalRetrievalStats = new RetrievalStatsCollector(100);

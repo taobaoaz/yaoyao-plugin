@@ -37,6 +37,10 @@ interface HnswMeta {
   model?: string;
   count: number;
   space: string;
+  dim?: number;
+  ef_construction?: number;
+  max_elements?: number;
+  indexType?: string;
 }
 
 export class HnswlibBackend implements VectorBackend {
@@ -52,6 +56,9 @@ export class HnswlibBackend implements VectorBackend {
   private indexPath = "";
   private metaPath = "";
   private dimensions = 1024;
+  private dim = 1024;
+  private ef = 200;
+  private indexType = "hnsw";
   private snippetMaxLen = 500;
   private searchMaxLimit = 100;
   private maxElements = 50000;
@@ -93,7 +100,7 @@ export class HnswlibBackend implements VectorBackend {
         try {
           meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
         } catch {
-          meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType };
+          meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType, dimensions: this.dimensions, count: 0, space: "cosine" };
         }
         if (meta.dimensions === this.dimensions) {
           this.index.readIndexSync(this.indexPath);

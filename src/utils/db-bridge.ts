@@ -28,6 +28,7 @@ export interface SearchResult {
   score: number;
   date: string;
   asst_text?: string;
+  metadata?: string;
 }
 
 export interface EmbeddedSearchResult extends SearchResult {
@@ -590,7 +591,13 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     } catch { /* best effort */ }
   }
 
-  /** Increment access_count for a memory row and promote tier if threshold reached */
+  /** Update metadata for a memory row */
+  function updateMetadata(id: number, metadata: string): void {
+    try {
+      const d = ensureDB();
+      d.prepare("UPDATE memory_meta SET meta = ? WHERE id = ?").run(metadata, id);
+    } catch { /* best effort */ }
+  }
   function incrementAccessCount(id: number): void {
     const d = ensureDB();
     if (!d) return;
@@ -605,7 +612,7 @@ export function createDB(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
     } catch { /* best effort */ }
   }
 
-  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, rrfHybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig, incrementAccessCount };
+  return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, rrfHybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig, updateMetadata, incrementAccessCount };
 }
 
 export type DBBridge = ReturnType<typeof createDB>;

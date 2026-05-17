@@ -17,7 +17,9 @@ import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import type { DBBridge, SearchResult } from "../utils/db-bridge.ts";
 import type { EmbeddingService } from "../utils/embedding.ts";
 import { detectSentiment } from "../utils/sentiment.ts";
-import { RetrievalStatsCollector } from "../utils/retrieval-stats.ts";
+import { RetrievalStatsCollector, globalRetrievalStats } from "../utils/retrieval-stats.ts";
+import { createSessionFilter } from "../utils/session-filter.ts";
+import { expandQuery } from "../utils/query-expander.ts";
 import { computeReflectionLogistic, computePresetReflectionScore } from "../utils/reflection-ranking.ts";
 import { parseAccessMetadata, buildUpdatedMetadata, computeEffectiveHalfLife } from "../utils/access-tracker.ts";
 import { analyzeIntent, applyCategoryBoost } from "../utils/intent-analyzer.ts";
@@ -50,6 +52,8 @@ interface RecallThresholds {
   minResults: number;
   /** Max characters for injected recall text (0 = unlimited). */
   maxChars: number;
+  /** Minimum score for a result to be included (0 = disabled). */
+  scoreThreshold: number;
 }
 
 import { clampNum } from "../utils/clamp.ts";
@@ -202,7 +206,7 @@ function applyImportanceWeighting(results: SearchResult[]): SearchResult[] {
   });
 }
 
-function applyScoring(results: SearchResult[]): SearchResult[] {
+function applyScoring(results: SearchResult[], _userMessage?: string): SearchResult[] {
   return applyImportanceWeighting(applyLengthNormalization(results));
 }
 
@@ -440,6 +444,8 @@ export function registerRecallHook(
 
   const cfg = getRecallConfig(config);
 
+  const sessionFilter = createSessionFilter({ blockLabels: config.blockLabels || [], blockInternal: true, minMessages: 1 });
+
   // ── Brain-style LRU result cache ──
   const resultCache = new SimpleLRU<string, SearchResult[]>({
     maxSize: cfg.maxCacheSize,
@@ -520,11 +526,11 @@ export function registerRecallHook(
       // Check cache
       const cached = resultCache.get(cacheKey);
       if (cached) {
-        api.logger.debug?.(`[yaoyao-memory:recall] Cache hit | decay=${decayed.length} | dedup=${deduped.length}`);
         const decayed = applyTimeDecay(cached, cfg, cfg.decayMode);
         const scored = applyScoring(decayed, userMessage);
         const deduped = applyDiversitySampling(scored, maxResults, cfg);
         const ensured = ensureMinResults(deduped, db, cfg.minResults);
+        api.logger.debug?.(`[yaoyao-memory:recall] Cache hit | decay=${decayed.length} | dedup=${deduped.length}`);
         updateSessionContext(sessionKey, keywords, cfg);
         stats.recordQuery(makeSimpleTrace(ftsQuery, searchType, startMs, cached.length, ensured.length));
         return buildHookResult(buildRecallContext(ensured, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
@@ -554,13 +560,13 @@ export function registerRecallHook(
             }
           } catch { /* best effort */ }
         }
-            api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms | decay=${decayed.length} | dedup=${deduped.length}`);
             // Apply enhancements
             const decayed = applyTimeDecay(results, cfg, cfg.decayMode);
             const scored = applyScoring(decayed, userMessage);
             const confident = applyConfidenceScoring(scored, userMessage);
             const deduped = applyDiversitySampling(confident, maxResults, cfg);
             const ensured = ensureMinResults(deduped, db, cfg.minResults);
+            api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms | decay=${decayed.length} | dedup=${deduped.length}`);
             updateSessionContext(sessionKey, keywords, cfg);
             stats.recordQuery(makeSimpleTrace(ftsQuery, searchType, startMs, results.length, ensured.length));
             return buildHookResult(buildRecallContext(ensured, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
@@ -596,7 +602,6 @@ export function registerRecallHook(
         }
 
         resultCache.set(cacheKey, results);
-        api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms | decay=${decayed.length} | dedup=${deduped.length}`);
 
         // Apply enhancements
         const decayed = applyTimeDecay(results, cfg, cfg.decayMode);
@@ -604,6 +609,7 @@ export function registerRecallHook(
         const confident = applyConfidenceScoring(scored, userMessage);
         const deduped = applyDiversitySampling(confident, maxResults, cfg);
         const ensured = ensureMinResults(deduped, db, cfg.minResults);
+        api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms | decay=${decayed.length} | dedup=${deduped.length}`);
         updateSessionContext(sessionKey, keywords, cfg);
         stats.recordQuery(makeSimpleTrace(ftsQuery, searchType, startMs, results.length, ensured.length));
         return buildHookResult(buildRecallContext(ensured, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);

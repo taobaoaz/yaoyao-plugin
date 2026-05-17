@@ -104,7 +104,7 @@ export function applyCategoryBoost<
   const prioritySet = new Set(intent.categories);
 
   const boosted = results.map((r) => {
-    if (prioritySet.has(r.entry.category)) {
+    if (prioritySet.has(r.entry.category as MemoryCategoryIntent)) {
       return { ...r, score: Math.min(1, r.score * boostFactor) };
     }
     return r;
