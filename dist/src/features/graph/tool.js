@@ -46,14 +46,7 @@ function loadTagsFromMeta(db) {
     catch { /* best effort */ }
     return tags;
 }
-let _filenameIdCache = null;
-let _filenameIdCacheVersion = -1;
 function buildFilenameToIdMap(db) {
-    const stats = db.getStats();
-    const version = stats.totalMemories;
-    if (_filenameIdCache && _filenameIdCacheVersion === version) {
-        return _filenameIdCache;
-    }
     const map = new Map();
     try {
         const rows = db.getAllMeta();
@@ -62,8 +55,6 @@ function buildFilenameToIdMap(db) {
         }
     }
     catch { /* best effort */ }
-    _filenameIdCache = map;
-    _filenameIdCacheVersion = version;
     return map;
 }
 export function createGraphTool(db, _dbPath, memoryDir, embedding) {
@@ -115,7 +106,7 @@ export function createGraphTool(db, _dbPath, memoryDir, embedding) {
             let queryVec = null;
             if (embedding) {
                 try {
-                    queryVec = await embedding.embed(query);
+                    queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
                 }
                 catch { /* best effort */ }
             }

@@ -26,7 +26,6 @@ import { analyzeIntent, applyCategoryBoost } from "../utils/intent-analyzer.ts";
 import { scoreConfidenceSupport } from "../utils/confidence-scorer.ts";
 import { parseSupportInfo, type SupportInfoV2 } from "../utils/support-info.ts";
 
-
 import { SimpleLRU } from "../utils/simple-lru.ts";
 import { isTrivial } from "../utils/trivial-detector.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
@@ -48,161 +47,98 @@ interface RecallThresholds {
   timeoutMs: number;
   /** Exclude memories created within this many ms ago (0 = disabled). Prevents circular recall. */
   excludeRecentMS: number;
-  /** Minimum results to inject. If search returns fewer, fallback to latest memories. */
+  /** Minimum results required to inject recall context (0 = always inject) */
   minResults: number;
-  /** Max characters for injected recall text (0 = unlimited). */
+  /** Max characters of recalled context to inject */
   maxChars: number;
-  /** Minimum score for a result to be included (0 = disabled). */
+  /** Score threshold for confidence scoring */
   scoreThreshold: number;
 }
 
-import { clampNum } from "../utils/clamp.ts";
-
-import { getBool, getProp } from "../utils/config.ts";
-
-// ── Config helper: read from flat config keys with range clamping ──
-function cfgVal(config: YaoyaoMemoryConfig, key: string, defaultVal: number, min: number, max: number): number {
-  return clampNum(getProp(config, key, defaultVal), defaultVal, min, max);
-}
-
 function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
+  const r = config.recall || {};
   return {
-    cacheTTL: cfgVal(config, "recallCacheTTL", 30_000, 5_000, 300_000),
-    maxCacheSize: cfgVal(config, "recallMaxCacheSize", 50, 10, 200),
-    halfLife: cfgVal(config, "recallHalfLife", 30, 1, 365),
-    jaccardBase: cfgVal(config, "recallJaccardBase", 0.75, 0.1, 1),
-    jaccardMin: cfgVal(config, "recallJaccardMin", 0.5, 0.1, 1),
-    maxSessions: cfgVal(config, "recallMaxSessions", 1000, 100, 5000),
-    maxContextKeywords: cfgVal(config, "recallMaxContextKeywords", 20, 5, 100),
-    maxResults: clampNum(config.recall?.maxResults, 3, 1, 20),
-    decayMode: (config.recall?.decayMode as "weibull" | "logistic") ?? "weibull",
-    position: (config.recall?.position as "append" | "prepend") ?? "append",
-    timeoutMs: clampNum(config.recall?.timeoutMs, 5000, 500, 30000),
-    excludeRecentMS: clampNum(config.recall?.excludeRecentMS, 0, 0, 60000),
-    minResults: clampNum(config.recall?.minResults, 0, 0, 20),
-    maxChars: clampNum(config.recall?.maxChars, 0, 0, 8000),
-    scoreThreshold: clampNum(config.recall?.scoreThreshold, 0, 0, 1),
+    cacheTTL: r.cacheTTL ?? 30000,
+    maxCacheSize: r.maxCacheSize ?? 50,
+    halfLife: r.halfLife ?? 30,
+    jaccardBase: r.jaccardBase ?? 0.75,
+    jaccardMin: r.jaccardMin ?? 0.5,
+    maxSessions: r.maxSessions ?? 1000,
+    maxContextKeywords: r.maxContextKeywords ?? 20,
+    maxResults: r.maxResults ?? 3,
+    decayMode: (r.decayMode as "weibull" | "logistic") ?? "weibull",
+    position: (r.position as "append" | "prepend") ?? "append",
+    timeoutMs: r.timeoutMs ?? 800,
+    excludeRecentMS: r.excludeRecentMS ?? 0,
+    minResults: r.minResults ?? 0,
+    maxChars: r.maxChars ?? 1200,
+    scoreThreshold: r.minScore ?? 0.5,
   };
 }
 
-// ── Search result cache (LRU + TTL from config) ──
-// Instantiated per hook registration to avoid cross-instance leakage.
-
-// ── Enhancement 3: Session context accumulation ──
-// Maintains cross-turn keyword context per session to improve recall relevance.
-// Entries are LRU-evicted when over maxSessions to prevent memory leaks.
-const sessionContext = new Map<string, { keywords: Set<string>; lastAccess: number }>();
-
-function updateSessionContext(sessionKey: string, keywords: string[], cfg: RecallThresholds): void {
-  const now = Date.now();
-  // Evict oldest session by lastAccess if over limit
-  if (!sessionContext.has(sessionKey) && sessionContext.size >= cfg.maxSessions) {
-    let oldestKey: string | null = null;
-    let oldestTime = Infinity;
-    for (const [k, v] of sessionContext) {
-      if (v.lastAccess < oldestTime) {
-        oldestTime = v.lastAccess;
-        oldestKey = k;
-      }
-    }
-    if (oldestKey) sessionContext.delete(oldestKey);
-  }
-  let entry = sessionContext.get(sessionKey);
-  if (!entry) {
-    entry = { keywords: new Set<string>(), lastAccess: now };
-    sessionContext.set(sessionKey, entry);
-  }
-  entry.lastAccess = now;
-  for (const kw of keywords) {
-    entry.keywords.add(kw);
-  }
-  // Evict oldest when over limit
-  if (entry.keywords.size > cfg.maxContextKeywords) {
-    const arr = Array.from(entry.keywords);
-    const toRemove = arr.slice(0, entry.keywords.size - cfg.maxContextKeywords);
-    for (const kw of toRemove) entry.keywords.delete(kw);
-  }
+// ── Utilities ──
+function jaccard(a: string, b: string): number {
+  const setA = new Set(a.split(/\s+/));
+  const setB = new Set(b.split(/\s+/));
+  const intersection = new Set([...setA].filter((x) => setB.has(x)));
+  const union = new Set([...setA, ...setB]);
+  return intersection.size / union.size;
 }
 
-function getSessionContextKeywords(sessionKey: string): string[] {
-  const entry = sessionContext.get(sessionKey);
-  if (entry) {
-    entry.lastAccess = Date.now();
-    return Array.from(entry.keywords);
-  }
-  return [];
-}
-
-// ── Enhancement 1: Time decay scoring ──
-// Applies time decay with optional logistic curve (Brain-style reflection ranking)
-function applyTimeDecay(results: SearchResult[], cfg: RecallThresholds, mode: "weibull" | "logistic" = "weibull"): SearchResult[] {
+function applyDiversitySampling(
+  results: SearchResult[],
+  baseThreshold: number,
+  minThreshold: number,
+): SearchResult[] {
   if (results.length <= 1) return results;
+  const out: SearchResult[] = [results[0]];
+  for (let i = 1; i < results.length; i++) {
+    const r = results[i];
+    let maxSim = 0;
+    for (const o of out) {
+      const sim = jaccard(r.snippet, o.snippet);
+      if (sim > maxSim) maxSim = sim;
+    }
+    const threshold = Math.max(minThreshold, baseThreshold - (out.length * 0.02));
+    if (maxSim < threshold) out.push(r);
+  }
+  return out;
+}
+
+function applyTimeDecay(
+  results: SearchResult[],
+  halfLifeDays: number,
+  mode: "weibull" | "logistic",
+): SearchResult[] {
   const now = Date.now();
-  const dayMs = 86400000;
-
-  return results
-    .map((r, i) => {
-      let daysAgo = 0;
-      const dateStr = r.date || r.filename?.replace(".md", "") || "";
-      const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);
-      if (dateMatch) {
-        const dateObj = new Date(dateMatch[1] + "T00:00:00");
-        if (!isNaN(dateObj.getTime())) {
-          daysAgo = Math.max(0, (now - dateObj.getTime()) / dayMs);
-        }
-      }
-      const originalScore = typeof r.score === "number" ? r.score : Math.max(0.1, 1.0 - i * 0.1);
-      // Brain-style composite decay: recency * frequency * intrinsic
-      const accessCount = (r as unknown as Record<string, unknown>).accessCount as number || 0;
-      const importance = (r as unknown as Record<string, unknown>).importance as number || 0.5;
-      const tier = ((r as unknown as Record<string, unknown>).tier as string) || "active";
-      const beta = tier === "core" ? 0.8 : tier === "working" ? 1.0 : 1.3;
-
-      let recency: number;
-      if (mode === "logistic") {
-        // Brain reflection-ranking: logistic decay with tier-adjusted midpoint
-        const midpoint = cfg.halfLife * (tier === "core" ? 2.0 : tier === "working" ? 1.0 : 0.7);
-        recency = computeReflectionLogistic(daysAgo, midpoint, 0.15);
-      } else {
-        // Weibull decay (original yaoyao)
-        recency = Math.exp(-Math.pow(daysAgo / cfg.halfLife, beta));
-      }
-
-      const frequency = Math.log1p(accessCount) * 0.15 + 1.0;
-      const intrinsic = 0.3 + 0.7 * importance;
-      return { ...r, score: originalScore * recency * frequency * intrinsic };
-    })
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const halfLifeMs = halfLifeDays * 24 * 60 * 60 * 1000;
+  return results.map((r) => {
+    const ageMs = now - (r.timestamp || now);
+    let decay: number;
+    if (mode === "logistic") {
+      const k = 10 / halfLifeMs;
+      const t0 = halfLifeMs;
+      decay = 1 / (1 + Math.exp(k * (ageMs - t0)));
+    } else {
+      const lambda = Math.log(2) / halfLifeMs;
+      decay = Math.exp(-lambda * ageMs);
+    }
+    return { ...r, score: r.score * decay };
+  });
 }
-
-// ── Brain-style Confidence Scorer ──
-function applyConfidenceScoring(results: SearchResult[], userMessage: string): SearchResult[] {
-  if (results.length === 0) return results;
-  return results.map(r => {
-    const breakdown = scoreConfidenceSupport(r.snippet, userMessage);
-    // Blend existing score with confidence (0.7 existing + 0.3 confidence)
-    const blended = (r.score ?? 0.5) * 0.7 + breakdown.score * 0.3;
-    return { ...r, score: blended };
-  }).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-}
-
-// ── Brain-style Length Normalization + Importance Weighting ──
-const LENGTH_ANCHOR = 200; // Brain default: 200 chars
 
 function applyLengthNormalization(results: SearchResult[]): SearchResult[] {
   return results.map((r) => {
-    const charLen = r.snippet.length;
-    if (charLen <= 0) return r;
-    const factor = 1 / (1 + 0.5 * Math.log2(Math.max(charLen, 1) / LENGTH_ANCHOR));
-    return { ...r, score: (r.score ?? 0) * factor };
+    const len = r.snippet?.length || 1;
+    const norm = 1 + Math.log1p(len / 100);
+    return { ...r, score: r.score / norm };
   });
 }
 
 function applyImportanceWeighting(results: SearchResult[]): SearchResult[] {
   return results.map((r) => {
-    const imp = ((r as unknown as Record<string, unknown>).importance as number) || 0.5;
-    const weight = 0.7 + 0.3 * imp;
-    return { ...r, score: (r.score ?? 0) * weight };
+    const imp = r.importance ?? 0.5;
+    return { ...r, score: r.score * (0.5 + imp) };
   });
 }
 
@@ -210,226 +146,84 @@ function applyScoring(results: SearchResult[], _userMessage?: string): SearchRes
   return applyImportanceWeighting(applyLengthNormalization(results));
 }
 
-// ── Enhancement 2: Diversity sampling ──
-// Multi-faceted diversity: Jaccard dedup + date coverage + previous recall backoff
-
-function applyDiversitySampling(
-  results: SearchResult[],
-  maxResults: number = 8,
-  cfg: RecallThresholds,
-): SearchResult[] {
-  if (results.length <= 1) return results;
-
-  /** Adaptive Jaccard threshold — stricter when more results are available */
-  const jaccardThreshold = Math.max(
-    cfg.jaccardMin,
-    cfg.jaccardBase - (results.length / 30) * (cfg.jaccardBase - cfg.jaccardMin),
-  );
-
-  function jaccardSimilarity(a: string, b: string): number {
-    const snippetA = a.slice(0, 50);
-    const snippetB = b.slice(0, 50);
-    const tokenize = (s: string): string[] =>
-      [...s.toLowerCase().matchAll(/[\w\u4e00-\u9fff]+/g)].map(m => m[0]);
-    const setA = new Set<string>(tokenize(snippetA));
-    const setB = new Set<string>(tokenize(snippetB));
-    const intersect = new Set<string>([...setA].filter((x) => setB.has(x)));
-    const union = new Set<string>([...setA, ...setB]);
-    return union.size > 0 ? intersect.size / union.size : 0;
-  }
-
-  // Phase 1: Jaccard dedup (semantic diversity)
-  const deduped: SearchResult[] = [];
-  for (const r of results) {
-    const isDuplicate = deduped.some((k) => jaccardSimilarity(r.snippet, k.snippet) > jaccardThreshold);
-    if (!isDuplicate) deduped.push(r);
-  }
-
-  // Phase 2: Date coverage diversity — prefer broader date spread
-  if (deduped.length <= maxResults) return deduped;
-
-  const dates = new Map<string, SearchResult[]>();
-  for (const r of deduped) {
-    const dateKey = (r.date || r.filename?.slice(0, 10) || "unknown").slice(0, 10);
-    if (!dates.has(dateKey)) dates.set(dateKey, []);
-    dates.get(dateKey)!.push(r);
-  }
-
-  // Interleave: pick one from each date group in round-robin, capped at maxResults
-  const groups = [...dates.entries()].sort(([a], [b]) => a < b ? 1 : -1); // newer dates first
-  const interleaved: SearchResult[] = [];
-  let picked = true;
-  while (picked && interleaved.length < maxResults) {
-    picked = false;
-    for (const [, items] of groups) {
-      if (items.length > 0 && interleaved.length < maxResults) {
-        interleaved.push(items.shift()!);
-        picked = true;
-      }
-    }
-  }
-
-  return interleaved;
-}
-
-/** Format search results into recall text snippet with sentiment emoji */
-function formatRecallText(results: SearchResult[]): string {
-  return results
-    .map((r) => {
-      const mood = detectSentiment(r.snippet);
-      // Brain-style support info: parse metadata for confidence badge
-      let confidenceBadge = "";
-      try {
-        const meta = JSON.parse(r.metadata || "{}") as Record<string, unknown>;
-        const support = parseSupportInfo(meta.support_info);
-        if (support.total_observations > 0) {
-          const strengthPct = Math.round(support.global_strength * 100);
-          confidenceBadge = ` [置信度${strengthPct}%]`;
-        }
-      } catch { /* ignore malformed metadata */ }
-      return `[${r.filename}] ${mood.emoji}${confidenceBadge}\n${r.snippet}`;
-    })
-    .join("\n---\n");
-}
-
-/** Build the appendSystemContext object for return */
-function buildRecallContext(results: SearchResult[], hintText?: string, maxChars?: number): { appendSystemContext: string } | undefined {
-  if (results.length === 0) return undefined;
-  let recallText = formatRecallText(results);
-  if (maxChars && maxChars > 0 && recallText.length > maxChars) {
-    // Truncate to nearest separator, append ellipsis
-    const idx = recallText.lastIndexOf("\n---\n", maxChars);
-    recallText = (idx > 0 ? recallText.slice(0, idx) : recallText.slice(0, maxChars)) + "\n\n...（记忆已截断）";
-  }
-  const hint = hintText || "以下内容来自你的对话历史记录，可能与当前对话相关";
-  return {
-    appendSystemContext: `## 相关记忆\n\n${hint}：\n\n${recallText}\n`,
-  };
-}
-
-/** Build prependSystemContext for static system prompt rules (cached by provider) */
-function buildPrependRules(config: YaoyaoMemoryConfig): string | undefined {
-  const rules: string[] = [];
-
-  // 多模态记忆指令：开启 autoSaveImage 后，AI 自动将图片理解结果存入记忆
-  const autoSaveImage = getBool(config, "autoSaveImage", false);
-  if (autoSaveImage) {
-    rules.push(
-      "## 行为规则\n\n当用户发送图片或你通过任何方式获取到图片内容后，在回复用户之前，请调用 memory_save 工具，以 `[图片] 图片描述` 的格式将图片描述保存到记忆中。图片描述应为简洁的中文完整句子。",
-    );
-  }
-
-  return rules.length > 0 ? rules.join("\n\n") : undefined;
-}
-
-/** Ensure minimum result count by falling back to latest memories. */
-function ensureMinResults(results: SearchResult[], db: DBBridge, minResults: number): SearchResult[] {
-  if (minResults <= 0 || results.length >= minResults) return results;
-  const needed = minResults - results.length;
-  try {
-    const fallback = db.searchAll(needed);
-    // Deduplicate by id
-    const seen = new Set(results.map(r => r.id));
-    const extra = fallback.filter(r => !seen.has(r.id));
-    return results.concat(extra.slice(0, needed));
-  } catch {
-    return results;
-  }
-}
-function buildHookResult(
-  appendCtx: { appendSystemContext: string } | undefined,
-  config: YaoyaoMemoryConfig,
-  position: "append" | "prepend",
-): { prependContext?: string; appendSystemContext?: string; prependSystemContext?: string } | undefined {
-  if (!appendCtx) return undefined;
-
-  const staticPrepend = buildPrependRules(config);
-
-  if (position === "prepend") {
-    // Tencent-style: inject recall before user message for better prompt cache
-    return {
-      prependContext: appendCtx.appendSystemContext,
-      ...(staticPrepend ? { prependSystemContext: staticPrepend } : {}),
-    };
-  }
-
-  // Legacy: append after system prompt
-  if (!staticPrepend) return appendCtx;
-  return {
-    prependSystemContext: staticPrepend,
-    appendSystemContext: appendCtx?.appendSystemContext || "",
-  };
-}
-
-/** Brain-style scope filter: only return memories accessible to the current agent */
 function filterByScope(
   results: SearchResult[],
-  scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
-  agentId?: string,
+  scopeManager: import("../utils/scope-manager.ts").SimpleScopeManager | undefined,
+  agentId: string | undefined,
 ): SearchResult[] {
-  if (!scopeManager) return results;
-  return results.filter((r) => {
-    try {
-      const meta = JSON.parse(r.metadata || "{}") as Record<string, unknown>;
-      const scope = (meta.scope as string) || "global";
-      return scopeManager.isAccessible(scope, agentId);
-    } catch {
-      return true; // if metadata is malformed, allow it through
-    }
-  });
-}
-// Skip retrieval for greetings, commands, simple instructions, and system messages.
-// Saves embedding API calls and reduces noise injection.
-
-const CONTROL_PROMPT_SKIP_PATTERNS = [
-  /A new session was started via \/new or \/reset/i,
-  /Execute your Session Startup sequence now/i,
-  /(^|\n)\s*\/note\b/i,
-];
-
-const SKIP_PATTERNS = [
-  /^(hi|hello|hey|good\s*(morning|afternoon|evening|night)|greetings|yo|sup|howdy|what'?s up)\b/i,
-  /^\//,
-  /^(run|build|test|ls|cd|git|npm|pip|docker|curl|cat|grep|find|make|sudo)\b/i,
-  /^(yes|no|yep|nope|ok|okay|sure|fine|thanks|thank you|thx|ty|got it|understood|cool|nice|great|good|perfect|awesome|👍|👎|✅|❌)\s*[.!?]?$/i,
-  /^(go ahead|continue|proceed|do it|start|begin|next|实施|开始|继续|好的|可以|行)\s*[.!?]?$/i,
-  /^[\p{Emoji}\s]+$/u,
-  /HEARTBEAT/i,
-  /^\[System/i,
-  /^(ping|pong|test|debug)\s*[.!?]?$/i,
-];
-
-const FORCE_RETRIEVE_PATTERNS = [
-  /\b(remember|recall|forgot|memory|memories)\b/i,
-  /\b(last time|before|previously|earlier|yesterday|ago)\b/i,
-  /\b(my (name|email|phone|address|birthday|preference))\b/i,
-  /\b(what did (i|we)|did i (tell|say|mention))\b/i,
-  /(你记得|你記得|之前|上次|以前|还记得|還記得|提到过|提到過|说过|說過)/i,
-];
-
-function normalizeQuery(query: string): string {
-  let s = query.trim();
-  const metadataPattern = /^(Conversation info|Sender) \(untrusted metadata\):[\s\S]*?\s*$/gim;
-  s = s.replace(metadataPattern, '');
-  s = s.trim().replace(/^\[cron:[^\]]+\]\s*/i, '');
-  s = s.trim().replace(/^\[[A-Za-z]{3}\s\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}\s[^\]]+\]\s*/, '');
-  return s.trim();
+  if (!scopeManager || !agentId) return results;
+  const allowed = scopeManager.getScopes(agentId);
+  return results.filter((r) => !r.scope || allowed.includes(r.scope));
 }
 
-function shouldSkipRetrieval(query: string, minLength?: number): boolean {
-  const trimmed = normalizeQuery(query);
-  if (CONTROL_PROMPT_SKIP_PATTERNS.some(p => p.test(trimmed))) return true;
-  if (FORCE_RETRIEVE_PATTERNS.some(p => p.test(trimmed))) return false;
-  if (trimmed.length < 5) return true;
-  if (SKIP_PATTERNS.some(p => p.test(trimmed))) return true;
-  if (minLength !== undefined && minLength > 0) {
-    if (trimmed.length < minLength && !trimmed.includes('?') && !trimmed.includes('？')) return true;
-    return false;
+function buildRecallContext(results: SearchResult[], hintText?: string, maxChars = 1200): string {
+  const header = hintText ? `💡 ${hintText}\n` : "💡 相关记忆:\n";
+  let body = "";
+  let used = 0;
+  for (const r of results) {
+    const line = `- ${r.date || ""}: ${r.snippet}\n`;
+    if (used + line.length > maxChars) break;
+    body += line;
+    used += line.length;
   }
-  const hasCJK = /[一-鿿぀-ゟ゠-ヿ가-힯]/.test(trimmed);
-  const defaultMinLength = hasCJK ? 6 : 15;
-  if (trimmed.length < defaultMinLength && !trimmed.includes('?') && !trimmed.includes('？')) return true;
-  return false;
+  return header + body;
+}
+
+function buildHookResult(context: string, _config: YaoyaoMemoryConfig, position: "append" | "prepend"): unknown {
+  if (position === "prepend") {
+    return { prepend: context };
+  }
+  return { append: context };
+}
+
+// ── Session context accumulation ──
+const _sessionContextKeywords = new Map<string, Set<string>>();
+const _sessionKeywordOrder = new Map<string, string[]>();
+
+function accumulateKeywords(sessionKey: string, text: string, maxKeywords: number): void {
+  const words = text.toLowerCase().split(/[^a-z0-9\u4e00-\u9fa5]+/).filter((w) => w.length >= 2);
+  let set = _sessionContextKeywords.get(sessionKey);
+  let order = _sessionKeywordOrder.get(sessionKey);
+  if (!set) {
+    set = new Set();
+    order = [];
+    _sessionContextKeywords.set(sessionKey, set);
+    _sessionKeywordOrder.set(sessionKey, order);
+  }
+  for (const w of words) {
+    if (!set.has(w)) {
+      set.add(w);
+      order!.push(w);
+    }
+  }
+  while (order!.length > maxKeywords) {
+    const removed = order!.shift()!;
+    set.delete(removed);
+  }
+}
+
+function getAccumulatedKeywords(sessionKey: string): string[] {
+  return _sessionKeywordOrder.get(sessionKey) || [];
+}
+
+// ── Stopword filter ──
+function filterStopwords(words: string[]): string[] {
+  const stopwords = new Set([
+    "可以",
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "can", "could",
+    "shall", "should", "may", "might", "must", "i", "you", "he", "she", "it",
+    "we", "they", "me", "him", "her", "us", "them", "this", "that", "these",
+    "those", "and", "or", "but", "if", "because", "when", "where", "how",
+    "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
+    "at", "by", "from", "as", "into", "not", "no", "yes",
+  ]);
+
+  return words.filter((w) => !stopwords.has(w) && w.length <= 50);
+}
+
+export interface RecallHookHandle {
+  unregister: () => void;
 }
 
 export function registerRecallHook(
@@ -439,7 +233,7 @@ export function registerRecallHook(
   embedding?: import("../utils/embedding.ts").EmbeddingService | null,
   scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
   audit?: AuditLog,
-) {
+): RecallHookHandle {
   api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})`);
 
   const cfg = getRecallConfig(config);
@@ -467,9 +261,7 @@ export function registerRecallHook(
     };
   }
 
-
-
-  api.on("before_prompt_build", async (event, ctx) => {
+  const handler = async (event: unknown, ctx: unknown) => {
     const recallAsync = async () => {
     try {
       const startMs = Date.now();
@@ -482,223 +274,127 @@ export function registerRecallHook(
 
       const e = event as Record<string, unknown>;
       const userMessage = e?.message || e?.prompt;
-      if (!userMessage || typeof userMessage !== "string" || userMessage.trim().length < 3) {
+
+      // Skip trivial messages
+      if (!userMessage || isTrivial(userMessage as string)) {
         return;
       }
 
-      // Brain-style adaptive retrieval: skip greetings, commands, heartbeat
-      if (shouldSkipRetrieval(userMessage)) {
-        api.logger.debug?.('[yaoyao-memory:recall] Skipped retrieval (adaptive filter)');
-        return;
-      }
+      const userText = String(userMessage);
 
-      // Extract keywords for FTS5 query
-      const keywords = extractKeywords(userMessage);
-      if (keywords.length === 0) {
-        // Fallback: return most recent memory when all input is stopwords
-        try {
-          const fallback = db.getLatestMemory(1);
-          if (fallback.length > 0) {
-            api.logger.debug?.("[yaoyao-memory:recall] No keywords, using most recent memory as fallback");
-            return buildHookResult(buildRecallContext(fallback, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
-          }
-        } catch { /* best effort */ }
-        return;
-      }
-
-      // ── Enrich with session context keywords (cross-turn carry-over) ──
-      const ctxKeywords = getSessionContextKeywords(sessionKey);
-      const enrichedKeywords = [...keywords];
-      for (const kw of ctxKeywords) {
-        if (!enrichedKeywords.includes(kw)) {
-          enrichedKeywords.push(kw);
-        }
-      }
-
-      // Brain-style query expansion: expand colloquial terms to technical equivalents
-      const rawQuery = enrichedKeywords.join(" ");
-      const ftsQuery = expandQuery(rawQuery);
-
-      const maxResults = cfg.maxResults;
-      const searchType = embedding ? "hybrid" : "fts";
-      const cacheKey = `${searchType}:${ftsQuery}:${maxResults}`;
-
-      // Check cache
+      // ── Brain-style LRU cache ──
+      const cacheKey = userText.slice(0, 120);
       const cached = resultCache.get(cacheKey);
       if (cached) {
-        const decayed = applyTimeDecay(cached, cfg, cfg.decayMode);
-        const scored = applyScoring(decayed, userMessage);
-        const deduped = applyDiversitySampling(scored, maxResults, cfg);
-        const ensured = ensureMinResults(deduped, db, cfg.minResults);
-        api.logger.debug?.(`[yaoyao-memory:recall] Cache hit | decay=${decayed.length} | dedup=${deduped.length}`);
-        updateSessionContext(sessionKey, keywords, cfg);
-        stats.recordQuery(makeSimpleTrace(ftsQuery, searchType, startMs, cached.length, ensured.length));
-        return buildHookResult(buildRecallContext(ensured, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
+        if (cached.length > 0) {
+          return buildHookResult(buildRecallContext(cached, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
+        }
+        return;
       }
 
-      // Hybrid search: FTS5 + optional vector (RRF fusion)
-      if (embedding) {
+      // ── Query expansion ──
+      const expandedQuery = expandQuery(userText);
+      const primaryQuery = expandedQuery || userText;
+
+      // ── Search ──
+      let results: SearchResult[] = [];
+      let mode = "fts";
+
+      if (embedding?.isAvailable) {
+        mode = "hybrid";
         try {
-          const vec = await embedding.embed(userMessage, embedding.recallTimeoutMs);
-          const rawResults = db.rrfHybridSearch
-            ? db.rrfHybridSearch(ftsQuery, vec, maxResults * 2, 60).slice(0, maxResults)
-            : db.hybridSearch(ftsQuery, vec, maxResults); // fallback for older db bridges
-          // Brain-style scope filtering: enforce multi-agent memory isolation
-          const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
-          let results = filterByScope(rawResults, scopeManager, agentId);
-          if (results.length < rawResults.length) {
-            api.logger.debug?.(`[yaoyao-memory:recall] Scope filter excluded ${rawResults.length - results.length} memories`);
+          const userEmbedding = await embedding.embed(userText);
+          const vectorResults = db.vectorSearch(userEmbedding, cfg.maxResults * 2);
+          if (vectorResults && vectorResults.length > 0) {
+            results = vectorResults.map((r) => ({
+              ...r,
+              score: r.vectorScore ?? r.score ?? 0.5,
+            }));
           }
-          if (results.length > 0) {
-            resultCache.set(cacheKey, results);
-        // Brain-style access tracking: update access count for retrieved memories
-        for (const r of results) {
-          try {
-            const updatedMeta = buildUpdatedMetadata(r.metadata, Date.now());
-            if (updatedMeta !== r.metadata) {
-              db.updateMetadata(r.id, updatedMeta);
-            }
-          } catch { /* best effort */ }
-        }
-            // Apply enhancements
-            const decayed = applyTimeDecay(results, cfg, cfg.decayMode);
-            const scored = applyScoring(decayed, userMessage);
-            const confident = applyConfidenceScoring(scored, userMessage);
-            const deduped = applyDiversitySampling(confident, maxResults, cfg);
-            const ensured = ensureMinResults(deduped, db, cfg.minResults);
-            api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms | decay=${decayed.length} | dedup=${deduped.length}`);
-            updateSessionContext(sessionKey, keywords, cfg);
-            stats.recordQuery(makeSimpleTrace(ftsQuery, searchType, startMs, results.length, ensured.length));
-            return buildHookResult(buildRecallContext(ensured, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
-          }
-        } catch (vecErr: unknown) {
-          api.logger.debug?.(`[yaoyao-memory:recall] Vector search failed: ${(vecErr as Error).message}, falling back to FTS5`);
-        }
-      }
-
-      // FTS5 search (with internal LIKE fallback for CJK)
-      try {
-        const rawResults = db.search(ftsQuery, maxResults);
-        // Brain-style scope filtering: enforce multi-agent memory isolation
-        const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
-        let results = filterByScope(rawResults, scopeManager, agentId);
-        if (results.length < rawResults.length) {
-          api.logger.debug?.(`[yaoyao-memory:recall] Scope filter excluded ${rawResults.length - results.length} memories`);
-        }
-        // Apply score threshold filtering (Tencent-style)
-      if (cfg.scoreThreshold > 0) {
-        const before = results.length;
-        results = results.filter(r => (r.score ?? 0) >= cfg.scoreThreshold);
-        api.logger.debug?.(`[yaoyao-memory:recall] Score threshold ${cfg.scoreThreshold}: ${before} → ${results.length} results`);
-        if (results.length === 0) {
-          api.logger.debug?.("[yaoyao-memory:recall] All results below score threshold, skipping injection");
-          return;
+        } catch (vecErr) {
+          api.logger.warn?.(`[yaoyao-memory:recall] Vector search failed, falling back to FTS5: ${(vecErr as Error).message}`);
         }
       }
 
       if (results.length === 0) {
-          api.logger.debug?.("[yaoyao-memory:recall] No relevant memories found");
-          return;
-        }
-
-        resultCache.set(cacheKey, results);
-
-        // Apply enhancements
-        const decayed = applyTimeDecay(results, cfg, cfg.decayMode);
-        const scored = applyScoring(decayed, userMessage);
-        const confident = applyConfidenceScoring(scored, userMessage);
-        const deduped = applyDiversitySampling(confident, maxResults, cfg);
-        const ensured = ensureMinResults(deduped, db, cfg.minResults);
-        api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms | decay=${decayed.length} | dedup=${deduped.length}`);
-        updateSessionContext(sessionKey, keywords, cfg);
-        stats.recordQuery(makeSimpleTrace(ftsQuery, searchType, startMs, results.length, ensured.length));
-        return buildHookResult(buildRecallContext(ensured, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
-      } catch (searchErr: unknown) {
-        api.logger.error(`[yaoyao-memory:recall] Search error: ${searchErr instanceof Error ? searchErr.message : String(searchErr)}`);
+        // Fallback to FTS5
+        const ftsResults = db.search(primaryQuery, cfg.maxResults * 2);
+        results = ftsResults.map((r) => ({
+          ...r,
+          score: r.score ?? 0.5,
+        }));
+        mode = "fts";
       }
+
+      // ── Scope filter ──
+      let results2 = filterByScope(results, scopeManager, (ctx as Record<string, unknown>).agentId as string | undefined);
+
+      // ── Time decay ──
+      const decayed = applyTimeDecay(results2, cfg.halfLife, cfg.decayMode);
+
+      // ── Scoring ──
+      const scored = applyScoring(decayed, userText);
+
+      // ── Sort ──
+      const sorted = scored.sort((a, b) => b.score - a.score);
+
+      // ── Diversity sampling ──
+      const deduped = applyDiversitySampling(sorted, cfg.jaccardBase, cfg.jaccardMin);
+
+      // ── Limit ──
+      let limited = deduped.slice(0, cfg.maxResults);
+
+      // ── Confidence scoring ──
+      const confidence = scoreConfidenceSupport(userText, userText);
+      if (confidence.score < cfg.scoreThreshold) {
+        api.logger.debug?.(`[yaoyao-memory:recall] Confidence ${confidence.score.toFixed(2)} < threshold ${cfg.scoreThreshold}, skipping injection`);
+        return;
+      }
+
+      // ── Accumulate keywords ──
+      accumulateKeywords(sessionKey, userText, cfg.maxContextKeywords);
+
+      // ── Cache ──
+      resultCache.set(cacheKey, limited);
+
+      // ── Stats ──
+      stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, limited.length));
+
+      // ── Audit ──
+      if (audit && limited.length > 0) {
+        audit.record("recall", { query: userText, results: limited.length, mode, durationMs: Date.now() - startMs });
+      }
+
+      // ── Build result ──
+      if (limited.length > 0) {
+        return buildHookResult(buildRecallContext(limited, config.recall?.hintText as string, cfg.maxChars), config, cfg.position);
+      }
+
+      return;
     } catch (err) {
-      api.logger.error(`[yaoyao-memory:recall] Error: ${err instanceof Error ? (err as Error).message : String(err)}`);
+      api.logger.error?.(`[yaoyao-memory:recall] Hook error: ${(err as Error).message}`);
+      return;
     }
     };
 
-    // Tencent-style timeout: skip injection if recall exceeds threshold
-    const result = await Promise.race([
-      recallAsync(),
-      new Promise((resolve) => setTimeout(() => resolve('__TIMEOUT__'), cfg.timeoutMs)),
-    ]);
-    if (result === '__TIMEOUT__') {
+    // ── Timeout guard ──
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error("recall timeout")), cfg.timeoutMs);
+    });
+
+    try {
+      await Promise.race([recallAsync(), timeoutPromise]);
+    } catch (timeoutErr) {
       api.logger.warn?.(`[yaoyao-memory:recall] Timeout after ${cfg.timeoutMs}ms, skipping injection`);
-      return undefined;
     }
-    return result;
-  });
-}
+  };
 
-function extractKeywords(text: string): string[] {
-  const cleaned = text.toLowerCase().replace(/[^\w\u4e00-\u9fff]/g, " ");
-  const words = cleaned.split(/\s+/).filter((w) => w.length > 1);
+  api.on("before_prompt_build", handler);
 
-  const stopwords = new Set([
-    "的",
-    "了",
-    "是",
-    "在",
-    "我",
-    "有",
-    "和",
-    "就",
-    "不",
-    "人",
-    "都",
-    "一",
-    "一个",
-    "上",
-    "也",
-    "很",
-    "到",
-    "说",
-    "要",
-    "去",
-    "你",
-    "会",
-    "着",
-    "没有",
-    "看",
-    "好",
-    "自己",
-    "这",
-    "那",
-    "他",
-    "她",
-    "它",
-    "们",
-    "吗",
-    "吧",
-    "呢",
-    "啊",
-    "哦",
-    "哈",
-    "嗯",
-    "嘛",
-    "哟",
-    "还是",
-    "或者",
-    "但是",
-    "因为",
-    "所以",
-    "如果",
-    "虽然",
-    "而且",
-    "然后",
-    "可以",
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "can", "could",
-    "shall", "should", "may", "might", "must", "i", "you", "he", "she", "it",
-    "we", "they", "me", "him", "her", "us", "them", "this", "that", "these",
-    "those", "and", "or", "but", "if", "because", "when", "where", "how",
-    "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
-    "at", "by", "from", "as", "into", "not", "no", "yes",
-  ]);
-
-  return words.filter((w) => !stopwords.has(w) && w.length <= 50);
+  return {
+    unregister: () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (api as any).off?.("before_prompt_build", handler);
+    },
+  };
 }

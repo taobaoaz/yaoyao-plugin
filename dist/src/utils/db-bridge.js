@@ -12,17 +12,25 @@ import fs from "node:fs";
 import os from "node:os";
 import { createCompatDB } from "../platform/db/compat.js";
 import { createVectorBackend } from "./vector/index.js";
+import { reciprocalRankFusion } from "./rrf.js";
 // ──────────────────────────── Helpers ────────────────────────────
 /** Compute a normalized score from FTS5 rank (negative = better) */
 function computeScore(rank) {
-    if (rank < 0) {
-        return Math.min(1, Math.max(0.1, -rank / 15));
+    const r = Number(rank);
+    if (!Number.isFinite(r))
+        return 0.3;
+    if (r < 0) {
+        return Math.min(1, Math.max(0.1, -r / 15));
     }
     return 0.3;
 }
 // ──────────────────────────── DB Bridge ────────────────────────────
 export function createDB(config, logger) {
-    const baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+    let baseDir = config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory");
+    baseDir = path.resolve(baseDir);
+    if (/[\x00-\x1f]/.test(baseDir)) {
+        throw new TypeError("memoryDir contains invalid control characters");
+    }
     const dbPath = path.join(baseDir, ".yaoyao.db");
     let backend = null;
     let vecEnabled = false;
@@ -98,6 +106,9 @@ export function createDB(config, logger) {
                 "user_text TEXT, " +
                 "asst_text TEXT, " +
                 "meta TEXT, " +
+                "access_count INTEGER DEFAULT 0, " +
+                "tier TEXT DEFAULT 'active', " +
+                "importance REAL DEFAULT 0.5, " +
                 "created_at TEXT DEFAULT (datetime('now'))" +
                 ")");
             // Initialize pluggable vector backend (sqlite-vec default, hnswlib optional)
@@ -128,12 +139,23 @@ export function createDB(config, logger) {
     function indexTurn(userText, asstText, date, meta) {
         try {
             const d = ensureDB();
-            const stmt = d.prepare("INSERT INTO memory_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)");
-            const result = stmt.run(date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen), meta || null);
-            const rowId = Number(result.lastInsertRowid);
-            const stmt2 = d.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
-            stmt2.run(rowId, date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
-            return rowId;
+            d.exec("BEGIN TRANSACTION");
+            try {
+                const stmt = d.prepare("INSERT INTO memory_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)");
+                const result = stmt.run(date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen), meta || null);
+                const rowId = Number(result.lastInsertRowid);
+                const stmt2 = d.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+                stmt2.run(rowId, date, userText.slice(0, snippetMaxLen), asstText.slice(0, snippetMaxLen));
+                d.exec("COMMIT");
+                return rowId;
+            }
+            catch (err) {
+                try {
+                    d.exec("ROLLBACK");
+                }
+                catch { /* ignore rollback failure */ }
+                throw err;
+            }
         }
         catch (err) {
             log(`indexTurn error: ${err.message}`);
@@ -142,6 +164,7 @@ export function createDB(config, logger) {
     }
     /** Sanitize query string for FTS5 MATCH syntax.
      * Removes characters that can cause FTS5 syntax errors while keeping search terms readable.
+     * Preserves valid prefix wildcards (e.g.  `word*`) for prefix search.
      *
      * ⚠️ Security note: this is "sanitization for syntax safety", not a security boundary.
      * FTS5 MATCH uses prepared statements (parametric `?` binding), so SQL injection is not possible.
@@ -150,20 +173,23 @@ export function createDB(config, logger) {
     function sanitizeFTSQuery(query) {
         // FTS5 special chars that cause syntax errors if unescaped:
         //   "  - unmatched quote → syntax error
-        //   *  - prefix operator in wrong position → syntax error
         //   ^  - anchor operator → syntax error on partial match
         //   `  - escape char → syntax error
         //   () - grouping → syntax error when unbalanced
         //   ~  - NEAR operator → requires number param, causes error
         // Remove all of them; keep + (AND sign) and - (exclusion) as they're safe standalone.
-        const s = query
-            .replace(/["*^`()~]/g, "")
+        let s = query
+            .replace(/["^`()~]/g, "")
             .replace(/\s+/g, " ")
             .trim()
             .slice(0, 200);
         if (!s)
             return "";
-        return s;
+        // Remove isolated/leading asterisks that break FTS5 syntax,
+        // but preserve valid prefix wildcards like "word*".
+        s = s.replace(/(^|\s)\*+(?=\s|$)/g, "$1") // leading or isolated *
+            .replace(/\*{2,}/g, "*"); // collapse multiple *
+        return s.trim();
     }
     /** FTS5 full-text search + LIKE fallback for Chinese (FTS5 unicode61 tokenizer doesn't segment CJK) */
     function search(query, limit = 10) {
@@ -194,8 +220,8 @@ export function createDB(config, logger) {
             // FTS5 unicode61 tokenizer treats each Chinese character as a separate token,
             // so multi-character words like "天气" or "今天" fail to match.
             // LIKE is character-based and handles CJK correctly.
-            const safeLikeQuery = query.slice(0, 200);
-            const likeQuery = `%${safeLikeQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+            const safeLikeQuery = query.slice(0, 200).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+            const likeQuery = `%${safeLikeQuery}%`;
             const likeStmt = d.prepare("SELECT id, date, user_text, asst_text FROM memory_meta " +
                 "WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' " +
                 "ORDER BY id DESC LIMIT ?");
@@ -279,6 +305,47 @@ export function createDB(config, logger) {
             .sort((a, b) => b.hybridScore - a.hybridScore)
             .slice(0, limit);
     }
+    /** RRF Hybrid search: Reciprocal Rank Fusion of FTS5 + vector results.
+     *  Replaces simple weighted combination with rank-based fusion (k=60).
+     */
+    function rrfHybridSearch(query, embedding, limit = 10, k = 60) {
+        const ftsResults = search(query, limit * 2); // overfetch for better fusion
+        if (!embedding || ftsResults.length === 0) {
+            return ftsResults.slice(0, limit).map(r => ({
+                ...r,
+                vectorScore: 0,
+                hybridScore: r.score,
+            }));
+        }
+        const vecResults = vectorSearch(embedding, limit * 2);
+        // Build ranked doc lists for RRF
+        const ftsRanked = ftsResults.map((r, i) => ({
+            id: `${r.date}|${r.snippet}|${r.id || i}`,
+            doc: { ...r, source: "fts" },
+            originalScore: r.score,
+        }));
+        const vecRanked = vecResults.map((r, i) => ({
+            id: `${r.date}|${r.snippet}|${r.id || i}`,
+            doc: { ...r, source: "vec" },
+            originalScore: r.vectorScore,
+        }));
+        const fused = reciprocalRankFusion([ftsRanked, vecRanked], k);
+        // Map back to EmbeddedSearchResult
+        const results = [];
+        for (const f of fused.slice(0, limit)) {
+            const doc = f.doc;
+            results.push({
+                id: doc.id,
+                filename: String(doc.filename || ""),
+                snippet: String(doc.snippet || ""),
+                score: Number(doc.originalScore || 0),
+                date: String(doc.date || ""),
+                vectorScore: f.ranks[1] >= 0 ? Number(doc.originalScore || 0) : 0,
+                hybridScore: f.rrfScore,
+            });
+        }
+        return results;
+    }
     /** Store a vector embedding via pluggable backend. */
     function storeVector(metaId, embedding) {
         return backend?.storeVector(metaId, embedding) ?? false;
@@ -325,7 +392,8 @@ export function createDB(config, logger) {
     function deleteByKeyword(keyword) {
         try {
             const d = ensureDB();
-            const pattern = `%${keyword.replace(/%/g, '\\%').replace(/_/g, '\\_')}%`;
+            const safeKw = keyword.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+            const pattern = `%${safeKw}%`;
             const result = d.prepare("DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'").run(pattern, pattern);
             const deleted = Number(result.changes ?? 0);
             if (deleted > 0) {
@@ -384,6 +452,10 @@ export function createDB(config, logger) {
     }
     /** Close database connection */
     function close() {
+        if (rebuildTimer) {
+            clearTimeout(rebuildTimer);
+            rebuildTimer = null;
+        }
         backend?.close();
         if (db) {
             try {
@@ -447,5 +519,31 @@ export function createDB(config, logger) {
         }
         catch { /* best effort */ }
     }
-    return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig };
+    /** Update metadata for a memory row */
+    function updateMetadata(id, metadata) {
+        try {
+            const d = ensureDB();
+            d.prepare("UPDATE memory_meta SET meta = ? WHERE id = ?").run(metadata, id);
+        }
+        catch { /* best effort */ }
+    }
+    function incrementAccessCount(id) {
+        const d = ensureDB();
+        if (!d)
+            return;
+        try {
+            const row = d.prepare("SELECT access_count, tier, importance FROM memory_meta WHERE id = ?").get(id);
+            if (!row)
+                return;
+            const newCount = (row.access_count || 0) + 1;
+            let newTier = row.tier || "active";
+            if (newCount >= 10 && (row.importance || 0) >= 0.8)
+                newTier = "core";
+            else if (newCount >= 3)
+                newTier = "working";
+            d.prepare("UPDATE memory_meta SET access_count = ?, tier = ? WHERE id = ?").run(newCount, newTier, id);
+        }
+        catch { /* best effort */ }
+    }
+    return { init, indexTurn, search, searchAll, vectorSearch, hybridSearch, rrfHybridSearch, storeVector, deleteByDate, deleteByKeyword, getLatestMemory, getStats, close, dbPath, getRawDb, getAllTags, getAllMeta, getLocalDate, getConfig, setConfig, updateMetadata, incrementAccessCount };
 }

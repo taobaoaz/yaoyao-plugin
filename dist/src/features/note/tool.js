@@ -28,7 +28,7 @@ export function createNoteTool(store, db) {
             const date = new Date().toLocaleDateString("sv-SE");
             const timestamp = new Date().toLocaleString("sv-SE").slice(0, 19).replace("T", " ");
             store.appendToDaily(date, `\n### ${timestamp}\n🗒️ ${note}\n`);
-            db.indexTurn(note, "[空内容]", date);
+            db.indexTurn(note, "", date);
             return { content: [{ type: "text", text: `📌 笔记已保存到 ${date}.md` }] };
         }),
     };

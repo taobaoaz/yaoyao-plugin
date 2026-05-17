@@ -5,6 +5,7 @@
  * All tunables are configurable via EmbeddingConfig (with defaults).
  */
 import { clampNum } from "./clamp.js";
+import { isTransientUpstreamError, isNonRetryError } from "./reflection-retry.js";
 /** Provider → default embedding model mapping (overridable via config.providerModels) */
 const DEFAULT_EMBED_MODELS = {
     openai: "text-embedding-3-small",
@@ -28,13 +29,20 @@ export function detectEmbedModel(provider, customMap) {
 /** SSRF protection: block internal / link-local / private IP ranges */
 const FORBIDDEN_HOSTS = [
     "localhost", "127.0.0.1", "0.0.0.0", "::1",
-    "169.254", "192.168", "10.", "172.", "fc00", "fe80",
+    "169.254", "192.168", "10.", "fc00", "fe80",
 ];
+function isForbidden172(host) {
+    // 172.16.0.0/12 is private, but 172.0-15 and 172.32-255 are public
+    if (!host.startsWith("172."))
+        return false;
+    const second = parseInt(host.split(".")[1], 10);
+    return second >= 16 && second <= 31;
+}
 function isForbiddenHost(urlStr) {
     try {
         const url = new URL(urlStr);
         const host = url.hostname.toLowerCase();
-        return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
+        return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h)) || isForbidden172(host);
     }
     catch {
         return true; // malformed URL is also forbidden
@@ -78,8 +86,12 @@ export function createEmbeddingService(config) {
                 const isLast = attempt === _retries;
                 if (isLast)
                     throw err;
-                // Retry on all network errors (timeout, ECONNREFUSED, ETIMEDOUT, system errors) and HTTP 5xx
-                if (err.name === "AbortError" || err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT" || err.type === "system" || err.message?.startsWith("HTTP 5")) {
+                // Brain-style retry classification: never retry auth/quota/policy errors
+                if (isNonRetryError(err)) {
+                    throw err;
+                }
+                // Retry on transient upstream failures (5xx, timeout, network)
+                if (err.name === "AbortError" || isTransientUpstreamError(err) || err.message?.startsWith("HTTP 5")) {
                     await new Promise(r => setTimeout(r, backoffBaseMs * (attempt + 1))); // backoff
                     continue;
                 }
@@ -92,10 +104,11 @@ export function createEmbeddingService(config) {
      * Generate an embedding vector for the given text.
      * Returns a Float32Array of `dimensions` floats.
      */
-    async function embed(text) {
-        // Handle baseUrl that already contains /v1 prefix (e.g. https://ai.gitee.com/v1)
+    async function embed(text, overrideTimeoutMs) {
+        const t0 = performance.now();
         const path = baseUrl.endsWith("/v1") ? "" : "/v1";
         const url = `${baseUrl}${path}/embeddings`;
+        const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
         try {
             const res = await fetchWithRetry(url, {
                 method: "POST",
@@ -107,6 +120,7 @@ export function createEmbeddingService(config) {
                     input: text.slice(0, maxInputChars),
                     model: config.model,
                 }),
+                timeoutMs: effectiveTimeout,
             });
             if (!res.ok) {
                 const errText = await res.text().catch(() => "unknown");
@@ -117,9 +131,13 @@ export function createEmbeddingService(config) {
             if (!embedding || !Array.isArray(embedding)) {
                 throw new Error("Invalid embedding response");
             }
+            const elapsed = Math.round(performance.now() - t0);
+            config.logger?.info?.(`[embed] /embeddings ${elapsed}ms (${text.length} chars)`);
             return new Float32Array(embedding);
         }
         catch (err) {
+            const elapsed = Math.round(performance.now() - t0);
+            config.logger?.debug?.(`[embed] /embeddings failed after ${elapsed}ms`);
             if (err instanceof Error && err.name === "AbortError") {
                 throw new Error("Embedding request timed out");
             }
@@ -130,11 +148,13 @@ export function createEmbeddingService(config) {
      * Generate embeddings for multiple texts in a batch.
      * Automatically chunks large arrays to avoid OOM / timeout.
      */
-    async function embedBatch(texts) {
+    async function embedBatch(texts, overrideTimeoutMs) {
         const results = [];
         const path = baseUrl.endsWith("/v1") ? "" : "/v1";
         const url = `${baseUrl}${path}/embeddings`;
+        const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
         for (let i = 0; i < texts.length; i += batchSize) {
+            const t0 = performance.now();
             const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
             try {
                 const res = await fetchWithRetry(url, {
@@ -147,6 +167,7 @@ export function createEmbeddingService(config) {
                         input: chunk,
                         model: config.model,
                     }),
+                    timeoutMs: effectiveTimeout,
                 });
                 if (!res.ok) {
                     const errText = await res.text().catch(() => "unknown");
@@ -158,8 +179,12 @@ export function createEmbeddingService(config) {
                     throw new Error("Invalid embedding batch response");
                 }
                 results.push(...dataArr.map((d) => new Float32Array(d.embedding)));
+                const elapsed = Math.round(performance.now() - t0);
+                config.logger?.info?.(`[embedBatch] /embeddings ${elapsed}ms (batch ${i / batchSize + 1}, ${chunk.length} texts)`);
             }
             catch (err) {
+                const elapsed = Math.round(performance.now() - t0);
+                config.logger?.debug?.(`[embedBatch] /embeddings failed after ${elapsed}ms (batch ${i / batchSize + 1})`);
                 if (err instanceof Error && err.name === "AbortError") {
                     throw new Error("Embedding batch request timed out");
                 }
@@ -168,5 +193,5 @@ export function createEmbeddingService(config) {
         }
         return results;
     }
-    return { embed, embedBatch, config };
+    return { embed, embedBatch, config, recallTimeoutMs: config.recallTimeoutMs, captureTimeoutMs: config.captureTimeoutMs };
 }

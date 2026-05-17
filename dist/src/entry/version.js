@@ -15,7 +15,13 @@ export function readPluginVersion() {
             // Last resort: relative to current file
             pkgPath = new URL("./package.json", currentUrl);
         }
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        let pkg;
+        try {
+            pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        }
+        catch {
+            return "0.0.0";
+        }
         return pkg.version || "dev";
     }
     catch {

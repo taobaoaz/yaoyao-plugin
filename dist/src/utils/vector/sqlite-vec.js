@@ -80,7 +80,10 @@ export class SqliteVecBackend {
                 this.db.exec("COMMIT");
             }
             catch (txErr) {
-                this.db.exec("ROLLBACK");
+                try {
+                    this.db.exec("ROLLBACK");
+                }
+                catch { /* ignore secondary failure */ }
                 throw txErr;
             }
             return true;

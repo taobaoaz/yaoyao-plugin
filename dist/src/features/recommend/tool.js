@@ -67,7 +67,8 @@ export function createRecommendTool(db, memoryDir) {
                 const rawDb = db.getRawDb();
                 const likeStmt = rawDb.prepare("SELECT date, user_text, asst_text FROM memory_meta " +
                     "WHERE user_text LIKE ? OR asst_text LIKE ? ORDER BY date DESC LIMIT ?");
-                const likeResults = likeStmt.all(`%${context}%`, `%${context}%`, limit);
+                const safeCtx = context.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+                const likeResults = likeStmt.all(`%${safeCtx}%`, `%${safeCtx}%`, limit);
                 if (likeResults.length === 0) {
                     return { content: [{ type: "text", text: "没有找到相关的记忆。" }] };
                 }

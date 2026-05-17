@@ -26,7 +26,13 @@ export class FileDB {
         try {
             if (fs.existsSync(this.indexPath)) {
                 const raw = fs.readFileSync(this.indexPath, "utf-8");
-                const parsed = JSON.parse(raw);
+                let parsed;
+                try {
+                    parsed = JSON.parse(raw);
+                }
+                catch {
+                    parsed = {};
+                }
                 for (const [k, v] of Object.entries(parsed)) {
                     if (Array.isArray(v))
                         this.index.set(k, v);
@@ -176,7 +182,8 @@ export class FileDB {
                 const idx = lines.findIndex(l => l.toLowerCase().includes(q));
                 const snippet = idx >= 0 ? lines[idx].slice(0, 200) : "";
                 results.push({
-                    rowid: filePath,
+                    id: results.length + 1,
+                    rowid: results.length + 1,
                     date: file.replace(".md", ""),
                     snippet: snippet,
                     rank: -results.length, // pseudo-rank

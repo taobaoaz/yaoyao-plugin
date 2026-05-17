@@ -29,6 +29,12 @@ export interface SearchResult {
   date: string;
   asst_text?: string;
   metadata?: string;
+  /** Memory creation timestamp (ms) */
+  timestamp?: number;
+  /** Importance weight (0-1) */
+  importance?: number;
+  /** Scope label for access control */
+  scope?: string;
 }
 
 export interface EmbeddedSearchResult extends SearchResult {

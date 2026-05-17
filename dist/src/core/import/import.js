@@ -9,7 +9,13 @@ export function parseJSONL(jsonlData) {
     const errors = [];
     for (let i = 0; i < lines.length; i++) {
         try {
-            const parsed = JSON.parse(lines[i]);
+            let parsed;
+            try {
+                parsed = JSON.parse(lines[i]);
+            }
+            catch {
+                continue;
+            }
             if (!parsed.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(parsed.date))) {
                 errors.push(`第 ${i + 1} 行缺少有效 date 字段（格式应为 YYYY-MM-DD）`);
                 continue;
@@ -43,6 +49,9 @@ export function batchImport(db, entries) {
         for (const entry of entries) {
             const r = insertedMeta.run(entry.date, entry.user_text, entry.asst_text);
             const rowId = Number(r.lastInsertRowid);
+            if (!Number.isFinite(rowId) || rowId <= 0) {
+                throw new Error(`Invalid lastInsertRowid: ${r.lastInsertRowid}`);
+            }
             insertedFts.run(rowId, entry.date, entry.user_text, entry.asst_text);
             successCount++;
         }

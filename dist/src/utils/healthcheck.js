@@ -127,18 +127,23 @@ export function runHealthcheck(baseDir) {
         checks.push({ name: "UTF-8 编码", status: "warn", message: `${locale} ⚠️`, detail: "未检测到 UTF-8 locale。CJK 文本和 emoji 可能有编码问题。建议设置环境变量 LANG=en_US.UTF-8。" });
     }
     // 10. Available disk space (rough)
-    try {
-        const stats = fs.statfsSync(memDir);
-        const freeGb = (stats.bavail * stats.bsize) / (1024 ** 3);
-        if (freeGb > 1) {
-            checks.push({ name: "磁盘空间", status: "pass", message: `${freeGb.toFixed(1)} GB 可用 ✅` });
+    if (typeof fs.statfsSync === "function") {
+        try {
+            const stats = fs.statfsSync(memDir);
+            const freeGb = (stats.bavail * stats.bsize) / (1024 ** 3);
+            if (freeGb > 1) {
+                checks.push({ name: "磁盘空间", status: "pass", message: `${freeGb.toFixed(1)} GB 可用 ✅` });
+            }
+            else {
+                checks.push({ name: "磁盘空间", status: "warn", message: `${freeGb.toFixed(1)} GB ⚠️`, detail: "磁盘空间不足。长期运行可能无法写入新记忆。" });
+            }
         }
-        else {
-            checks.push({ name: "磁盘空间", status: "warn", message: `${freeGb.toFixed(1)} GB ⚠️`, detail: "磁盘空间不足。长期运行可能无法写入新记忆。" });
+        catch {
+            checks.push({ name: "磁盘空间", status: "warn", message: "无法检测 ⚠️", detail: "无法获取磁盘空间信息。不影响功能，但建议确保有充足空间。" });
         }
     }
-    catch {
-        checks.push({ name: "磁盘空间", status: "warn", message: "无法检测 ⚠️", detail: "无法获取磁盘空间信息。不影响功能，但建议确保有充足空间。" });
+    else {
+        checks.push({ name: "磁盘空间", status: "warn", message: "无法检测 ⚠️", detail: "当前 Node.js 版本不支持 statfsSync（需要 Node 22.7.0+）。建议升级 Node 版本。" });
     }
     // 11. git availability (for auto-migration)
     try {
@@ -148,6 +153,17 @@ export function runHealthcheck(baseDir) {
     catch {
         checks.push({ name: "Git 可用性", status: "warn", message: "不可用 ⚠️", detail: "git 命令未找到。自动迁移（yaoyao-soul 安装）将不可用，需手动安装。" });
     }
+    // Brain-style health stats: query DB for memory distribution
+    try {
+        const { createCompatDB } = require("../platform/db/compat.ts");
+        const { db: statsDb } = createCompatDB(baseDir ? path.join(baseDir, "memory.db") : path.join(memDir, "memory.db"));
+        const total = statsDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get();
+        const tierDist = statsDb.prepare("SELECT tier, COUNT(*) as c FROM memory_meta GROUP BY tier").all();
+        const avgAge = statsDb.prepare("SELECT AVG(julianday('now') - julianday(created_at)) as d FROM memory_meta").get();
+        statsDb.close();
+        checks.push({ name: "记忆统计", status: "pass", message: `共 ${total?.c ?? 0} 条记忆`, detail: `层级分布: ${tierDist?.map(t => `${t.tier}=${t.c}`).join(", ") || "active=0"} | 平均天数: ${(avgAge?.d ?? 0).toFixed(1)}` });
+    }
+    catch { /* skip if no DB yet */ }
     const failures = checks.filter(c => c.status === "fail").length;
     const warns = checks.filter(c => c.status === "warn").length;
     const ok = failures === 0;

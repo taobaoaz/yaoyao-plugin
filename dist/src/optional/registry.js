@@ -23,6 +23,8 @@ export class FeatureRegistry {
      * Circular dependencies are detected and skipped.
      */
     initAll(api, config) {
+        // Close previously resolved features before clearing
+        this.closeAll(api);
         this.resolved.clear();
         const pending = new Set(this.features.keys());
         const inProgress = new Set();

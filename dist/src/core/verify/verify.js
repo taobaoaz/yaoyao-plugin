@@ -132,8 +132,8 @@ export function scoreEvidence(claim, snippets) {
 }
 /** Hybrid overlap: Chinese character inclusion + English word Jaccard */
 function hybridOverlap(claim, snippet) {
-    const claimChars = new Set(claim.match(/[\u4e00-\u9fa5]/g) || []);
-    const snippetChars = new Set(snippet.match(/[\u4e00-\u9fa5]/g) || []);
+    const claimChars = new Set(claim.match(/[\u4e00-\u9fff]/g) || []);
+    const snippetChars = new Set(snippet.match(/[\u4e00-\u9fff]/g) || []);
     let charMatches = 0;
     for (const ch of claimChars) {
         if (snippetChars.has(ch))
@@ -176,7 +176,7 @@ function extractKeywords(text) {
     ]);
     const lower = text.toLowerCase();
     const tokens = [];
-    const chineseChars = lower.match(/[\u4e00-\u9fa5]/g) || [];
+    const chineseChars = lower.match(/[\u4e00-\u9fff]/g) || [];
     for (const ch of chineseChars) {
         if (!stopwords.has(ch))
             tokens.push(ch);

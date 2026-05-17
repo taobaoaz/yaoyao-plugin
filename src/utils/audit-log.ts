@@ -127,6 +127,11 @@ export function createAuditLog(
     }
   }
 
+  /** Record an audit event (alias for write). */
+  function record(event: string, details?: Record<string, unknown>): void {
+    write({ component: "yaoyao-memory", event, summary: event, details });
+  }
+
   /** Synchronous flush for graceful shutdown */
   function flushSync(): void {
     if (buffer.length === 0) return;
@@ -149,7 +154,7 @@ export function createAuditLog(
     }
   }
 
-  return { write, flush, flushSync };
+  return { write, flush, flushSync, record };
 }
 
 export type AuditLog = ReturnType<typeof createAuditLog>;

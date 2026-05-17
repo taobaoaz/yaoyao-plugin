@@ -9,6 +9,30 @@
 import { clampNum } from "./clamp.js";
 import path from "node:path";
 import fs from "node:fs";
+export function parseCleanTime(cleanTime) {
+    if (!cleanTime)
+        return null;
+    const m = cleanTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m)
+        return null;
+    const hour = parseInt(m[1], 10);
+    const minute = parseInt(m[2], 10);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59)
+        return null;
+    return { hour, minute };
+}
+/** Compute milliseconds until next clean time */
+export function getNextCleanTimeMs(cleanTime) {
+    const parsed = parseCleanTime(cleanTime);
+    if (!parsed)
+        return 0;
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parsed.hour, parsed.minute, 0, 0);
+    if (target.getTime() <= now.getTime()) {
+        target.setDate(target.getDate() + 1);
+    }
+    return target.getTime() - now.getTime();
+}
 export function createMemoryCleaner(baseDir, db, config, logger) {
     const cfg = {
         l0l1RetentionDays: config?.l0l1RetentionDays ?? 30,
@@ -43,7 +67,14 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
         const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
         // Clean up old daily .md files
         if (fs.existsSync(baseDir)) {
-            for (const f of fs.readdirSync(baseDir)) {
+            let files;
+            try {
+                files = fs.readdirSync(baseDir);
+            }
+            catch {
+                files = [];
+            }
+            for (const f of files) {
                 if (!/^\d{4}-\d{2}-\d{2}/.test(f))
                     continue; // only daily files
                 const fp = path.join(baseDir, f);
@@ -66,7 +97,14 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
         // Clean up empty scene_blocks and stale pipeline checkpoints
         const scenesDir = path.join(baseDir, "scene_blocks");
         if (fs.existsSync(scenesDir)) {
-            for (const f of fs.readdirSync(scenesDir)) {
+            let files;
+            try {
+                files = fs.readdirSync(scenesDir);
+            }
+            catch {
+                files = [];
+            }
+            for (const f of files) {
                 const fp = path.join(scenesDir, f);
                 try {
                     if (fs.statSync(fp).size === 0) {
@@ -78,7 +116,14 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
         }
         const pipelineDir = path.join(baseDir, ".pipeline");
         if (fs.existsSync(pipelineDir)) {
-            for (const f of fs.readdirSync(pipelineDir)) {
+            let files;
+            try {
+                files = fs.readdirSync(pipelineDir);
+            }
+            catch {
+                files = [];
+            }
+            for (const f of files) {
                 const fp = path.join(pipelineDir, f);
                 try {
                     const stat = fs.statSync(fp);
@@ -92,11 +137,18 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
         // Prune old backups (keep last 10)
         const backupDir = path.join(baseDir, ".backups");
         if (fs.existsSync(backupDir)) {
-            const backups = fs.readdirSync(backupDir)
+            let backups;
+            try {
+                backups = fs.readdirSync(backupDir);
+            }
+            catch {
+                backups = [];
+            }
+            const backupEntries = backups
                 .filter(f => f.startsWith("memory-backup-"))
                 .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
                 .sort((a, b) => b.mtime - a.mtime);
-            for (const b of backups.slice(cfg.maxBackups)) {
+            for (const b of backupEntries.slice(cfg.maxBackups)) {
                 fs.rmSync(path.join(backupDir, b.name), { recursive: true, force: true });
             }
         }

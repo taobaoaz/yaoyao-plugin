@@ -77,7 +77,13 @@ class FileDB {
     _loadIndex() {
         try {
             if (fs.existsSync(this.indexPath)) {
-                const raw = JSON.parse(fs.readFileSync(this.indexPath, "utf-8"));
+                let raw;
+                try {
+                    raw = JSON.parse(fs.readFileSync(this.indexPath, "utf-8"));
+                }
+                catch {
+                    raw = {};
+                }
                 for (const [k, v] of Object.entries(raw)) {
                     this.index.set(k, v);
                 }
@@ -174,7 +180,13 @@ class FileDB {
     // ── FileDB search implementation ──
     _search(query, limit) {
         const results = [];
-        const files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+        let files;
+        try {
+            files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+        }
+        catch {
+            files = [];
+        }
         const q = query.toLowerCase();
         for (const file of files) {
             const filePath = path.join(this.baseDir, file);
@@ -184,7 +196,8 @@ class FileDB {
                 const idx = lines.findIndex(l => l.toLowerCase().includes(q));
                 const snippet = idx >= 0 ? lines[idx].slice(0, 200) : "";
                 results.push({
-                    rowid: filePath,
+                    id: results.length + 1,
+                    rowid: results.length + 1,
                     date: file.replace(".md", ""),
                     snippet: snippet,
                     rank: -results.length,

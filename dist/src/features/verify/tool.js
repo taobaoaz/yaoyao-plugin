@@ -1,3 +1,4 @@
+import { withErrorHandling } from "../../tools/common.js";
 import { scoreEvidence, detectSpeculative } from "../../core/verify/verify.js";
 export function createVerifyTool(db) {
     return {
@@ -16,7 +17,7 @@ export function createVerifyTool(db) {
             },
             required: ["claim"],
         },
-        execute: async (_id, params) => {
+        execute: withErrorHandling(async (_id, params) => {
             const claim = String(params.claim ?? "").trim();
             if (!claim) {
                 return { content: [{ type: "text", text: "❌ 请提供待验证的说法（claim 参数）。" }] };
@@ -56,6 +57,6 @@ export function createVerifyTool(db) {
                 }
             }
             return { content: [{ type: "text", text }] };
-        },
+        }),
     };
 }

@@ -29,7 +29,10 @@ function loadBoostRecords(baseDir) {
         const raw = fs.readFileSync(fp, "utf-8");
         for (const line of raw.split("\n").filter(Boolean)) {
             try {
-                records.push(JSON.parse(line));
+                try {
+                    records.push(JSON.parse(line));
+                }
+                catch { /* skip malformed line */ }
             }
             catch { /* skip malformed line */ }
         }
@@ -43,7 +46,12 @@ function loadImportantTags(baseDir) {
         if (!fs.existsSync(fp))
             return [];
         const raw = fs.readFileSync(fp, "utf-8");
-        return JSON.parse(raw);
+        try {
+            return JSON.parse(raw);
+        }
+        catch {
+            return [];
+        }
     }
     catch {
         return [];

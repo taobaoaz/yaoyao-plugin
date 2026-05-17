@@ -21,7 +21,15 @@ export function createHealthcheckTool() {
         },
         execute: withErrorHandling(async (_id, params) => {
             const detail = String(params.detail || "simple");
-            const result = runHealthcheck();
+            const rawResult = runHealthcheck();
+            // Defensive clone: prevent accidental mutation of internal result structure
+            let result;
+            try {
+                result = JSON.parse(JSON.stringify(rawResult));
+            }
+            catch {
+                result = { ok: false, checks: [], summary: "Health check failed" };
+            }
             if (detail === "full") {
                 return { content: [{ type: "text", text: formatHealthcheck(result) }] };
             }

@@ -86,6 +86,8 @@ export function cleanupOldSkills(logger) {
             const walk = (d) => {
                 for (const e of fs.readdirSync(d, { withFileTypes: true })) {
                     const full = path.join(d, e.name);
+                    if (e.isSymbolicLink())
+                        continue; // skip symlinks to avoid directory traversal
                     if (e.isDirectory())
                         walk(full);
                     else if (e.name.endsWith(".json"))

@@ -26,7 +26,7 @@ export function createSaveTool(store, db) {
             const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
             const entry = `\n### ${timestamp}\n💾 ${content}${tagStr}\n`;
             store.appendToDaily(date, entry);
-            const rowId = db.indexTurn(content, "[空内容]", date);
+            const rowId = db.indexTurn(content, "", date);
             return { content: [{ type: "text", text: `✅ 记忆已保存到 ${date}.md\n行号: ${rowId > 0 ? rowId : "索引失败"}` }] };
         }),
     };

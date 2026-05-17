@@ -12,6 +12,7 @@
  */
 import path from "node:path";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 export class HnswlibBackend {
     name = "hnswlib";
     isAvailable = false;
@@ -24,6 +25,9 @@ export class HnswlibBackend {
     indexPath = "";
     metaPath = "";
     dimensions = 1024;
+    dim = 1024;
+    ef = 200;
+    indexType = "hnsw";
     snippetMaxLen = 500;
     searchMaxLimit = 100;
     maxElements = 50000;
@@ -55,7 +59,13 @@ export class HnswlibBackend {
             }
             // Try load existing index
             if (fs.existsSync(this.indexPath) && fs.existsSync(this.metaPath)) {
-                const meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
+                let meta;
+                try {
+                    meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
+                }
+                catch {
+                    meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType, dimensions: this.dimensions, count: 0, space: "cosine" };
+                }
                 if (meta.dimensions === this.dimensions) {
                     this.index.readIndexSync(this.indexPath);
                     this.isAvailable = true;
@@ -170,7 +180,9 @@ export class HnswlibBackend {
             return;
         this.dirty = false;
         try {
-            this.index.writeIndexSync(this.indexPath);
+            if (sync) {
+                this.index.writeIndexSync(this.indexPath);
+            }
             const meta = {
                 dimensions: this.dimensions,
                 model: this.config.embedding?.model,
@@ -192,8 +204,8 @@ export class HnswlibBackend {
 /** Dynamically require hnswlib-node. Returns null if not installed or incompatible. */
 function requireHnswlib() {
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const mod = require("hnswlib-node");
+        const req = createRequire(import.meta.url);
+        const mod = req("hnswlib-node");
         if (mod && mod.HierarchicalNSW)
             return mod;
     }

@@ -20,7 +20,9 @@ export function searchFTS(db, query, limit) {
         filename: `${String(row.date || "memory")}.md`,
         date: String(row.date || ""),
         snippet: `${String(row.user_text || "")} ${String(row.asst_text || "")}`.trim().slice(0, 500),
-        score: Number(row.score || 0),
+        score: Number.isFinite(Number(row.score)) && Number(row.score) < 0
+            ? Math.min(1, Math.max(0.1, -Number(row.score) / 15))
+            : 0.3,
         user_text: String(row.user_text || ""),
         asst_text: String(row.asst_text || ""),
     }));

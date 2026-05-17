@@ -17,8 +17,9 @@ export function queryForExport(db, limit, dateFrom, dateTo, keyword) {
         args.push(dateTo);
     }
     if (keyword) {
+        const safeKw = keyword.replace(/\//g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
         sql += " AND (user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\')";
-        args.push(`%${keyword}%`, `%${keyword}%`);
+        args.push(`%${safeKw}%`, `%${safeKw}%`);
     }
     sql += " ORDER BY date DESC LIMIT ?";
     args.push(limit);

@@ -18,13 +18,21 @@ function queryOpenClawDB(sql, params) {
     catch {
         return null;
     }
+    let dbInstance = null;
     try {
         const { db } = createCompatDB(dbPath);
+        dbInstance = db;
         const rows = db.prepare(sql).all(...(params || []));
         db.close();
         return rows;
     }
     catch {
+        if (dbInstance) {
+            try {
+                dbInstance.close();
+            }
+            catch { /* ignore */ }
+        }
         return null;
     }
 }
@@ -46,7 +54,12 @@ function readDreams(memoryDir) {
     catch { /* best effort */ }
     try {
         if (fs.existsSync(recallPath)) {
-            result.shortTermRecall = JSON.parse(fs.readFileSync(recallPath, "utf8"));
+            try {
+                result.shortTermRecall = JSON.parse(fs.readFileSync(recallPath, "utf8"));
+            }
+            catch {
+                result.shortTermRecall = [];
+            }
         }
     }
     catch { /* best effort */ }

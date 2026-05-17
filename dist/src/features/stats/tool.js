@@ -2,6 +2,7 @@
  * features/stats/tool.ts — memory_stats tool (modular).
  */
 import { withErrorHandling } from "../../tools/common.js";
+import { globalRetrievalStats } from "../../utils/retrieval-stats.js";
 import fs from "node:fs";
 import path from "node:path";
 export function createStatsTool(store, db) {
@@ -45,6 +46,8 @@ export function createStatsTool(store, db) {
                 uniqueTags = uniqueRow?.c || 0;
             }
             catch { /* tags table may not exist */ }
+            // Retrieval stats from Brain-style collector
+            const retrievalStats = globalRetrievalStats.getStats();
             let sceneCount = 0;
             const sceneDir = path.join(store.baseDir, "scene_blocks");
             try {
@@ -84,6 +87,7 @@ export function createStatsTool(store, db) {
                 if (dbStats.datesSummary && Array.isArray(dbStats.datesSummary)) {
                     jsonResult.dates = dbStats.datesSummary;
                 }
+                jsonResult.retrieval = retrievalStats;
             }
             if (format === "json") {
                 return { content: [{ type: "text", text: JSON.stringify(jsonResult, null, 2) }] };
@@ -94,6 +98,7 @@ export function createStatsTool(store, db) {
                 `📁 总文件数: ${totalFiles} (每日日志: ${dailyFiles})`,
                 `💾 总大小: ${(totalSizeBytes / 1024).toFixed(1)}KB`,
                 `🔍 FTS5 索引条目: ${ftsMemories}`,
+                `⚡ 检索统计: ${retrievalStats.totalQueries} 次查询 | 平均 ${retrievalStats.avgLatencyMs}ms | P95 ${retrievalStats.p95LatencyMs}ms | 零结果 ${retrievalStats.zeroResultQueries} 次`,
             ];
             if (detail === "full") {
                 if (sceneCount > 0)

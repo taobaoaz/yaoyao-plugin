@@ -229,7 +229,7 @@ export function createEmbeddingService(config: EmbeddingConfig) {
     return results;
   }
 
-  return { embed, embedBatch, config, recallTimeoutMs: config.recallTimeoutMs, captureTimeoutMs: config.captureTimeoutMs };
+  return { embed, embedBatch, config, recallTimeoutMs: config.recallTimeoutMs, captureTimeoutMs: config.captureTimeoutMs, isAvailable: true };
 }
 
 export type EmbeddingService = ReturnType<typeof createEmbeddingService>;
