@@ -1,0 +1,97 @@
+/**
+ * WriteQueue — lightweight async batch flush for memory captures.
+ *
+ * Buffers L0 (markdown) + L1 (FTS5) + L2 (vector) writes off the main event loop
+ * to avoid blocking agent_end hooks and the OpenClaw gateway thread.
+ */
+
+import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { AuditLog } from "./audit-log.ts";
+
+export interface WriteTask {
+  date: string;
+  timestamp: string;
+  userContent: string;
+  asstContent: string;
+}
+
+export type FlushHandler = (tasks: WriteTask[]) => Promise<void>;
+
+export function createWriteQueue(
+  flushHandler: FlushHandler,
+  logger?: PluginLogger,
+  audit?: AuditLog,
+  maxSize = 1000,
+) {
+  const pending: WriteTask[] = [];
+  let scheduled = false;
+  let flushing = false;
+  let droppedCount = 0;
+
+  function enqueue(task: WriteTask): void {
+    // Truncate oversized content to prevent memory bloat
+    const safeTask: WriteTask = {
+      ...task,
+      userContent: task.userContent.slice(0, 10000),
+      asstContent: task.asstContent.slice(0, 10000),
+    };
+
+    // Hard cap: if full, drop oldest tasks to make room
+    if (pending.length >= maxSize) {
+      const toDrop = pending.splice(0, pending.length - maxSize + 1);
+      droppedCount += toDrop.length;
+      logger?.warn?.(`[yaoyao-memory:write-queue] Queue overflow: dropped ${toDrop.length} oldest tasks (totalDropped=${droppedCount})`);
+    }
+
+    pending.push(safeTask);
+    if (!scheduled && !flushing) {
+      scheduled = true;
+      setImmediate(runFlush);
+    }
+  }
+
+  async function runFlush() {
+    scheduled = false;
+    if (flushing || pending.length === 0) return;
+    flushing = true;
+
+    // Snapshot and clear pending in one go
+    const batch = pending.splice(0, pending.length);
+
+    try {
+      await flushHandler(batch);
+      logger?.debug?.(`[yaoyao-memory:write-queue] Flushed ${batch.length} tasks`);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger?.error?.(
+        `[yaoyao-memory:write-queue] Flush failed: ${errMsg}`,
+      );
+      // Audit: record dropped tasks
+      if (audit) {
+        audit.write({
+          component: "write-queue",
+          event: "flush-failed",
+          summary: `L1/L2 异步写入失败，${batch.length} 条任务被丢弃（L0 .md 已同步落盘）`,
+          details: {
+            "丢弃任务数": batch.length,
+            "影响日期": batch.map(t => t.date).join(", "),
+            "错误类型": errMsg.slice(0, 200),
+            "建议": "检查磁盘空间、权限、或切换 capture.mode 为 sync",
+          },
+        });
+      }
+      // Best-effort: re-enqueue tasks that failed?  For now we drop them
+      // to avoid infinite retry loops.  L0 markdown already written synchronously
+      // as safety net, so data loss is minimal.
+    } finally {
+      flushing = false;
+      // If new tasks arrived while we were flushing, schedule again
+      if (pending.length > 0 && !scheduled) {
+        scheduled = true;
+        setImmediate(runFlush);
+      }
+    }
+  }
+
+  return { enqueue, get pendingCount() { return pending.length; } };
+}
