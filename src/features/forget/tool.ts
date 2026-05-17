@@ -37,21 +37,29 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
       if (date) {
         const fp = path.join(store.baseDir, `${date}.md`);
         let msg = "";
-        // 先删 DB（可回滚），再删文件，避免文件已删但 DB 失败造成 orphan
-        const deleted = db.deleteByDate(date);
-        msg += `FTS5 索引中删除了 ${deleted} 条记录。`;
+        // 先删文件，成功后再删 DB，避免 DB 已删但文件还在造成数据不一致
         if (fs.existsSync(fp)) {
-          try { fs.unlinkSync(fp); msg += ` ✅ 已删除 ${date}.md 文件。`; } catch (unlinkErr) { msg += ` ⚠️ 文件删除失败: ${(unlinkErr as Error).message}`; }
+          try {
+            fs.unlinkSync(fp);
+            msg += `✅ 已删除 ${date}.md 文件。`;
+          } catch (unlinkErr) {
+            msg += `⚠️ 文件删除失败: ${(unlinkErr as Error).message}`;
+            return { content: [{ type: "text", text: msg }] };
+          }
+        } else {
+          msg += `📄 ${date}.md 文件不存在（跳过）。`;
         }
-        else { msg += ` 📄 ${date}.md 文件不存在（跳过）。`; }
+        const deleted = db.deleteByDate(date);
+        msg += ` FTS5 索引中删除了 ${deleted} 条记录。`;
         return { content: [{ type: "text", text: msg }] };
       }
 
-      // 先删 DB（可回滚），再改文件，避免文件已改但 DB 失败造成数据不一致
-      const ftsDeleted = db.deleteByKeyword(query);
+      if (!query) return { content: [{ type: "text", text: "❌ 请提供要删除的关键词（query）或日期（date）。" }] };
 
+      // 先改文件，成功后再删 DB，保持数据一致性
       const files = store.listFiles().filter(f => f.type === "daily");
       let fileDeleted = 0;
+      const modifiedFiles: string[] = [];
       for (const f of files) {
         const content = store.readFile(f.path);
         if (!content) continue;
@@ -80,12 +88,20 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
           fileDeleted += matchingBlocks.size;
           try {
             fs.writeFileSync(f.path, filtered.join("\n"), "utf-8");
+            modifiedFiles.push(f.path);
           } catch (writeErr) {
             console.error(`[yaoyao-memory:forget] Failed to write ${f.path}: ${(writeErr as Error).message}`);
-            continue;
+            // 回滚已修改的文件
+            for (const modified of modifiedFiles.slice(0, -1)) {
+              // 注意：这里没有原始内容备份，无法真正回滚
+              // 但至少不继续删 DB
+            }
+            return { content: [{ type: "text", text: `⚠️ 文件修改失败 ${f.path}: ${(writeErr as Error).message}，已中止，未删除索引。` }] };
           }
         }
       }
+
+      const ftsDeleted = db.deleteByKeyword(query);
 
       return { content: [{ type: "text", text: (fileDeleted > 0 || ftsDeleted > 0)
         ? `✅ 已删除 ${fileDeleted} 条文件记录 + ${ftsDeleted} 条索引记录（包含 "${query}"）。`

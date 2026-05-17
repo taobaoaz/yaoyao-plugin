@@ -1,6 +1,5 @@
-/**
- * features/recommend/tool.ts — memory_recommend tool (modular).
- */
+// features/recommend/tool.ts — memory_recommend tool (modular).
+// v1.1: scene cache added to avoid re-reading scene_blocks on every call.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -11,11 +10,48 @@ import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
 import { diversifiedSelect, formatRecommendations, type Candidate } from "../../core/recommend/recommend.ts";
 
+/** Scene cache — invalidated when scene_blocks mtime changes */
+let _sceneCache: Map<string, Set<string>> | null = null;
+let _sceneCacheMtime = 0;
+
+function loadScenesCached(memoryDir: string): Map<string, Set<string>> {
+  const sceneDir = path.join(memoryDir, "scene_blocks");
+  let currentMtime = 0;
+  try {
+    if (fs.existsSync(sceneDir)) {
+      currentMtime = fs.statSync(sceneDir).mtimeMs;
+    }
+  } catch { /* */ }
+  if (_sceneCache && currentMtime === _sceneCacheMtime) {
+    return _sceneCache;
+  }
+
+  const scenes = new Map<string, Set<string>>();
+  try {
+    if (fs.existsSync(sceneDir)) {
+      for (const sf of fs.readdirSync(sceneDir).filter(f => f.endsWith(".md"))) {
+        const content = fs.readFileSync(path.join(sceneDir, sf), "utf-8");
+        for (const line of content.split("\n")) {
+          const t = line.trim();
+          if (t.startsWith("- ") || t.startsWith("* ")) {
+            const mem = t.slice(2);
+            if (!scenes.has(mem)) scenes.set(mem, new Set());
+            scenes.get(mem)!.add(sf.replace(".md", ""));
+          }
+        }
+      }
+    }
+  } catch { /* */ }
+  _sceneCache = scenes;
+  _sceneCacheMtime = currentMtime;
+  return scenes;
+}
+
 export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegistration {
   return {
     id: "memory_recommend",
     name: "memory_recommend",
-    label: "Recommend Memories",
+    label: "Memory Recommend",
     description: "记忆推荐引擎。基于上下文推荐多样化的相关记忆——混合不同场景、日期、标签的记忆，避免重复推荐同一类内容。",
     parameters: {
       type: "object",
@@ -92,24 +128,8 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
         return { content: [{ type: "text", text: "## 推荐记忆\n\n" + lines.join("\n") }] };
       }
 
-      // 加载场景数据
-      const scenes = new Map<string, Set<string>>();
-      const sceneDir = path.join(memoryDir, "scene_blocks");
-      try {
-        if (fs.existsSync(sceneDir)) {
-          for (const sf of fs.readdirSync(sceneDir).filter(f => f.endsWith(".md"))) {
-            const content = fs.readFileSync(path.join(sceneDir, sf), "utf-8");
-            for (const line of content.split("\n")) {
-              const t = line.trim();
-              if (t.startsWith("- ") || t.startsWith("* ")) {
-                const mem = t.slice(2);
-                if (!scenes.has(mem)) scenes.set(mem, new Set());
-                scenes.get(mem)!.add(sf.replace(".md", ""));
-              }
-            }
-          }
-        }
-      } catch { /* */ }
+      // 加载场景数据（带缓存）
+      const scenes = loadScenesCached(memoryDir);
 
       // Core: diversified selection
       const candidates: Candidate[] = rawResults.map(r => ({

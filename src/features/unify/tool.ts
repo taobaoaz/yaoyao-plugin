@@ -19,17 +19,12 @@ import type { SQLiteRow } from "../../platform/db/types.ts";
 function queryOpenClawDB(sql: string, params?: unknown[]): SQLiteRow[] | null {
   const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");
   try { if (!fs.existsSync(dbPath)) return null; } catch { return null; }
-  let dbInstance: import("../../platform/db/types.ts").UnifiedDB | null = null;
   try {
     const { db } = createCompatDB(dbPath);
-    dbInstance = db;
     const rows = db.prepare(sql).all(...(params || []));
     db.close();
     return rows as SQLiteRow[];
   } catch {
-    if (dbInstance) {
-      try { dbInstance.close(); } catch { /* ignore */ }
-    }
     return null;
   }
 }

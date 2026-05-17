@@ -1,6 +1,5 @@
-/**
- * features/graph/tool.ts — memory_graph tool (modular).
- */
+// features/graph/tool.ts — memory_graph tool (modular).
+// v1.1: scene cache added to avoid re-reading scene_blocks on every call.
 
 import { clampNum } from "../../utils/clamp.ts";
 import type { DBBridge } from "../../utils/db-bridge.ts";
@@ -11,9 +10,23 @@ import fs from "node:fs";
 import path from "node:path";
 import { buildGraph, formatGraph, type GraphWeights } from "../../core/graph/graph.ts";
 
-function loadScenes(memoryDir: string): Map<string, { name: string; memories: string[] }> {
-  const scenes = new Map<string, { name: string; memories: string[] }>();
+/** Scene cache — invalidated when scene_blocks mtime changes */
+let _sceneCache: Map<string, { name: string; memories: string[] }> | null = null;
+let _sceneCacheMtime = 0;
+
+function loadScenesCached(memoryDir: string): Map<string, { name: string; memories: string[] }> {
   const sceneDir = path.join(memoryDir, "scene_blocks");
+  let currentMtime = 0;
+  try {
+    if (fs.existsSync(sceneDir)) {
+      currentMtime = fs.statSync(sceneDir).mtimeMs;
+    }
+  } catch { /* */ }
+  if (_sceneCache && currentMtime === _sceneCacheMtime) {
+    return _sceneCache;
+  }
+
+  const scenes = new Map<string, { name: string; memories: string[] }>();
   try {
     if (!fs.existsSync(sceneDir)) return scenes;
     for (const file of fs.readdirSync(sceneDir)) {
@@ -33,6 +46,8 @@ function loadScenes(memoryDir: string): Map<string, { name: string; memories: st
       scenes.set(name, { name, memories });
     }
   } catch { /* best effort */ }
+  _sceneCache = scenes;
+  _sceneCacheMtime = currentMtime;
   return scenes;
 }
 
@@ -105,7 +120,7 @@ export function createGraphTool(db: DBBridge, _dbPath: string, memoryDir: string
 
       if (!query) return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
 
-      const scenes = loadScenes(memoryDir);
+      const scenes = loadScenesCached(memoryDir);
       const tags = loadTagsFromMeta(db);
 
       let queryVec: Float32Array | null = null;
