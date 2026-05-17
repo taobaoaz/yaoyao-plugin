@@ -59,6 +59,7 @@ function buildFilenameToIdMap(db) {
 }
 export function createGraphTool(db, _dbPath, memoryDir, embedding) {
     return {
+        id: "memory_graph",
         name: "memory_graph",
         label: "Memory Graph (Knowledge)",
         description: "构建记忆关联图谱。以某个关键词或记忆条目为切入点，多维度发现关联 - 标签关联、场景关联、关键词关联、时间关联、向量语义关联（需配置embedding）。",

@@ -12,6 +12,7 @@ import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createBackupTool(store: MemoryStore): ToolRegistration {
   return {
+    id: "memory_backup",
     name: "memory_backup",
     label: "Memory Backup",
     description: "创建记忆数据的时间戳快照备份。支持全量备份和增量备份（仅备份修改过的文件），也可列出和清理备份。",

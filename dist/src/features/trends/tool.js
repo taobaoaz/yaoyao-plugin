@@ -7,6 +7,7 @@ import path from "node:path";
 import { extractTokens, countFrequencies, daysAgo, computeTrends, formatTrendsReport, } from "../../core/trends/trends.js";
 export function createTrendsTool(store) {
     return {
+        id: "memory_trends",
         name: "memory_trends",
         label: "Memory Trends",
         description: "分析指定周期内记忆中的高频话题与趋势。通过日常日志词频统计，识别上升/下降话题。无需 LLM，仅基于词频。",

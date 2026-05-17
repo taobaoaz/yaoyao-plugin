@@ -12,6 +12,7 @@ import path from "node:path";
 
 export function createStatsTool(store: MemoryStore, db: DBBridge): ToolRegistration {
   return {
+    id: "memory_stats",
     name: "memory_stats",
     label: "Memory Stats",
     description: "获取记忆统计信息：总数、日期分布、场景分组、标签、反馈学习、DB 健康状态。支持 text / json 两种格式。",

@@ -7,6 +7,7 @@ import path from "node:path";
 import { findDuplicates, jaccardSnippet, computeDateStats, generateRecommendations, formatQualityReport, formatDedupReport, } from "../../core/quality/quality.js";
 export function createQualityTool(store, db) {
     return {
+        id: "memory_quality",
         name: "memory_quality",
         label: "Memory Quality",
         description: "🩺 记忆质量评估 — 分析记忆数据库的健康度，包括覆盖率、重复度、新鲜度、索引完整性",

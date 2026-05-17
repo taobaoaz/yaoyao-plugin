@@ -10,6 +10,7 @@ import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createNoteTool(store: MemoryStore, db: DBBridge): ToolRegistration {
   return {
+    id: "memory_note",
     name: "memory_note",
     label: "Memory Quick Note",
     description: "Quickly save a short note to today's memory. Like sticking a Post-it note on your memory wall.",

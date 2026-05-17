@@ -17,6 +17,7 @@ import {
 
 export function createTrendsTool(store: MemoryStore): ToolRegistration {
   return {
+    id: "memory_trends",
     name: "memory_trends",
     label: "Memory Trends",
     description:

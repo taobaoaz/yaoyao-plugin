@@ -18,6 +18,7 @@ function contentHash(text) {
 }
 export function createImportOCTool(store, db) {
     return {
+        id: "memory_import_oc",
         name: "memory_import_oc",
         label: "Import OpenClaw Chunks",
         description: "📦 将 OpenClaw 原生记忆 chunks 导入 Yaoyao 索引。增量导入，幂等安全，不修改源数据。",

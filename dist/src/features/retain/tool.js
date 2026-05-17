@@ -59,6 +59,7 @@ function loadImportantTags(baseDir) {
 }
 export function createRetainTool(store, db) {
     return {
+        id: "memory_retain",
         name: "memory_retain",
         label: "Memory Retain",
         description: "🧠 记忆增强/反遗忘 — 检测重要但长期未被召回的记忆，生成强化建议。防止关键记忆被遗忘。",

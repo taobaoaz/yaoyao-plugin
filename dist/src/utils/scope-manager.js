@@ -26,6 +26,10 @@ export class SimpleScopeManager {
     constructor(config = DEFAULT_SCOPE_CONFIG) {
         this.config = config;
     }
+    /** Get accessible scopes for an agent (alias for getAccessibleScopes). */
+    getScopes(agentId) {
+        return this.getAccessibleScopes(agentId);
+    }
     /** Get accessible scopes for an agent. */
     getAccessibleScopes(agentId) {
         const scopes = new Set(["global"]);

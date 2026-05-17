@@ -67,6 +67,7 @@ function readDreams(memoryDir) {
 }
 export function createUnifyTool(store) {
     return {
+        id: "memory_unify",
         name: "memory_unify",
         label: "Memory Unify",
         description: "🔗 统一记忆管理 — 查看 OpenClaw 所有记忆后端的状态，包括内置记忆、yaoyao 索引、.dreams 短期召回",

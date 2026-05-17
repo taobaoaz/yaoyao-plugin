@@ -8,6 +8,7 @@ import { scoreEvidence, detectSpeculative } from "../../core/verify/verify.ts";
 
 export function createVerifyTool(db: DBBridge): ToolRegistration {
   return {
+    id: "memory_verify",
     name: "memory_verify",
     label: "Memory Verify",
     description:

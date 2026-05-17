@@ -10,6 +10,7 @@ import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createSearchTimelineTool(db: DBBridge): ToolRegistration {
   return {
+    id: "memory_search_timeline",
     name: "memory_search_timeline",
     label: "Memory Search with Timeline",
     description: "Search memories and show when they occurred on a timeline. Combines FTS5 search with temporal context for richer results.",

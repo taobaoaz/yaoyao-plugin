@@ -5,6 +5,7 @@ import { clampNum } from "../../utils/clamp.js";
 import { withErrorHandling } from "../../tools/common.js";
 export function createNoteTool(store, db) {
     return {
+        id: "memory_note",
         name: "memory_note",
         label: "Memory Quick Note",
         description: "Quickly save a short note to today's memory. Like sticking a Post-it note on your memory wall.",

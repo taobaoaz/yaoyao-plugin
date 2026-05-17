@@ -13,6 +13,7 @@ import { searchFTS } from "../../core/search/search.ts";
 
 export function createSearchTool(db: DBBridge): ToolRegistration {
   return {
+    id: "memory_search",
     name: "memory_search",
     label: "Yaoyao Memory Search",
     description: "Search through past memories using full-text search. Supports keywords, phrases, and natural language queries. Results are ranked by relevance.",

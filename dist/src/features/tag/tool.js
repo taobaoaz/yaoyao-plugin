@@ -28,6 +28,7 @@ function getDb(store, dbBridge) {
 }
 export function createTagTool(store, dbBridge) {
     return {
+        id: "memory_tag",
         name: "memory_tag",
         label: "Tag Memories",
         description: "给记忆条目打标签、移除标签、按标签搜索。标签不区分大小写。",

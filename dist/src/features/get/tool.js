@@ -6,6 +6,7 @@ import fs from "node:fs";
 import { withErrorHandling } from "../../tools/common.js";
 export function createGetTool(store, _db) {
     return {
+        id: "memory_get",
         name: "memory_get",
         label: "Yaoyao Memory Get",
         description: "Read a memory file by filename or date. Returns the full file contents.",

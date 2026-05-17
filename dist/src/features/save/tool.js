@@ -4,6 +4,7 @@
 import { withErrorHandling } from "../../tools/common.js";
 export function createSaveTool(store, db) {
     return {
+        id: "memory_save",
         name: "memory_save",
         label: "Memory Save",
         description: "Manually save an important memory to long-term storage. Use this when you want to explicitly record something the AI should remember.",

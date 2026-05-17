@@ -9,6 +9,7 @@ import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createListTool(store: MemoryStore): ToolRegistration {
   return {
+    id: "memory_list",
     name: "memory_list",
     label: "Memory List",
     description: "List available memory files with metadata (type, date, size, modified time).",

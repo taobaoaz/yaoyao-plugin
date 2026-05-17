@@ -7,6 +7,7 @@
 import { withErrorHandling } from "../../tools/common.js";
 export function createAnalyzeTool() {
     return {
+        id: "memory_analyze",
         name: "memory_analyze",
         label: "Memory Analyze",
         description: "📊 情绪与画像分析功能已迁移至 yaoyao-soul 插件。如需使用，请安装 yaoyao-soul。",

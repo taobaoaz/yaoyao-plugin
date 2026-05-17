@@ -24,6 +24,7 @@ const TARGET_FILES = [
 
 export function createImportWorkspaceTool(store: MemoryStore, db: DBBridge): ToolRegistration {
   return {
+    id: "memory_import_workspace",
     name: "memory_import_workspace",
     label: "Import Workspace Files",
     description: "📂 导入 workspace 下的 Markdown 文件到 Yaoyao 索引（MEMORY.md、USER.md 等）。增量导入，幂等安全。",

@@ -17,6 +17,7 @@ function formatResult(snippet: string, filename: string, score: number): string 
 
 export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingService | null): ToolRegistration {
   return {
+    id: "memory_search_enhanced",
     name: "memory_search_enhanced",
     label: "Search (Rerank)",
     description: "语义搜索增强版。在全文搜索基础上支持向量重排序（需配置 embedding）和关键词高亮。支持 text / json 两种输出格式。",

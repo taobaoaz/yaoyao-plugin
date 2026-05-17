@@ -19,6 +19,7 @@ import {
 
 export function createQualityTool(store: MemoryStore, db: DBBridge): ToolRegistration {
   return {
+    id: "memory_quality",
     name: "memory_quality",
     label: "Memory Quality",
     description:

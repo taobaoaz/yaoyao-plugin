@@ -9,6 +9,7 @@ import type { DBBridge } from "../../utils/db-bridge.ts";
 
 export function createTimelineTool(db: DBBridge): ToolRegistration {
   return {
+    id: "memory_timeline",
     name: "memory_timeline",
     label: "Memory Timeline",
     description: "Show a timeline view of memory activity. Visualizes when conversations happened over time with heat-map-like density bars.",

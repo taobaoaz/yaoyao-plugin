@@ -9,6 +9,7 @@ import { convertHumanToCron } from "../../core/remind/cron.ts";
 
 export function createRemindTool(): ToolRegistration {
   return {
+    id: "memory_remind",
     name: "memory_remind",
     label: "Remind (Memory)",
     description: "创建记忆定时提醒。通过 openclaw cron 在指定时间触发，推送相关记忆到当前会话。支持 cron 表达式或自然语言描述时间。",

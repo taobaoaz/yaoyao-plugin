@@ -205,6 +205,7 @@ const TEMPLATE = `# 云备份凭证配置
 
 export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
   return {
+    id: "memory_cloud_sync",
     name: "memory_cloud_sync",
     label: "Cloud Sync",
     description: "☁️ 云备份同步 — 支持多种云服务(WebDAV/S3/SFTP/Samba)备份记忆数据。操作: status(检查状态) / upload(上传到云端) / download(从云端恢复) / bidirectional(双向同步) / configure(配置云服务)",

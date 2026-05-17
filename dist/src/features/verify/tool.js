@@ -2,6 +2,7 @@ import { withErrorHandling } from "../../tools/common.js";
 import { scoreEvidence, detectSpeculative } from "../../core/verify/verify.js";
 export function createVerifyTool(db) {
     return {
+        id: "memory_verify",
         name: "memory_verify",
         label: "Memory Verify",
         description: "🔍 防幻觉验证 — 核实一个说法是否与存储的记忆一致。" +

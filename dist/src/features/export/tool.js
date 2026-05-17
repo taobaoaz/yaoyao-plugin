@@ -6,6 +6,7 @@ import { withErrorHandling } from "../../tools/common.js";
 import { queryForExport, formatJSONL } from "../../core/export/export.js";
 export function createExportTool(dbBridge) {
     return {
+        id: "memory_export",
         name: "memory_export",
         label: "Export Memories",
         description: "以 JSONL 格式导出记忆数据，支持按日期和关键词筛选。输出可跨设备导入。",

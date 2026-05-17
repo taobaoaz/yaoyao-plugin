@@ -6,6 +6,7 @@ import fs from "node:fs";
 import { withErrorHandling } from "../../tools/common.js";
 export function createForgetTool(store, db) {
     return {
+        id: "memory_forget",
         name: "memory_forget",
         label: "Memory Forget",
         description: "Delete memory entries matching a keyword or date. Use to remove outdated or incorrect memories.",

@@ -8,6 +8,7 @@ import { runHealthcheck, formatHealthcheck, type HealthResult } from "../../util
 
 export function createHealthcheckTool(): ToolRegistration {
   return {
+    id: "memory_healthcheck",
     name: "memory_healthcheck",
     label: "环境自检",
     description: "🏥 运行环境诊断检查，验证 Node.js 版本、SQLite 支持、磁盘空间、WAL 兼容性、UTF-8 编码等。用于排查启动异常或运行故障。",

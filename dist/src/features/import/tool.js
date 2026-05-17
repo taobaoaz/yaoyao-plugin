@@ -35,6 +35,7 @@ function ensureSchema(db) {
 }
 export function createImportTool(store) {
     return {
+        id: "memory_import",
         name: "memory_import",
         label: "Import Memories",
         description: "从 JSONL 格式的数据中导入记忆到数据库。每行一条 JSON：{\"date\":\"...\",\"user_text\":\"...\",\"asst_text\":\"...\"}。支持来自 memory_export 的输出。",

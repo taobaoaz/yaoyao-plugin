@@ -58,6 +58,7 @@ function readDreams(memoryDir: string) {
 
 export function createUnifyTool(store: MemoryStore): ToolRegistration {
   return {
+    id: "memory_unify",
     name: "memory_unify",
     label: "Memory Unify",
     description:

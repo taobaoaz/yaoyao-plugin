@@ -69,6 +69,7 @@ function loadImportantTags(baseDir: string): ImportantTag[] {
 
 export function createRetainTool(store: MemoryStore, db: DBBridge): ToolRegistration {
   return {
+    id: "memory_retain",
     name: "memory_retain",
     label: "Memory Retain",
     description:

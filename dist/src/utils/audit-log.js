@@ -92,6 +92,10 @@ export function createAuditLog(baseDir, logger, opts = {}) {
             logger?.debug?.(`[yaoyao-memory:audit] Format failed: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
+    /** Record an audit event (alias for write). */
+    function record(event, details) {
+        write({ component: "yaoyao-memory", event, summary: event, details });
+    }
     /** Synchronous flush for graceful shutdown */
     function flushSync() {
         if (buffer.length === 0)
@@ -112,5 +116,5 @@ export function createAuditLog(baseDir, logger, opts = {}) {
             logger?.error?.(`[yaoyao-memory:audit] Sync flush failed: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
-    return { write, flush, flushSync };
+    return { write, flush, flushSync, record };
 }

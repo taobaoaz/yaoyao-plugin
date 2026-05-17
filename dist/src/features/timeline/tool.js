@@ -5,6 +5,7 @@ import { clampNum } from "../../utils/clamp.js";
 import { withErrorHandling } from "../../tools/common.js";
 export function createTimelineTool(db) {
     return {
+        id: "memory_timeline",
         name: "memory_timeline",
         label: "Memory Timeline",
         description: "Show a timeline view of memory activity. Visualizes when conversations happened over time with heat-map-like density bars.",

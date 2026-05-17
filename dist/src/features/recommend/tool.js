@@ -8,6 +8,7 @@ import { withErrorHandling } from "../../tools/common.js";
 import { diversifiedSelect, formatRecommendations } from "../../core/recommend/recommend.js";
 export function createRecommendTool(db, memoryDir) {
     return {
+        id: "memory_recommend",
         name: "memory_recommend",
         label: "Recommend Memories",
         description: "记忆推荐引擎。基于上下文推荐多样化的相关记忆——混合不同场景、日期、标签的记忆，避免重复推荐同一类内容。",

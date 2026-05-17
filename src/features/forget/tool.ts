@@ -11,6 +11,7 @@ import type { ToolRegistration } from "../../tools/common.ts";
 
 export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistration {
   return {
+    id: "memory_forget",
     name: "memory_forget",
     label: "Memory Forget",
     description: "Delete memory entries matching a keyword or date. Use to remove outdated or incorrect memories.",
