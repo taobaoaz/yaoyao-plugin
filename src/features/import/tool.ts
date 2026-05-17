@@ -133,6 +133,7 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
         }
         db.exec("PRAGMA journal_mode = WAL");
         db.exec("PRAGMA busy_timeout = 5000");
+        db.exec("PRAGMA cache_size = -65536");
         ensureSchema(db);
 
         const successCount = batchImport(db, entries);

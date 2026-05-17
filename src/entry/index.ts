@@ -244,6 +244,7 @@ export default definePluginEntry({
 
       // ── 11. Cleanup scheduler ──
       let cleanerTimer: ReturnType<typeof setInterval> | null = null;
+      let cleanerTimeout: ReturnType<typeof setTimeout> | null = null;
       const cleanerCfg = registry.service<{ l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean; cleanTime?: string }>("cleaner");
       if (cleanerCfg) {
         const cleaner = createMemoryCleaner(store.baseDir, db, cleanerCfg, api.logger);
@@ -255,10 +256,11 @@ export default definePluginEntry({
           // Tencent-style cleanTime: schedule at specific time (e.g. "03:00")
           const delayMs = getNextCleanTimeMs(cleanerCfg.cleanTime);
           if (delayMs > 0) {
-            setTimeout(() => {
+            cleanerTimeout = setTimeout(() => {
               cleaner.cleanup();
               cleanerTimer = setInterval(() => cleaner.cleanup(), 24 * 60 * 60 * 1000).unref();
-            }, delayMs).unref();
+            }, delayMs);
+            cleanerTimeout.unref();
             api.logger.info?.(`[yaoyao-memory] Memory cleaner scheduled at ${cleanerCfg.cleanTime} (in ${Math.round(delayMs / 60000)}min)`);
           } else {
             cleanerTimer = setInterval(() => cleaner.cleanup(), 24 * 60 * 60 * 1000).unref();
@@ -279,6 +281,7 @@ export default definePluginEntry({
         }
         db.close();
         registry.closeAll(api);
+        if (cleanerTimeout) { clearTimeout(cleanerTimeout); cleanerTimeout = null; }
         if (cleanerTimer) { clearInterval(cleanerTimer); cleanerTimer = null; }
       });
 
