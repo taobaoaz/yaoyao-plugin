@@ -106,7 +106,11 @@ export default definePluginEntry({
                 if (crossSessionMemories.length > 0) {
                     api.logger.info?.(`[yaoyao-memory:recovery] Loaded ${crossSessionMemories.length} cross-session memories from ${searchDirs.length} dirs`);
                     // Store cross-session context as ephemeral system context
-                    api._crossSessionContext = crossSessionMemories;
+                    // Guard: only write if the property doesn't already exist to avoid clobbering other plugins
+                    const apiRecord = api;
+                    if (!apiRecord._crossSessionContext) {
+                        apiRecord._crossSessionContext = crossSessionMemories;
+                    }
                 }
             }
             catch (recoveryErr) {
@@ -213,6 +217,7 @@ export default definePluginEntry({
             }
             // ── 11. Cleanup scheduler ──
             let cleanerTimer = null;
+            let cleanerTimeout = null;
             const cleanerCfg = registry.service("cleaner");
             if (cleanerCfg) {
                 const cleaner = createMemoryCleaner(store.baseDir, db, cleanerCfg, api.logger);
@@ -225,10 +230,11 @@ export default definePluginEntry({
                     // Tencent-style cleanTime: schedule at specific time (e.g. "03:00")
                     const delayMs = getNextCleanTimeMs(cleanerCfg.cleanTime);
                     if (delayMs > 0) {
-                        setTimeout(() => {
+                        cleanerTimeout = setTimeout(() => {
                             cleaner.cleanup();
                             cleanerTimer = setInterval(() => cleaner.cleanup(), 24 * 60 * 60 * 1000).unref();
-                        }, delayMs).unref();
+                        }, delayMs);
+                        cleanerTimeout.unref();
                         api.logger.info?.(`[yaoyao-memory] Memory cleaner scheduled at ${cleanerCfg.cleanTime} (in ${Math.round(delayMs / 60000)}min)`);
                     }
                     else {
@@ -250,6 +256,10 @@ export default definePluginEntry({
                 }
                 db.close();
                 registry.closeAll(api);
+                if (cleanerTimeout) {
+                    clearTimeout(cleanerTimeout);
+                    cleanerTimeout = null;
+                }
                 if (cleanerTimer) {
                     clearInterval(cleanerTimer);
                     cleanerTimer = null;

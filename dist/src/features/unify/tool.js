@@ -18,21 +18,13 @@ function queryOpenClawDB(sql, params) {
     catch {
         return null;
     }
-    let dbInstance = null;
     try {
         const { db } = createCompatDB(dbPath);
-        dbInstance = db;
         const rows = db.prepare(sql).all(...(params || []));
         db.close();
         return rows;
     }
     catch {
-        if (dbInstance) {
-            try {
-                dbInstance.close();
-            }
-            catch { /* ignore */ }
-        }
         return null;
     }
 }

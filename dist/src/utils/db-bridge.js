@@ -91,6 +91,14 @@ export function createDB(config, logger) {
                 }
                 db.exec("PRAGMA busy_timeout = 5000");
                 db.exec("PRAGMA cache_size = -65536");
+                // Passive WAL checkpoint every hour to prevent unbounded WAL growth
+                const _walCheckTimer = setInterval(() => {
+                    try {
+                        db.exec("PRAGMA wal_checkpoint(PASSIVE)");
+                    }
+                    catch { /* ignore */ }
+                }, 60 * 60 * 1000);
+                _walCheckTimer.unref?.();
             }
             // FTS5 table for full-text search (only if backend supports it)
             if (supportsFTS5) {

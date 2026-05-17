@@ -113,6 +113,13 @@ function buildHookResult(context, _config, position) {
 const _sessionContextKeywords = new Map();
 const _sessionKeywordOrder = new Map();
 function accumulateKeywords(sessionKey, text, maxKeywords) {
+    // LRU eviction: cap total sessions to prevent unbounded memory growth
+    const MAX_SESSIONS = 100;
+    if (_sessionContextKeywords.size >= MAX_SESSIONS && !_sessionContextKeywords.has(sessionKey)) {
+        const firstKey = _sessionContextKeywords.keys().next().value;
+        _sessionContextKeywords.delete(firstKey);
+        _sessionKeywordOrder.delete(firstKey);
+    }
     const words = text.toLowerCase().split(/[^a-z0-9\u4e00-\u9fa5]+/).filter((w) => w.length >= 2);
     let set = _sessionContextKeywords.get(sessionKey);
     let order = _sessionKeywordOrder.get(sessionKey);

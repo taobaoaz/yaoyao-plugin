@@ -1,14 +1,26 @@
-/**
- * features/graph/tool.ts — memory_graph tool (modular).
- */
+// features/graph/tool.ts — memory_graph tool (modular).
+// v1.1: scene cache added to avoid re-reading scene_blocks on every call.
 import { clampNum } from "../../utils/clamp.js";
 import { withErrorHandling } from "../../tools/common.js";
 import fs from "node:fs";
 import path from "node:path";
 import { buildGraph, formatGraph } from "../../core/graph/graph.js";
-function loadScenes(memoryDir) {
-    const scenes = new Map();
+/** Scene cache — invalidated when scene_blocks mtime changes */
+let _sceneCache = null;
+let _sceneCacheMtime = 0;
+function loadScenesCached(memoryDir) {
     const sceneDir = path.join(memoryDir, "scene_blocks");
+    let currentMtime = 0;
+    try {
+        if (fs.existsSync(sceneDir)) {
+            currentMtime = fs.statSync(sceneDir).mtimeMs;
+        }
+    }
+    catch { /* */ }
+    if (_sceneCache && currentMtime === _sceneCacheMtime) {
+        return _sceneCache;
+    }
+    const scenes = new Map();
     try {
         if (!fs.existsSync(sceneDir))
             return scenes;
@@ -31,6 +43,8 @@ function loadScenes(memoryDir) {
         }
     }
     catch { /* best effort */ }
+    _sceneCache = scenes;
+    _sceneCacheMtime = currentMtime;
     return scenes;
 }
 function loadTagsFromMeta(db) {
@@ -102,7 +116,7 @@ export function createGraphTool(db, _dbPath, memoryDir, embedding) {
             const format = String(params.format || "text");
             if (!query)
                 return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
-            const scenes = loadScenes(memoryDir);
+            const scenes = loadScenesCached(memoryDir);
             const tags = loadTagsFromMeta(db);
             let queryVec = null;
             if (embedding) {

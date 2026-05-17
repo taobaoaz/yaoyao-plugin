@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.5.1-beta3 (2026-05-17)
+
+### 🔧 Pre-release bump
+- Version bump to v1.5.1-beta3 for next iteration.
+
 ## v1.5.1-beta2 (2026-05-17)
 
 ### 🔧 Fixes (Step 1 — Code Quality)

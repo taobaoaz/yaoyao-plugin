@@ -73,7 +73,7 @@ async function handleReport(store, db) {
     catch { /* best effort */ }
     let duplicationRatio = 0;
     try {
-        const sampleResults = db.search("", 50);
+        const sampleResults = db.search("*", 50);
         if (sampleResults.length > 1) {
             let similarPairs = 0;
             let totalPairs = 0;
@@ -96,7 +96,8 @@ async function handleReport(store, db) {
 async function handleDedup(db) {
     let results = [];
     try {
-        results = db.search("", 100);
+        // Use a wildcard search instead of empty string for consistent FTS5 behavior
+        results = db.search("*", 100);
     }
     catch { /* best effort */ }
     if (results.length < 2) {

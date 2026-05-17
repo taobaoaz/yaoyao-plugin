@@ -1,4 +1,4 @@
-# Yaoyao Memory Plugin v1.5.1-beta2
+# Yaoyao Memory Plugin v1.5.1-beta3
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
@@ -191,7 +191,7 @@ L4 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 
 ## 快速开始
 
-### 从旧版本升级（v1.4.x → v1.5.1-beta2）
+### 从旧版本升级（v1.4.x → v1.5.1-beta3）
 
 ```bash
 cd ~/.openclaw/extensions/yaoyao-memory
@@ -247,7 +247,7 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.5.1-beta2  ·  25+ Tools  ·  2 Hooks
+🎲    v1.5.1-beta3  ·  25+ Tools  ·  2 Hooks
 🎲 能力: FTS5✅ Vec✅ LLM⚪ Cloud⚪
 ```
 

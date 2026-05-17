@@ -59,6 +59,23 @@ export function createEmbeddingService(config) {
     const maxInputChars = clampNum(config.maxInputChars, 4_000, 500, 32_000);
     const backoffBaseMs = clampNum(config.backoffBaseMs, 1_000, 100, 30_000);
     const batchSize = clampNum(config.batchSize, 100, 1, 500);
+    // Concurrency limiter: max 2 inflight embedding requests to avoid upstream bombing
+    let _inflight = 0;
+    const _queue = [];
+    async function acquire() {
+        if (_inflight < 2) {
+            _inflight++;
+            return;
+        }
+        await new Promise((r) => _queue.push(r));
+        _inflight++;
+    }
+    function release() {
+        _inflight--;
+        const next = _queue.shift();
+        if (next)
+            next();
+    }
     /** Fetch with AbortSignal timeout */
     async function fetchWithTimeout(url, init) {
         const timeout = init.timeoutMs ?? timeoutMs;
@@ -105,11 +122,13 @@ export function createEmbeddingService(config) {
      * Returns a Float32Array of `dimensions` floats.
      */
     async function embed(text, overrideTimeoutMs) {
-        const t0 = performance.now();
-        const path = baseUrl.endsWith("/v1") ? "" : "/v1";
-        const url = `${baseUrl}${path}/embeddings`;
-        const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
+        await acquire();
+        let t0 = 0;
         try {
+            t0 = performance.now();
+            const path = baseUrl.endsWith("/v1") ? "" : "/v1";
+            const url = `${baseUrl}${path}/embeddings`;
+            const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
             const res = await fetchWithRetry(url, {
                 method: "POST",
                 headers: {
@@ -143,55 +162,64 @@ export function createEmbeddingService(config) {
             }
             throw err;
         }
+        finally {
+            release();
+        }
     }
     /**
      * Generate embeddings for multiple texts in a batch.
      * Automatically chunks large arrays to avoid OOM / timeout.
      */
     async function embedBatch(texts, overrideTimeoutMs) {
-        const results = [];
-        const path = baseUrl.endsWith("/v1") ? "" : "/v1";
-        const url = `${baseUrl}${path}/embeddings`;
-        const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
-        for (let i = 0; i < texts.length; i += batchSize) {
-            const t0 = performance.now();
-            const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
-            try {
-                const res = await fetchWithRetry(url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${config.apiKey}`,
-                    },
-                    body: JSON.stringify({
-                        input: chunk,
-                        model: config.model,
-                    }),
-                    timeoutMs: effectiveTimeout,
-                });
-                if (!res.ok) {
-                    const errText = await res.text().catch(() => "unknown");
-                    throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+        await acquire();
+        try {
+            const results = [];
+            const path = baseUrl.endsWith("/v1") ? "" : "/v1";
+            const url = `${baseUrl}${path}/embeddings`;
+            const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
+            for (let i = 0; i < texts.length; i += batchSize) {
+                const t0 = performance.now();
+                const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
+                try {
+                    const res = await fetchWithRetry(url, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${config.apiKey}`,
+                        },
+                        body: JSON.stringify({
+                            input: chunk,
+                            model: config.model,
+                        }),
+                        timeoutMs: effectiveTimeout,
+                    });
+                    if (!res.ok) {
+                        const errText = await res.text().catch(() => "unknown");
+                        throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
+                    }
+                    const data = await res.json();
+                    const dataArr = data.data;
+                    if (!dataArr || !Array.isArray(dataArr)) {
+                        throw new Error("Invalid embedding batch response");
+                    }
+                    results.push(...dataArr.map((d) => new Float32Array(d.embedding)));
+                    const elapsed = Math.round(performance.now() - t0);
+                    config.logger?.info?.(`[embedBatch] /embeddings ${elapsed}ms (batch ${i / batchSize + 1}, ${chunk.length} texts)`);
                 }
-                const data = await res.json();
-                const dataArr = data.data;
-                if (!dataArr || !Array.isArray(dataArr)) {
-                    throw new Error("Invalid embedding batch response");
+                catch (err) {
+                    const elapsed = Math.round(performance.now() - t0);
+                    config.logger?.debug?.(`[embedBatch] /embeddings failed after ${elapsed}ms (batch ${i / batchSize + 1})`);
+                    if (err instanceof Error && err.name === "AbortError") {
+                        throw new Error("Embedding batch request timed out");
+                    }
+                    throw err;
                 }
-                results.push(...dataArr.map((d) => new Float32Array(d.embedding)));
-                const elapsed = Math.round(performance.now() - t0);
-                config.logger?.info?.(`[embedBatch] /embeddings ${elapsed}ms (batch ${i / batchSize + 1}, ${chunk.length} texts)`);
             }
-            catch (err) {
-                const elapsed = Math.round(performance.now() - t0);
-                config.logger?.debug?.(`[embedBatch] /embeddings failed after ${elapsed}ms (batch ${i / batchSize + 1})`);
-                if (err instanceof Error && err.name === "AbortError") {
-                    throw new Error("Embedding batch request timed out");
-                }
-                throw err;
-            }
+            return results;
         }
-        return results;
+        finally {
+            release();
+        }
     }
     return { embed, embedBatch, config, recallTimeoutMs: config.recallTimeoutMs, captureTimeoutMs: config.captureTimeoutMs, isAvailable: true };
 }
