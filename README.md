@@ -1,4 +1,4 @@
-# Yaoyao Memory Plugin v1.5.1-beta1
+# Yaoyao Memory Plugin v1.5.1-beta2
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 

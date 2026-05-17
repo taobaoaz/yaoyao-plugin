@@ -1,6 +1,6 @@
 {
   "name": "yaoyao-memory-plugin",
-  "version": "1.5.1-beta1",
+  "version": "1.5.1-beta2",
   "description": "Yaoyao Memory — 4-layer AI memory system with FTS5 + sqlite-vec hybrid search, sentiment analysis, timeline, cloud backup, and topic trends. Minimal external deps (sqlite-vec).",
   "type": "module",
   "main": "dist/index.js",
