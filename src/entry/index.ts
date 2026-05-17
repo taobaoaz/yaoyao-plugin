@@ -130,7 +130,11 @@ export default definePluginEntry({
         if (crossSessionMemories.length > 0) {
           api.logger.info?.(`[yaoyao-memory:recovery] Loaded ${crossSessionMemories.length} cross-session memories from ${searchDirs.length} dirs`);
           // Store cross-session context as ephemeral system context
-          (api as Record<string, unknown>)._crossSessionContext = crossSessionMemories;
+          // Guard: only write if the property doesn't already exist to avoid clobbering other plugins
+          const apiRecord = api as Record<string, unknown>;
+          if (!apiRecord._crossSessionContext) {
+            apiRecord._crossSessionContext = crossSessionMemories;
+          }
         }
       } catch (recoveryErr) {
         api.logger.debug?.(`[yaoyao-memory:recovery] Cross-session recovery skipped: ${recoveryErr instanceof Error ? recoveryErr.message : String(recoveryErr)}`);
