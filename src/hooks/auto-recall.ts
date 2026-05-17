@@ -25,6 +25,8 @@ import { scoreConfidenceSupport } from "../utils/confidence-scorer.ts";
 import { parseSupportInfo, type SupportInfoV2 } from "../utils/support-info.ts";
 
 
+import { SimpleLRU } from "../utils/simple-lru.ts";
+import { isTrivial } from "../utils/trivial-detector.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
 
 // ── Configurable thresholds (read from plugin config) ──
@@ -79,51 +81,8 @@ function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
   };
 }
 
-// ── Search result cache (TTL + size limit from config) ──
-const resultCache = new Map<string, { results: SearchResult[]; expires: number }>();
-
-/** Periodic expired-entry cleanup counter */
-let cacheAccessCount = 0;
-
-function getCachedResults(key: string, cfg: RecallThresholds): SearchResult[] | null {
-  if (++cacheAccessCount >= 100) {
-    cacheAccessCount = 0;
-  }
-  const now = Date.now();
-  // Periodic expired-entry cleanup (every 100 accesses)
-  if (cacheAccessCount === 0) {
-    for (const [k, v] of resultCache) {
-      if (v.expires < now) resultCache.delete(k);
-    }
-  }
-  const cached = resultCache.get(key);
-  if (cached && cached.expires > now) return cached.results;
-  resultCache.delete(key);
-  return null;
-}
-
-function setCachedResults(key: string, results: SearchResult[], cfg: RecallThresholds): void {
-  if (resultCache.size >= cfg.maxCacheSize) {
-    const now = Date.now();
-    // Phase 1: evict expired entries
-    for (const [k, v] of resultCache) {
-      if (v.expires < now) resultCache.delete(k);
-    }
-    // Phase 2: if still full, evict oldest by expiration time
-    if (resultCache.size >= cfg.maxCacheSize) {
-      let oldestKey: string | null = null;
-      let oldestTime = Infinity;
-      for (const [k, v] of resultCache) {
-        if (v.expires < oldestTime) {
-          oldestTime = v.expires;
-          oldestKey = k;
-        }
-      }
-      if (oldestKey) resultCache.delete(oldestKey);
-    }
-  }
-  resultCache.set(key, { results, expires: Date.now() + cfg.cacheTTL });
-}
+// ── Search result cache (LRU + TTL from config) ──
+// Instantiated per hook registration to avoid cross-instance leakage.
 
 // ── Enhancement 3: Session context accumulation ──
 // Maintains cross-turn keyword context per session to improve recall relevance.
@@ -481,6 +440,12 @@ export function registerRecallHook(
 
   const cfg = getRecallConfig(config);
 
+  // ── Brain-style LRU result cache ──
+  const resultCache = new SimpleLRU<string, SearchResult[]>({
+    maxSize: cfg.maxCacheSize,
+    ttlMs: cfg.cacheTTL,
+  });
+
   // Brain-style retrieval stats: aggregate query metrics
   const stats = globalRetrievalStats;
 
@@ -553,7 +518,7 @@ export function registerRecallHook(
       const cacheKey = `${searchType}:${ftsQuery}:${maxResults}`;
 
       // Check cache
-      const cached = getCachedResults(cacheKey, cfg);
+      const cached = resultCache.get(cacheKey);
       if (cached) {
         api.logger.debug?.(`[yaoyao-memory:recall] Cache hit | decay=${decayed.length} | dedup=${deduped.length}`);
         const decayed = applyTimeDecay(cached, cfg, cfg.decayMode);
@@ -579,7 +544,7 @@ export function registerRecallHook(
             api.logger.debug?.(`[yaoyao-memory:recall] Scope filter excluded ${rawResults.length - results.length} memories`);
           }
           if (results.length > 0) {
-            setCachedResults(cacheKey, results, cfg);
+            resultCache.set(cacheKey, results);
         // Brain-style access tracking: update access count for retrieved memories
         for (const r of results) {
           try {
@@ -630,7 +595,7 @@ export function registerRecallHook(
           return;
         }
 
-        setCachedResults(cacheKey, results, cfg);
+        resultCache.set(cacheKey, results);
         api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms | decay=${decayed.length} | dedup=${deduped.length}`);
 
         // Apply enhancements
