@@ -34,6 +34,18 @@
 ### 📚 文档与开发者体验
 - `DEVELOPER_GUIDE.md` — v2.0.0 架构基线, 完整架构债务清单 (14.1-14.8)
 
+### ⚠️ 升级注意事项（v1.5.x → v1.6.0）
+
+1. **OpenClaw 版本要求提高** — `pluginApi` 从 `>=2026.5.5` 提升到 `>=2026.5.6`。`2026.5.5` 用户升级后插件将无法加载，请先升级 OpenClaw 到 >= 2026.5.6。
+
+2. **`dist/` 必须同步** — 架构重构新增 53 个 dist 文件（`core/app.js`、`core/boot/`、`hooks/capture-*`、`storage/` 等），均需提交到 git。正常 `git pull` 不受影响，但 shallow clone 或子模块场景需注意同步完整。
+
+3. **测试数量变化** — 从 481 增加到 526。如果自行修改过源码，pull 后运行 `npx tsc` 可能因 strict 模式新增约束而编译失败（原允许 `as any` 处现报错）。建议升级后执行 `git pull && npm test` 确认无回归。
+
+4. **旧 shim 文件已删除** — `utils/bm25.ts`、`utils/sentiment.ts`、`utils/rrf.ts` 等 8 个 shim 文件已物理删除。外部代码若直接 import 这些路径（而非通过 barrel index.ts）会找不到模块。
+
+5. **lifecycle-check.sh 路径变更** — 脚本检查路径从 `dist/core/` 改为 `dist/src/core/`。若本地运行 lifecycle check，确保脚本已更新。
+
 ---
 
 ## v1.5.1-beta3 (2026-05-17)
