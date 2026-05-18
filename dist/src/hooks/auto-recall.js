@@ -94,7 +94,7 @@ Items:\n${items}\n\nRelevant indices: [`;
         return [];
     }
 }
-// ── Repeat query detection (MemOS-style) ──
+// ── Repeat query detection style ──
 const MAX_RECENT_QUERIES = 20;
 const recentQueries = [];
 function checkRepeatQuery(query, maxResults, minScore) {
@@ -159,7 +159,7 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
                         return buildHookResult(buildRecallContext(cached, cfg.maxContextChars), cfg.position);
                     return;
                 }
-                // Query prefix enhancement (like MemOS queryPrefix)
+                // Query prefix enhancement (like queryPrefix)
                 // If queryPrefix is set, prepend it to guide memory search semantics
                 const prefixedQuery = cfg.queryPrefix ? `${cfg.queryPrefix} ${userText}` : userText;
                 // Query expansion

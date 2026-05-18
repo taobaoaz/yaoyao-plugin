@@ -1,7 +1,7 @@
 /**
  * utils/dedup-engine.ts — Three-stage dedup engine.
  *
- * Inspired by MemOS Local's approach: L1 exact hash → L2 vector cosine → L3 text fallback.
+ * Inspired by local memory approach's approach: L1 exact hash → L2 vector cosine → L3 text fallback.
  * Replaces the simple batch-dedup with a progressive pipeline.
  *
  * v1.8.0

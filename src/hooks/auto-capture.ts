@@ -107,7 +107,7 @@ export function registerCaptureHook(
     (config.capture?.debounceMs as number) ?? 3000,
     3000, 500, 30000,
   );
-  // MemOS-style three-stage dedup: L1 exact hash, L2 vector cosine, L3 text similarity
+  // Three-stage dedup: L1 exact hash, L2 vector cosine, L3 text similarity
   const dedupEngine = new DedupEngine({ enabled: true, vectorThreshold: 0.80, textLookback: 10 });
 
   const captureDebouncer: CaptureDebouncer = createCaptureDebouncer(

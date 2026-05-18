@@ -62,7 +62,7 @@ export function registerCaptureHook(api, store, db, config, verifyActive = true,
         : null;
     // L0 markdown + L1+L2 debouncer: merges rapid captures for same session
     const debounceMs = clampNum(config.capture?.debounceMs ?? 3000, 3000, 500, 30000);
-    // MemOS-style three-stage dedup: L1 exact hash, L2 vector cosine, L3 text similarity
+    // Three-stage dedup: L1 exact hash, L2 vector cosine, L3 text similarity
     const dedupEngine = new DedupEngine({ enabled: true, vectorThreshold: 0.80, textLookback: 10 });
     const captureDebouncer = createCaptureDebouncer({ debounceMs, maxDelayMs: 10000, maxQueueSize: 50 }, async (batch) => {
         // Write L0 markdown files synchronously (safety net)

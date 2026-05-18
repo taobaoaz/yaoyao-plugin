@@ -23,7 +23,7 @@ import { createRetainTool } from "../features/retain/tool.js";
 import { createGraphTool } from "../features/graph/tool.js";
 /* ── Multi-signal search (mem0 v3 style) ────────── */
 import { createMultiSignalSearchTool } from "../features/multi-signal/tool.js";
-/* ── Structured MemoryCall search (MemOS-style) ─── */
+/* ── Structured MemoryCall search style ─── */
 import { createMemoryCallTool } from "../features/memory-call/tool.js";
 /* ── Import ────────────────────────────────────────── */
 import { createImportTool } from "../features/import/tool.js";

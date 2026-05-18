@@ -2,7 +2,7 @@
 
 ## v1.7.0 (2026-05-18)
 
-### 📖 MemOS-Inspired Enhancements
+### 📖 Memory-System Enhancements
 - **core/search/intent.ts** — Query intent classifier + dynamic weight profiles (entity/temporal/relational/exploratory)
 - **core/search/pipeline.ts** — New `"intent-driven"` strategy with intent-weighted composite re-ranking
 - **core/memory-types.ts** — Rule-based memory type tagging at capture time (preference/fact/event/entity/goal/relationship/behavior)

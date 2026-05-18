@@ -2,7 +2,7 @@
  * utils/memory-call.ts — Structured MemoryCall query interface.
  *
  * Upgrades plain-string queries to structured calls with intent,
- * time range, and entity filters. Inspired by MemOS MemoryCall.
+ * time range, and entity filters. Inspired by structured memory query.
  *
  * Usage:
  *   const call = parseMemoryCall("上周关于部署的讨论");

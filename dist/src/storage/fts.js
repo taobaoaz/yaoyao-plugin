@@ -81,7 +81,7 @@ export function createFtsEngine(config) {
                 .replace(/%/g, '\\%')
                 .replace(/_/g, '\\_');
             // FTS5 miss → LIKE fallback with CJK bigram expansion
-            // MemOS Local pattern: for short CJK queries (trigram FTS requires >=3 chars),
+            // Local memory system pattern: for short CJK queries (trigram FTS requires >=3 chars),
             // extract 2-char sliding windows and OR them in LIKE conditions.
             const cjkBigrams = extractCjkBigrams(query);
             const likeTerms = cjkBigrams.length > 0 ? cjkBigrams : [safeLikeQuery];
@@ -161,7 +161,7 @@ export function createFtsEngine(config) {
 }
 /**
  * Extract CJK bigrams (2-character sliding windows) from query.
- * MemOS Local pattern: for short CJK queries that FTS5's trigram minimum
+ * Local memory system pattern: for short CJK queries that FTS5's trigram minimum
  * can't match, fall back to LIKE with bigram expansion.
  *
  * Example: "唐波是谁" → ["唐波", "波是", "是谁"]

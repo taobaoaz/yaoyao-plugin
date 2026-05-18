@@ -14,7 +14,7 @@ export function jaccard(a, b) {
  *
  * MMR = λ · score(q,d) - (1-λ) · max_j(Jaccard(d, d_j_selected))
  *
- * MemOS Local uses λ=0.7 as default.
+ * Local memory system uses λ=0.7 as default.
  * When λ=1.0, behaves like standard top-K (no diversity).
  * When λ=0.5, equal weight on relevance and diversity.
  */

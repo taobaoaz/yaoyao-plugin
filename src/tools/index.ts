@@ -43,7 +43,7 @@ import { createGraphTool } from "../features/graph/tool.ts";
 /* ── Multi-signal search (mem0 v3 style) ────────── */
 import { createMultiSignalSearchTool } from "../features/multi-signal/tool.ts";
 
-/* ── Structured MemoryCall search (MemOS-style) ─── */
+/* ── Structured MemoryCall search style ─── */
 import { createMemoryCallTool } from "../features/memory-call/tool.ts";
 
 /* ── Import ────────────────────────────────────────── */

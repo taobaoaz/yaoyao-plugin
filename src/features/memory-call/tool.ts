@@ -1,7 +1,7 @@
 /**
  * features/memory-call/tool.ts — memory_call structured search tool.
  *
- * MemOS-style MemoryCall: natural language → structured query →
+ * Structured memory query: natural language → structured query →
  * intent-aware search with time-range filtering.
  */
 

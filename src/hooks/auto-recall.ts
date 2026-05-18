@@ -7,8 +7,8 @@
  * v1.7.0:
  *   - Per-agent overrides (maxResults, scoreThreshold, queryPrefix, etc.)
  *   - Intent-driven search strategy (auto-classifies query, applies weights)
- *   - Query prefix enhancement (like MemOS queryPrefix)
- *   - Secondary model-based recall filtering (like MemOS recallFilter)
+ *   - Query prefix enhancement (like queryPrefix)
+ *   - Secondary model-based recall filtering (like recallFilter)
  *   - Configurable maxContextChars for injection budget
  *
  * Scoring, config, and session tracking are in sibling modules:
@@ -72,7 +72,7 @@ function makeSimpleTrace(query: string, mode: string, startMs: number, inputCoun
   };
 }
 
-// ── Model-based recall filter (like MemOS recallFilterEnabled) ──
+// ── Model-based recall filter (like recallFilterEnabled) ──
 
 interface FilterCandidate {
   content: string;
@@ -144,7 +144,7 @@ Items:\n${items}\n\nRelevant indices: [`;
 }
 
 
-// ── Repeat query detection (MemOS-style) ──
+// ── Repeat query detection style ──
 
 const MAX_RECENT_QUERIES = 20;
 const recentQueries: Array<{ query: string; maxResults: number; minScore: number; hitCount: number }> = [];
@@ -227,7 +227,7 @@ export function registerRecallHook(
           return;
         }
 
-        // Query prefix enhancement (like MemOS queryPrefix)
+        // Query prefix enhancement (like queryPrefix)
         // If queryPrefix is set, prepend it to guide memory search semantics
         const prefixedQuery = cfg.queryPrefix ? `${cfg.queryPrefix} ${userText}` : userText;
 
