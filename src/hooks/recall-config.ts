@@ -69,6 +69,10 @@ export interface RecallThresholds {
   maxContextChars: number;
   /** Use intent-driven search strategy */
   enableIntentDriven: boolean;
+  /** Enable MMR (Maximal Marginal Relevance) re-ranking */
+  enableMmr: boolean;
+  /** MMR lambda: 1.0 = pure relevance, 0.5 = balanced, 0.0 = pure diversity */
+  mmrLambda: number;
 }
 
 export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
@@ -102,6 +106,8 @@ export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
     recallFilterFailOpen: (r.recallFilterFailOpen as boolean) ?? true,
     maxContextChars: (r.maxContextChars as number) ?? 1200,
     enableIntentDriven: (r.enableIntentDriven as boolean) ?? false,
+    enableMmr: (r.enableMmr as boolean) ?? false,
+    mmrLambda: (r.mmrLambda as number) ?? 0.7,
   };
 }
 

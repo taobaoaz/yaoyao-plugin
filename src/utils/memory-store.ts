@@ -49,6 +49,8 @@ export interface YaoyaoMemoryConfig {
     maxChars?: number;
     scoreThreshold?: number;
     hintText?: string;
+    enableMmr?: boolean;
+    mmrLambda?: number;
   };
   memoryDir?: string;
   embedding?: {

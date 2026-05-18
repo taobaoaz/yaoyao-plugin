@@ -4,30 +4,45 @@
  * Extracted from auto-capture.ts for modularity.
  */
 
+/** Strip  tags from model output (DeepSeek-style reasoning). */
+const THINKING_TAG_RE = /<think[\s>][\s\S]*?<\/think>\s*/gi;
+
+/** Strip <final>…</final> tags (MiniMax-style). */
+const FINAL_TAG_RE = /<\/?final\s*>/gi;
+
 /** Safely extract text content from a message, handling string/array/object formats */
 export function extractContent(msg: unknown, maxLen?: number): string {
   if (!msg) return "";
   const content = (msg as Record<string, unknown>).content;
+  const role = (msg as Record<string, unknown>).role as string;
   const limit = maxLen && maxLen > 0 ? maxLen : 500;
 
-  if (typeof content === "string") return content.slice(0, limit);
-
-  if (Array.isArray(content)) {
-    return content
+  let text: string;
+  if (typeof content === "string") {
+    text = content;
+  } else if (Array.isArray(content)) {
+    text = content
       .map((part: Record<string, unknown>) => {
         if (part.type === "text") return String(part.text ?? "");
         return "";
       })
       .filter(s => s.length > 0)
-      .join(" ")
-      .slice(0, limit);
+      .join(" ");
+  } else {
+    try {
+      text = safeStringify(content, limit);
+    } catch {
+      text = "[unparseable content]";
+    }
   }
 
-  try {
-    return safeStringify(content, limit);
-  } catch {
-    return "[unparseable content]";
+  // Strip reasoning tags from assistant output (DeepSeek think tags, MiniMax final tags)
+  if (role === "assistant") {
+    text = text.replace(THINKING_TAG_RE, "");
+    text = text.replace(FINAL_TAG_RE, "");
   }
+
+  return text.slice(0, limit);
 }
 
 /** Depth-limited JSON stringify to avoid OOM on deeply nested / massive objects */

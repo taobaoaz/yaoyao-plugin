@@ -33,6 +33,7 @@ import {
   applyTimeDecay,
   applyScoring,
   applyDiversitySampling,
+  applyMmrDiversity,
   filterByScope,
 } from "./recall-scoring.ts";
 import { accumulateKeywords } from "./recall-session.ts";
@@ -140,6 +141,38 @@ Items:\n${items}\n\nRelevant indices: [`;
     if (cfg.recallFilterFailOpen) return candidates;
     return [];
   }
+}
+
+
+// ── Repeat query detection (MemOS-style) ──
+
+const MAX_RECENT_QUERIES = 20;
+const recentQueries: Array<{ query: string; maxResults: number; minScore: number; hitCount: number }> = [];
+
+function checkRepeatQuery(query: string, maxResults: number, minScore: number): string | undefined {
+  const normalized = query.toLowerCase().trim();
+  if (!normalized) return undefined;
+  const dup = recentQueries.find(
+    (q) => q.query === normalized && q.maxResults === maxResults && q.minScore === minScore,
+  );
+  if (dup) {
+    if (dup.hitCount === 0) {
+      return "This exact query with the same parameters was already tried and returned 0 results. Try rephrasing.";
+    }
+    return "This exact query was already executed. Consider varying the query to get different results.";
+  }
+  return undefined;
+}
+
+function recordRecentQuery(query: string, maxResults: number, minScore: number, hitCount: number): void {
+  const normalized = query.toLowerCase().trim();
+  if (!normalized) return;
+  const existing = recentQueries.findIndex(
+    (q) => q.query === normalized && q.maxResults === maxResults && q.minScore === minScore,
+  );
+  if (existing !== -1) recentQueries.splice(existing, 1);
+  recentQueries.push({ query: normalized, maxResults, minScore, hitCount });
+  if (recentQueries.length > MAX_RECENT_QUERIES) recentQueries.shift();
 }
 
 // ── Main hook registration ──
@@ -278,7 +311,12 @@ export function registerRecallHook(
           processed.sort((a, b) => b.score - a.score);
         }
 
-        processed = applyDiversitySampling(processed, cfg.jaccardBase, cfg.jaccardMin);
+        // ── Diversity: MMR (if enabled) or Jaccard threshold ──
+        if (cfg.enableMmr) {
+          processed = applyMmrDiversity(processed, cfg.mmrLambda, cfg.maxResults);
+        } else {
+          processed = applyDiversitySampling(processed, cfg.jaccardBase, cfg.jaccardMin);
+        }
         const limited = processed.slice(0, cfg.maxResults);
 
         // Confidence threshold
@@ -291,6 +329,13 @@ export function registerRecallHook(
         // ── Model-based recall filter (secondary pass) ──
         const filtered = await runRecallFilter(limited, userText, cfg);
 
+        // Repeat query detection — log a warning if this exact query was already run
+        const repeatNote = checkRepeatQuery(userText, cfg.maxResults, cfg.scoreThreshold);
+        if (repeatNote) {
+          api.logger.debug?.(`[yaoyao-memory:recall] ${repeatNote}`);
+        }
+        recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length);
+
         // Session keyword accumulation
         accumulateKeywords(sessionKey, userText, cfg.maxContextKeywords);
 
@@ -299,7 +344,7 @@ export function registerRecallHook(
         stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, filtered.length));
 
         if (audit && filtered.length > 0) {
-          audit.record("recall", { query: userText, agentId, mode, results: filtered.length, durationMs: Date.now() - startMs });
+          audit.record("recall", { query: userText, agentId, mode, results: filtered.length, durationMs: Date.now() - startMs, ...(repeatNote ? { repeatNote } : {}) });
         }
 
         if (filtered.length > 0) {

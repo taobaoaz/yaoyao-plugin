@@ -17,13 +17,14 @@ import { compressTexts } from "../utils/session-compressor.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
 import { createWriteQueue } from "../utils/write-queue.ts";
 import { createCaptureDebouncer, type CaptureDebouncer } from "../utils/capture-debouncer.ts";
+import { DedupEngine } from "../utils/dedup-engine.ts";
 import { evaluateWatermark } from "./capture-watermark.ts";
 import { shouldCaptureTurn, trackSessionActivity } from "./capture-filter.ts";
 import { extractContent } from "./capture-content.ts";
 import {
   getCaptureConfig, buildCaptureContext, estimateConversation,
   shouldSkipContent, runAntiHallucination, buildMetaObj,
-  checkDedup, indexToFTS5, handleMermaidOffload,
+  indexToFTS5, handleMermaidOffload,
 } from "./capture-pipeline.ts";
 
 export { extractContent, safeStringify } from "./capture-content.ts";
@@ -106,6 +107,9 @@ export function registerCaptureHook(
     (config.capture?.debounceMs as number) ?? 3000,
     3000, 500, 30000,
   );
+  // MemOS-style three-stage dedup: L1 exact hash, L2 vector cosine, L3 text similarity
+  const dedupEngine = new DedupEngine({ enabled: true, vectorThreshold: 0.80, textLookback: 10 });
+
   const captureDebouncer: CaptureDebouncer = createCaptureDebouncer(
     { debounceMs, maxDelayMs: 10000, maxQueueSize: 50 },
     async (batch) => {
@@ -191,8 +195,15 @@ export function registerCaptureHook(
         specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false,
         capCfg.brainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config);
 
-      if (checkDedup(db, (cctx.userContent + " " + cctx.indexableAsst).trim(), capCfg)) {
-        api.logger.debug?.("[yaoyao-memory:capture] Duplicate"); return;
+      const dedupResult = await dedupEngine.check(
+        (cctx.userContent + " " + cctx.indexableAsst).trim(),
+        db,
+        embedding,
+        agentId,
+      );
+      if (dedupResult.isDuplicate) {
+        api.logger.debug?.(`[yaoyao-memory:capture] Duplicate (stage=${dedupResult.stage}, conf=${dedupResult.confidence.toFixed(3)}): ${dedupResult.reason}`);
+        return;
       }
 
       // Build L0 markdown entry string

@@ -104,13 +104,32 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
         .replace(/\\/g, '\\\\')
         .replace(/%/g, '\\%')
         .replace(/_/g, '\\_');
-      const likeQuery = `%${safeLikeQuery}%`;
+      // FTS5 miss → LIKE fallback with CJK bigram expansion
+      // MemOS Local pattern: for short CJK queries (trigram FTS requires >=3 chars),
+      // extract 2-char sliding windows and OR them in LIKE conditions.
+      const cjkBigrams = extractCjkBigrams(query);
+      const likeTerms = cjkBigrams.length > 0 ? cjkBigrams : [safeLikeQuery];
+
       const likeStmt = db.prepare(
         `SELECT id, date, user_text, asst_text FROM memory_meta
          WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'
          ORDER BY id DESC LIMIT ?`
       );
-      const likeRows = likeStmt.all(likeQuery, likeQuery, Math.min(Math.max(limit, 1), cfg.searchMaxLimit)) as unknown as LikeRow[];
+
+      // If bigrams exist, try each one and dedup results
+      const seenIds = new Set<number>();
+      const likeRows: LikeRow[] = [];
+      for (const term of likeTerms) {
+        const pattern = `%${term}%`;
+        const batch = likeStmt.all(pattern, pattern, Math.min(Math.max(limit, 1), cfg.searchMaxLimit)) as unknown as LikeRow[];
+        for (const row of batch) {
+          if (!seenIds.has(row.id)) {
+            seenIds.add(row.id);
+            likeRows.push(row);
+          }
+        }
+        if (likeRows.length >= Math.min(Math.max(limit, 1), cfg.searchMaxLimit)) break;
+      }
 
       if (likeRows.length > 0) {
         return likeRows.map(row => ({
@@ -177,3 +196,34 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
 }
 
 export type FtsEngine = ReturnType<typeof createFtsEngine>;
+
+/**
+ * Extract CJK bigrams (2-character sliding windows) from query.
+ * MemOS Local pattern: for short CJK queries that FTS5's trigram minimum
+ * can't match, fall back to LIKE with bigram expansion.
+ *
+ * Example: "唐波是谁" → ["唐波", "波是", "是谁"]
+ * Only yields bigrams that contain at least one CJK character.
+ */
+function extractCjkBigrams(query: string): string[] {
+  const bigrams: string[] = [];
+  const safe = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+  for (let i = 0; i < safe.length - 1; i++) {
+    const pair = safe.slice(i, i + 2);
+    // Check if at least one char is CJK
+    let hasCjk = false;
+    for (let j = 0; j < pair.length; j++) {
+      const cp = pair.charCodeAt(j);
+      if ((cp >= 0x4E00 && cp <= 0x9FFF) ||
+          (cp >= 0x3400 && cp <= 0x4DBF) ||
+          (cp >= 0xF900 && cp <= 0xFAFF) ||
+          (cp >= 0x2E80 && cp <= 0x2EFF) ||
+          cp === 0x3005 || cp === 0x3006) {
+        hasCjk = true;
+        break;
+      }
+    }
+    if (hasCjk) bigrams.push(pair);
+  }
+  return bigrams;
+}
