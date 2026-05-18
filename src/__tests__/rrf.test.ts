@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { reciprocalRankFusion, fuseFTSAndVector } from "../utils/rrf.ts";
+import { reciprocalRankFusion, fuseFTSAndVector } from "../core/search/rrf.ts";
 
 describe("rrf", () => {
   it("fuses two simple ranked lists", () => {

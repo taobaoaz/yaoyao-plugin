@@ -2,7 +2,7 @@
  * core/export/export.ts — Pure export logic, zero platform awareness.
  */
 
-import type { UnifiedDB, SQLiteRow } from "../../platform/db/types.ts";
+import type { UnifiedDB, SQLiteRow } from "../../storage/bridge.ts";
 
 export interface ExportRow {
   date: string;

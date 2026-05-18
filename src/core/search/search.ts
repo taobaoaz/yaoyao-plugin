@@ -2,7 +2,7 @@
  * core/search/search.ts — Pure search logic, zero platform awareness.
  */
 
-import type { UnifiedDB, SQLiteRow } from "../../platform/db/types.ts";
+import type { UnifiedDB, SQLiteRow } from "../../storage/bridge.ts";
 
 export interface SearchResult {
   id?: number;

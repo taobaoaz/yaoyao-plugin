@@ -1,6 +1,6 @@
 {
   "name": "yaoyao-memory-plugin",
-  "version": "1.5.1-beta3",
+  "version": "1.6.0",
   "description": "Yaoyao Memory — 4-layer AI memory system with FTS5 + sqlite-vec hybrid search, sentiment analysis, timeline, cloud backup, and topic trends. Minimal external deps (sqlite-vec).",
   "type": "module",
   "main": "dist/index.js",
@@ -47,13 +47,11 @@
     "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.ts"
   },
   "openclaw": {
-    "extensions": {
-      "register": "./dist/index.js",
-      "hooks": [
-        "./dist/src/hooks/auto-capture.js",
-        "./dist/src/hooks/auto-recall.js"
-      ]
-    },
+    "extensions": [
+      "./dist/index.js",
+      "./dist/src/hooks/auto-capture.js",
+      "./dist/src/hooks/auto-recall.js"
+    ],
     "compat": {
       "pluginApi": ">=2026.5.5"
     },

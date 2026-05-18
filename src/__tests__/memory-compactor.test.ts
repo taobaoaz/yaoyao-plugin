@@ -8,7 +8,7 @@ import {
   buildTextClusters,
   buildMergedEntry,
   runTextCompaction,
-} from "../utils/memory-compactor.ts";
+} from "../core/compactor/index.ts";
 
 describe("jaccardSimilarity", () => {
   it("returns 1 for identical texts", () => {

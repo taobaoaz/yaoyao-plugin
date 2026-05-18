@@ -13,6 +13,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import { clampNum } from "../clamp.ts";
 import type { UnifiedDB } from "../../platform/db/compat.ts";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../memory-store.ts";
@@ -254,8 +255,4 @@ function requireHnswlib(): HnswlibModule | null {
   return null;
 }
 
-function clampNum(val: unknown, def: number, min: number, max: number): number {
-  const n = Number(val);
-  if (!Number.isFinite(n)) return def;
-  return Math.min(Math.max(n, min), max);
-}
+

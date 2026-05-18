@@ -10,7 +10,7 @@ import crypto from "node:crypto";
 import type { MemoryStore } from "../../utils/memory-store.ts";
 import type { DBBridge } from "../../utils/db-bridge.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import { createCompatDB } from "../../platform/db/compat.ts";
+import { createCompatDB } from "../../storage/bridge.ts";
 
 interface OCChunk {
   id: number;

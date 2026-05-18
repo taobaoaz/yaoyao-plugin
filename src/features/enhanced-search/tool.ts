@@ -1,21 +1,26 @@
 /**
- * features/enhanced-search/tool.ts — memory_search_enhanced tool (modular).
+ * features/enhanced-search/tool.ts — memory_search_enhanced tool.
+ *
+ * FTS5 + RRF + 向量重排序 + 关键词高亮 + 双格式输出。
+ * 数据查询通过 SearchPipeline，增强功能（高亮、关键词）保持本地。
  */
 
-import type { DBBridge } from "../../utils/db-bridge.ts";
+import type { SearchPipeline, SearchStrategy } from "../../core/search/pipeline.ts";
 import { clampNum } from "../../utils/clamp.ts";
-import type { EmbeddingService } from "../../utils/embedding.ts";
-import { detectSentiment } from "../../utils/sentiment.ts";
+import { detectSentiment } from "../../core/sentiment/index.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import { highlightKeywords, extractKeywords, cosineSimilarity } from "../../core/search/enhanced.ts";
+import { highlightKeywords, extractKeywords } from "../../core/search/enhanced.ts";
+import type { SearchResult, EmbeddedSearchResult } from "../../storage/types.ts";
 
 function formatResult(snippet: string, filename: string, score: number): string {
   const mood = detectSentiment(snippet);
   return `${mood.emoji} 【${filename}】(得分: ${score.toFixed(3)})\n${snippet}`;
 }
 
-export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingService | null): ToolRegistration {
+type ScoredResult = SearchResult & { hybridScore?: number; vectorScore?: number };
+
+export function createEnhancedSearchTool(pipeline: SearchPipeline): ToolRegistration {
   return {
     id: "memory_search_enhanced",
     name: "memory_search_enhanced",
@@ -49,9 +54,15 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
           description: "搜索结果片段最大长度（字符数，默认 500）",
           default: 500,
         },
+        strategy: {
+          type: "string",
+          enum: ["fts", "hybrid", "rrf", "multi-signal", "additive"],
+          description: "搜索策略（默认 rrf，有 embedding 时自动启用）",
+          default: "rrf",
+        },
         ftsOverfetch: {
           type: "number",
-          description: "FTS 粗召回超额倍数（默认 2，即取 limit*2）",
+          description: "FTS 粗召回超额倍数（默认 2）",
           default: 2,
         },
         ftsOverfetchMax: {
@@ -67,82 +78,53 @@ export function createEnhancedSearchTool(db: DBBridge, embedding?: EmbeddingServ
       const limit = clampNum(params.maxResults, 10, 1, 50);
       const format = String(params.format || "text");
       const doHighlight = params.highlight !== false;
-      const snippetMaxLen = clampNum(params.snippetMaxLen, 500, 50, 2000);
+      const strategy = (String(params.strategy || "rrf") as SearchStrategy);
       const ftsOverfetch = clampNum(params.ftsOverfetch, 2, 1, 10);
       const ftsOverfetchMax = clampNum(params.ftsOverfetchMax, 30, 10, 200);
 
       if (!query) return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
 
       const keywords = extractKeywords(query);
+      const overfetchLimit = Math.min(limit * ftsOverfetch, ftsOverfetchMax);
 
-      // Step 1: FTS5 粗召回
-      const ftsLimit = embedding ? Math.min(limit * ftsOverfetch, ftsOverfetchMax) : limit;
-      const ftsResults = db.search(query, ftsLimit);
+      // 通过 SearchPipeline 查询（FTS / RRF / hybrid 由 pipeline 决定）
+      const results = await pipeline.search(query, {
+        strategy,
+        limit: overfetchLimit,
+      });
 
-      if (ftsResults.length === 0) {
+      if (results.length === 0) {
         return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
       }
 
-      // Step 2: RRF hybrid search (FTS5 + vector via reciprocal rank fusion)
-      if (embedding) {
-        try {
-          const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
-
-          // Use RRF-based hybrid search from DB bridge
-          const rrfResults = db.rrfHybridSearch
-            ? db.rrfHybridSearch(query, queryVec, Math.min(limit * 2, ftsOverfetchMax), 60)
-            : db.hybridSearch(query, queryVec, limit); // fallback for older db bridges
-
-          if (rrfResults.length === 0) {
-            return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
-          }
-
-          const top = rrfResults.slice(0, limit);
-
-          if (format === "json") {
-            const results = doHighlight
-              ? top.map(r => ({
-                  filename: r.filename,
-                  snippet: highlightKeywords(r.snippet, keywords),
-                  score: r.hybridScore,
-                  vecScore: r.vectorScore,
-                  date: r.date,
-                }))
-              : top.map(r => ({
-                  filename: r.filename,
-                  snippet: r.snippet,
-                  score: r.hybridScore,
-                  vecScore: r.vectorScore,
-                  date: r.date,
-                }));
-            return { content: [{ type: "text", text: JSON.stringify({ query, results, rerank: "rrf", count: top.length }, null, 2) }] };
-          }
-
-          const lines = top.map(r => {
-            const snippet = doHighlight ? highlightKeywords(r.snippet, keywords) : r.snippet;
-            return formatResult(snippet, r.filename, r.hybridScore);
-          });
-          return { content: [{ type: "text", text: ["## 搜索结果（RRF 混合排序）", `查询: ${query}`, "", ...lines].join("\n") }] };
-        } catch (err) {
-          console.warn(`[yaoyao-memory:enhanced-search] RRF hybrid search failed, falling back to FTS5: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }
-
-      // Step 3: FTS5-only
-      const results = ftsResults.slice(0, limit);
+      // 取 top N
+      const top = results.slice(0, limit) as ScoredResult[];
 
       if (format === "json") {
         const jsonResults = doHighlight
-          ? results.map(r => ({ filename: r.filename, snippet: highlightKeywords(r.snippet, keywords), score: r.score, date: r.date }))
-          : results.map(r => ({ filename: r.filename, snippet: r.snippet, score: r.score, date: r.date }));
-        return { content: [{ type: "text", text: JSON.stringify({ query, results: jsonResults, rerank: false, count: results.length }, null, 2) }] };
+          ? top.map(r => ({
+              filename: r.filename,
+              snippet: highlightKeywords(r.snippet, keywords),
+              score: r.hybridScore ?? r.score,
+              vecScore: r.vectorScore,
+              date: r.date,
+            }))
+          : top.map(r => ({
+              filename: r.filename,
+              snippet: r.snippet,
+              score: r.hybridScore ?? r.score,
+              vecScore: r.vectorScore,
+              date: r.date,
+            }));
+        return { content: [{ type: "text", text: JSON.stringify({ query, results: jsonResults, strategy, count: top.length }, null, 2) }] };
       }
 
-      const lines = results.map(r => {
+      const lines = top.map(r => {
         const snippet = doHighlight ? highlightKeywords(r.snippet, keywords) : r.snippet;
-        return formatResult(snippet, r.filename, r.score);
+        const score = r.hybridScore ?? r.score;
+        return formatResult(snippet, r.filename, score);
       });
-      return { content: [{ type: "text", text: ["## 搜索结果（FTS5）", `查询: ${query}`, "", ...lines].join("\n") }] };
+      return { content: [{ type: "text", text: ["## 搜索结果", `策略: ${strategy}`, `查询: ${query}`, "", ...lines].join("\n") }] };
     }),
   };
 }

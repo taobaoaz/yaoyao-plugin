@@ -1,14 +1,16 @@
 /**
- * features/search-timeline/tool.ts — memory_search_timeline tool (modular).
+ * features/search-timeline/tool.ts — memory_search_timeline tool.
+ *
+ * Uses SearchPipeline for queries, groups results by date for timeline display.
  */
 
 import { clampNum } from "../../utils/clamp.ts";
-import type { DBBridge } from "../../utils/db-bridge.ts";
-import { detectSentiment } from "../../utils/sentiment.ts";
+import { detectSentiment } from "../../core/sentiment/index.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
+import type { SearchPipeline } from "../../core/search/pipeline.ts";
 
-export function createSearchTimelineTool(db: DBBridge): ToolRegistration {
+export function createSearchTimelineTool(pipeline: SearchPipeline): ToolRegistration {
   return {
     id: "memory_search_timeline",
     name: "memory_search_timeline",
@@ -27,7 +29,7 @@ export function createSearchTimelineTool(db: DBBridge): ToolRegistration {
       const limit = clampNum(params.maxResults, 10, 1, 50);
       if (!query) return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
 
-      const results = db.search(query, limit);
+      const results = await pipeline.search(query, { strategy: "fts", limit });
       if (results.length === 0) {
         return { content: [{ type: "text", text: `没有找到与 "${query}" 相关的记忆。` }] };
       }

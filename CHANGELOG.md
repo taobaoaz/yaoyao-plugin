@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.6.0 (2026-05-18)
+
+### 🧱 Architecture Cleanup — 大文件拆分 & 严格模式
+- **大文件拆分** (8 files):
+  - `utils/cloud-adapter.ts` 775→6 子模块 (types/webdav/s3/sftp/samba/factory)
+  - `core/search/multi-signal.ts` 319→177+42 (separate formatter)
+  - `core/conflict/detect.ts` 300→85+64+49+41 (types/detection/relation/formatter)
+  - `core/sentiment/index.ts` 301→128+90+11 (types/lexicon/analysis)
+  - `core/app.ts` 230→95+178 boot/ 子模块 (orchestrator + 6 steps)
+  - `entry/index.ts` 33→19 lines
+  - `utils/db-compat.ts` 343→188 + `utils/file-db.ts` 169 (FileDB class extracted)
+  - `utils/bm25`, `entity-extractor`, `memory-compactor`, `noise-filter`, `rrf`, `sentiment`, `memory-upgrader`, `trivial-detector` → all shimmed then deleted
+- **TypeScript strict mode** — 31 errors fixed (6 files): catch types, `as any` elimination, optional chaining, null handling
+- **`as any` 全面消除** — 13→0 across features/conflict, enhanced-search, boot/steps, auto-capture, auto-recall
+- **重复函数清理** — removed duplicated `clampNum` in hnswlib (use shared import)
+- **架构规约严格化**:
+  - `features/` 直接引用 `platform/` 计数: 0 ✅
+  - `hooks/` 直接引用 `platform/` 计数: 0 ✅
+  - `utils/` 算法 shim 残留: 0 ✅
+  - 大文件上限: 315 行 (storage/bridge.ts)
+
+### 🧪 测试覆盖大幅提升
+- **526 tests (+45 new)**, 0 fail:
+  - `file-db.test.ts` — FileDB CRUD, 持久化, 损坏恢复 (10 tests)
+  - `db-compat.test.ts` — 能力检测, 工厂函数 (4 tests)
+  - `backup.test.ts` — 全量/增量备份, 恢复, 清理 (7 tests)
+  - `memory-cleaner.test.ts` — 配置验证, cleanup 执行 (10 tests)
+  - `llm-client.test.ts` — 模型检测, SSRF 保护, mock API 调用 (14 tests)
+  - `fts.test.ts`, `hybrid.test.ts`, `schema.test.ts` — storage 层测试 (19 tests)
+- 高覆盖率覆盖高风险 I/O 文件: db-compat, embedding, backup, llm-client, memory-cleaner
+
+### 📚 文档与开发者体验
+- `DEVELOPER_GUIDE.md` — v2.0.0 架构基线, 完整架构债务清单 (14.1-14.8)
+
+---
+
 ## v1.5.1-beta3 (2026-05-17)
 
 ### 🔧 Pre-release bump

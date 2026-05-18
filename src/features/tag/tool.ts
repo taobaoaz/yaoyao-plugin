@@ -11,8 +11,8 @@ import type { MemoryStore } from "../../utils/memory-store.ts";
 import type { DBBridge } from "../../utils/db-bridge.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import type { UnifiedDB } from "../../platform/db/types.ts";
-import { createCompatDB } from "../../platform/db/compat.ts";
+import type { UnifiedDB } from "../../storage/bridge.ts";
+import { createCompatDB } from "../../storage/bridge.ts";
 import {
   ensureTagTable,
   addTagsToQuery,

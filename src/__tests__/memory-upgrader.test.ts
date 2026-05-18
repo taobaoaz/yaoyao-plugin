@@ -7,7 +7,7 @@ import {
   extractFirstSentence,
   simpleEnrich,
   enrichMetadata,
-} from "../utils/memory-upgrader.ts";
+} from "../core/upgrader/index.ts";
 
 describe("extractFirstSentence", () => {
   it("extracts first sentence", () => {

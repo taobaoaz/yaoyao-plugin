@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { clampNum } from "../../utils/clamp.ts";
 import type { DBBridge } from "../../utils/db-bridge.ts";
-import type { UnifiedDB } from "../../platform/db/compat.ts";
+import type { UnifiedDB } from "../../storage/bridge.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
 import { diversifiedSelect, formatRecommendations, type Candidate } from "../../core/recommend/recommend.ts";

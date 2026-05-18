@@ -5,7 +5,7 @@
  */
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { detectSentiment, summarizeMood } from "../utils/sentiment.ts";
+import { detectSentiment, summarizeMood } from "../core/sentiment/index.ts";
 
 describe("detectSentiment", () => {
   it("returns neutral for empty text", () => {

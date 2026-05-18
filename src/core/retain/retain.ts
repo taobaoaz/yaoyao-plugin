@@ -94,7 +94,7 @@ export function formatRetainCheck(
   atRisk: AtRiskMemory[]
 ): string {
   if (!Array.isArray(atRisk)) throw new TypeError("formatRetainCheck: atRisk must be an array");
-  const lines: string[] = [
+  const lines: (string | null)[] = [
     "🧠 **记忆增强/反遗忘检查报告**",
     "",
     `📊 总记忆条目: ${allMemoriesCount}`,
@@ -155,7 +155,7 @@ export function formatBoostResult(
   boostedAt: string,
   matchedCount: number
 ): string {
-  const lines: string[] = [
+  const lines: (string | null)[] = [
     "✅ **记忆强化成功**",
     "",
     `**关键词**: ${keyword}`,
@@ -175,7 +175,7 @@ export function formatImportantResult(
   reason: string | undefined,
   taggedAt: string
 ): string {
-  const lines: string[] = [
+  const lines: (string | null)[] = [
     "⭐ **重要记忆标记成功**",
     "",
     `**关键词**: ${keyword}`,

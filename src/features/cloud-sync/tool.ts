@@ -1,221 +1,40 @@
 /**
- * features/cloud-sync/tool.ts — memory_cloud_sync tool (modular).
+ * features/cloud-sync/tool.ts — memory_cloud_sync tool.
+ *
+ * Thin tool layer. I/O operations live in provider.ts,
+ * formatting lives in core/cloud/cloud.ts.
  */
-
-import { clampNum } from "../../utils/clamp.ts";
 import fs from "node:fs";
 import path from "node:path";
+import { clampNum } from "../../utils/clamp.ts";
 import type { MemoryStore } from "../../utils/memory-store.ts";
-import { createAdapters, createAdapter, type CloudAdapter } from "../../utils/cloud-adapter.ts";
+import { createAdapters, createAdapter } from "../../utils/cloud-adapter.ts";
 import { loadSecrets, getSecretsPath } from "../../utils/secrets-loader.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import { formatSyncResult, formatStatus, type SyncResult, type SyncState } from "../../core/cloud/cloud.ts";
-
-const REMOTE_BASE = "yaoyao-memory";
-const SYNC_STATE_FILE = ".cloud-sync-state.json";
-const SYNC_MARKER = ".sync-source";
-
-function remotePath(filename: string): string {
-  return `${REMOTE_BASE}/${filename}`;
-}
-
-function loadSyncState(baseDir: string): SyncState {
-  const fp = path.join(baseDir, SYNC_STATE_FILE);
-  try {
-    try {
-      return JSON.parse(fs.readFileSync(fp, "utf-8"));
-    } catch {
-      return { lastSync: 0, uploaded: [], downloaded: [] };
-    }
-  } catch {
-    return { lastSync: 0, uploaded: [], downloaded: [] };
-  }
-}
-
-function saveSyncState(baseDir: string, state: SyncState): void {
-  const fp = path.join(baseDir, SYNC_STATE_FILE);
-  fs.writeFileSync(fp, JSON.stringify(state, null, 2), "utf-8");
-}
-
-function markSynced(filePath: string, provider: string, baseDir: string): void {
-  try {
-    const rel = path.relative(baseDir, filePath);
-    const markerDir = path.join(baseDir, ".sync-meta");
-    const markerPath = path.join(markerDir, rel + SYNC_MARKER);
-    fs.mkdirSync(markerDir, { recursive: true });
-    fs.writeFileSync(markerPath, JSON.stringify({ provider, time: Date.now() }), "utf-8");
-  } catch { /* best effort */ }
-}
-
-async function doUpload(adapter: CloudAdapter, store: MemoryStore, dryRun: boolean, sinceMs?: number): Promise<SyncResult> {
-  const result: SyncResult = { provider: adapter.provider, action: "upload", uploaded: [], downloaded: [], skipped: [], errors: [] };
-  const files = store.listFiles();
-
-  for (const file of files) {
-    try {
-      if (file.filename.endsWith(SYNC_MARKER) || file.filename === SYNC_STATE_FILE) continue;
-      if (sinceMs && file.modified < sinceMs) {
-        result.skipped.push(file.filename);
-        continue;
-      }
-      const rp = remotePath(file.filename);
-      if (dryRun) {
-        result.uploaded.push(`${file.filename} (dry-run)`);
-        continue;
-      }
-      const ok = await adapter.upload(file.path, rp);
-      if (ok) {
-        result.uploaded.push(file.filename);
-        markSynced(file.path, adapter.provider, store.baseDir);
-      } else {
-        result.errors.push(file.filename);
-      }
-    } catch (err: unknown) {
-      result.errors.push(`${file.filename}: ${(err as Error).message}`);
-    }
-  }
-
-  // 安全边界：MEMORY.md 位于 workspace 根目录（store.baseDir 的父目录）
-  const workspaceDir = path.dirname(store.baseDir);
-  const memoryMd = path.join(workspaceDir, "MEMORY.md");
-  if (fs.existsSync(memoryMd)) {
-    try {
-      const realMd = fs.realpathSync(memoryMd);
-      const realWorkspace = fs.realpathSync(workspaceDir);
-      if (!realMd.startsWith(realWorkspace + path.sep) && realMd !== realWorkspace) {
-        result.errors.push("MEMORY.md: 路径安全检查失败，跳过上传");
-      } else {
-        const stat = fs.statSync(memoryMd);
-        if (!sinceMs || stat.mtimeMs > sinceMs) {
-          const rp = remotePath("MEMORY.md");
-          if (dryRun) {
-            result.uploaded.push("MEMORY.md (dry-run)");
-          } else {
-            const ok = await adapter.upload(memoryMd, rp);
-            if (ok) result.uploaded.push("MEMORY.md");
-            else result.errors.push("MEMORY.md");
-          }
-        }
-      }
-    } catch (err: unknown) {
-      result.errors.push(`MEMORY.md: ${(err as Error).message}`);
-    }
-  }
-
-  return result;
-}
-
-async function doDownload(adapter: CloudAdapter, store: MemoryStore, dryRun: boolean, conflictPolicy: string): Promise<SyncResult> {
-  const result: SyncResult = { provider: adapter.provider, action: "download", uploaded: [], downloaded: [], skipped: [], errors: [] };
-
-  try {
-    const remoteFiles = await adapter.list(remotePath(""));
-    for (const remote of remoteFiles) {
-      try {
-        if (remote.name.endsWith(SYNC_MARKER) || remote.name === SYNC_STATE_FILE) continue;
-        // 防御路径遍历：过滤掉包含 .. 或绝对路径的远程文件名
-        const safeRemoteName = path.normalize(remote.name).replace(/^(\.\.(\/|\\|$))+/, "").replace(/^[\/\\]+/, "");
-        if (safeRemoteName !== remote.name || path.isAbsolute(remote.name)) {
-          result.errors.push(`${remote.name}: 非法文件名（路径遍历嫌疑），已跳过`);
-          continue;
-        }
-        const localPath = path.join(store.baseDir, safeRemoteName);
-        const exists = fs.existsSync(localPath);
-
-        if (exists) {
-          const localStat = fs.statSync(localPath);
-          if (conflictPolicy === "keep_both") {
-            const newPath = path.join(store.baseDir, `${remote.name}.cloud-${Date.now()}`);
-            if (!dryRun) {
-              const ok = await adapter.download(remotePath(remote.name), newPath);
-              if (ok) result.downloaded.push(`${remote.name} → ${path.basename(newPath)} (keep_both)`);
-              else result.errors.push(remote.name);
-            } else {
-              result.downloaded.push(`${remote.name} (dry-run, keep_both)`);
-            }
-            continue;
-          }
-          if (remote.modified > 0 && localStat.mtimeMs > remote.modified) {
-            result.skipped.push(`${remote.name} (local newer)`);
-            continue;
-          }
-        }
-
-        if (dryRun) {
-          result.downloaded.push(`${remote.name} (dry-run)`);
-          continue;
-        }
-        const ok = await adapter.download(remotePath(remote.name), localPath);
-        if (ok) {
-          result.downloaded.push(remote.name);
-          markSynced(localPath, adapter.provider, store.baseDir);
-        } else {
-          result.errors.push(remote.name);
-        }
-      } catch (err: unknown) {
-        result.errors.push(`${remote.name}: ${(err as Error).message}`);
-      }
-    }
-  } catch (err: unknown) {
-    result.errors.push(`list failed: ${(err as Error).message}`);
-  }
-
-  return result;
-}
-
-async function doBidirectional(adapter: CloudAdapter, store: MemoryStore, dryRun: boolean, conflictPolicy: string): Promise<SyncResult> {
-  const result = await doUpload(adapter, store, dryRun);
-  const downResult = await doDownload(adapter, store, dryRun, conflictPolicy);
-  result.downloaded = downResult.downloaded;
-  result.skipped = downResult.skipped;
-  result.errors.push(...downResult.errors);
-  result.action = "bidirectional";
-  return result;
-}
-
-const TEMPLATE = `# 云备份凭证配置
-# 取消注释并填写你要使用的服务
-
-# --- WebDAV (坚果云/Nextcloud/ownCloud) ---
-# WEBDAV_URL=https://dav.jianguoyun.com/dav/
-# WEBDAV_USERNAME=email@example.com
-# WEBDAV_PASSWORD=***
-
-# --- S3/OSS ---
-# S3_ENDPOINT=https://oss-cn-hangzhou.aliyuncs.com
-# S3_ACCESS_KEY=***
-# S3_SECRET_KEY=***
-# S3_BUCKET=bucket-name
-# S3_REGION=auto
-
-# --- SFTP ---
-# SFTP_HOST=192.168.1.100
-# SFTP_PORT=22
-# SFTP_USERNAME=user
-# SFTP_PASSWORD=***
-
-# --- Samba/NAS ---
-# SAMBA_HOST=192.168.10.216
-# SAMBA_USER=user
-# SAMBA_PASSWORD=***
-# SAMBA_SHARE=共享名
-# SAMBA_PORT=445
-# SAMBA_REMOTE_PATH=/`;
+import { formatSyncResult, formatStatus } from "../../core/cloud/cloud.ts";
+import {
+  loadSyncState,
+  saveSyncState,
+  doUpload,
+  doDownload,
+  doBidirectional,
+  TEMPLATE,
+} from "./provider.ts";
 
 export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
   return {
     id: "memory_cloud_sync",
     name: "memory_cloud_sync",
     label: "Cloud Sync",
-    description: "☁️ 云备份同步 — 支持多种云服务(WebDAV/S3/SFTP/Samba)备份记忆数据。操作: status(检查状态) / upload(上传到云端) / download(从云端恢复) / bidirectional(双向同步) / configure(配置云服务)",
+    description: "☁️ 云备份同步 — 支持多种云服务(WebDAV/S3/SFTP/Samba)备份记忆数据。操作: status/upload/download/bidirectional/configure",
     parameters: {
       type: "object",
       properties: {
         action: {
           type: "string",
           enum: ["status", "upload", "download", "bidirectional", "configure"],
-          description: "操作: status=检查云服务状态, upload=上传到云端, download=从云端恢复, bidirectional=双向同步(冲突策略可选), configure=配置/查看凭证",
+          description: "操作: status=检查, upload=上传, download=下载, bidirectional=双向同步, configure=配置",
         },
         provider: {
           type: "string",
@@ -235,7 +54,7 @@ export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
         conflictPolicy: {
           type: "string",
           enum: ["newer", "keep_both"],
-          description: "双向同步冲突策略: newer=保留更新的文件, keep_both=保留双方(重命名远程文件)",
+          description: "双向同步冲突策略: newer=保留更新的文件, keep_both=保留双方",
           default: "newer",
         },
       },
@@ -255,11 +74,13 @@ export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
         mountCheckTimeoutMs: Math.max(1_000, Math.min(30_000, cmdTimeoutMs / 3)),
       };
 
+      // Status: just show configured services
       if (action === "status") {
         const { statuses } = createAdapters(undefined, adapterOpts);
         return { content: [{ type: "text", text: formatStatus(statuses) }] };
       }
 
+      // Configure: show secrets file path + current config
       if (action === "configure") {
         const secretsPath = getSecretsPath();
         const secrets = loadSecrets();
@@ -277,8 +98,9 @@ export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }
 
+      // Upload / Download / Bidirectional
       const { adapters, statuses } = createAdapters(undefined, adapterOpts);
-      const configuredAdapters: CloudAdapter[] = [];
+      const configuredAdapters: import("../../utils/cloud-adapter.ts").CloudAdapter[] = [];
 
       if (provider) {
         const adapter = createAdapter(provider, undefined, adapterOpts) || adapters.get(provider);
@@ -295,19 +117,20 @@ export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
 
       const results: string[] = [];
       const state = loadSyncState(store.baseDir);
+      const options = { dryRun, conflictPolicy };
 
       for (const adapter of configuredAdapters) {
         try {
-          let syncResult: SyncResult;
+          let syncResult: any;
           switch (action) {
             case "upload":
-              syncResult = await doUpload(adapter, store, dryRun, state.lastSync);
+              syncResult = await doUpload(adapter, store, options, state.lastSync);
               break;
             case "download":
-              syncResult = await doDownload(adapter, store, dryRun, conflictPolicy);
+              syncResult = await doDownload(adapter, store, options);
               break;
             case "bidirectional":
-              syncResult = await doBidirectional(adapter, store, dryRun, conflictPolicy);
+              syncResult = await doBidirectional(adapter, store, options);
               break;
             default:
               return { content: [{ type: "text", text: `❌ 未知操作: ${action}` }] };

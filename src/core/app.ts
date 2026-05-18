@@ -1,0 +1,95 @@
+/**
+ * core/app.ts — Yaoyao Application Bootstrap.
+ *
+ * Orchestrator (~100 lines). Each step lives in core/boot/steps.ts.
+ */
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import { createFeatureRegistry } from "../optional/registry.ts";
+import {
+  embeddingFeature, llmFeature, cloudSyncFeature,
+  verifyFeature, cleanerFeature, qualityFeature,
+  retainFeature, graphFeature,
+} from "../optional/index.ts";
+import { registerMemoryTools } from "../tools/index.ts";
+import { registerCaptureHook } from "../hooks/auto-capture.ts";
+import { registerRecallHook } from "../hooks/auto-recall.ts";
+import { readPluginVersion } from "../entry/version.ts";
+import { createAuditLog } from "../utils/audit-log.ts";
+import { runStartupTasks } from "./boot/startup-tasks.ts";
+import {
+  stepInstallCheck, stepConfigValidation, stepCoreInit,
+  stepManifest, stepScopeManager, stepCrossSessionRecovery,
+  stepMigration, stepCleanupScheduler,
+} from "./boot/steps.ts";
+import { runHealthcheck, formatHealthcheck } from "../utils/healthcheck.ts";
+import { runInstallCheck, formatInstallCheck } from "../utils/install-check.ts";
+import { showBanner } from "../entry/banner.ts";
+
+export function bootstrapYaoyao(
+  api: OpenClawPluginApi,
+  config: YaoyaoMemoryConfig,
+): { drain?: () => Promise<void> } {
+  const pluginVersion = readPluginVersion();
+  const audit = createAuditLog(config.memoryDir || ".", api.logger, { bufferSize: 50, flushIntervalMs: 5000 });
+  const cap = runInstallCheck();
+
+  // ── 1. Platform detection & config ──
+  api.logger.info?.(`[yaoyao-memory] ${formatInstallCheck(cap)}`);
+  for (const w of cap.warnings) api.logger.warn?.(`[yaoyao-memory:install] ${w}`);
+  stepConfigValidation(api, config);
+  stepConfigValidation(api, config);
+
+  // ── 2. Core init ──
+  const { store, storage, scopeManager } = stepCoreInit(api, config);
+
+  // ── 3. Manifest & scope ──
+  stepManifest(store.baseDir, pluginVersion);
+  stepScopeManager(api, scopeManager);
+
+  // ── 4. Feature Registry ──
+  const registry = createFeatureRegistry();
+  for (const f of [embeddingFeature, llmFeature, cloudSyncFeature, verifyFeature, cleanerFeature, qualityFeature, retainFeature, graphFeature]) {
+    registry.register(f);
+  }
+  registry.initAll(api, config);
+  const embedding = registry.service<ReturnType<typeof import("../utils/embedding.ts").createEmbeddingService>>("embedding");
+  const llmResult = registry.service<import("../utils/llm-client.ts").CreateLLMClientResult>("llm");
+  if (llmResult?.client) api.logger.info?.(`[yaoyao-memory] LLM client: ${llmResult.client.config.model}`);
+
+  // ── 5. Cross-session recovery & migration ──
+  const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
+  stepCrossSessionRecovery(api, config, agentId);
+  stepMigration(api, config);
+
+  // ── 6. Deferred startup tasks ──
+  setTimeout(() => runStartupTasks(api, config, storage, store), 100);
+
+  // ── 7. Register tools & hooks ──
+  const toolCount = registerMemoryTools(api, store, storage, storage, embedding, registry);
+  const health = runHealthcheck(store.baseDir);
+  showBanner(api.logger, { pluginVersion, toolCount, memoryDir: store.baseDir, cap: runInstallCheck(), health });
+
+  let captureDrain: (() => Promise<void>) | undefined;
+  if (config.capture?.enabled !== false) {
+    const capHandle = registerCaptureHook(api, store, storage, config, registry.isActive("verify"), scopeManager, llmResult?.client ?? null, audit, embedding);
+    captureDrain = capHandle?.drain?.bind(capHandle);
+  }
+  if (config.recall?.enabled !== false) {
+    registerRecallHook(api, storage, config, embedding, scopeManager, audit);
+  }
+
+  // ── 8. Cleanup scheduler ──
+  const { cleanupStop } = stepCleanupScheduler(api, config, storage);
+
+  // ── 9. Shutdown ──
+  api.on("gateway_stop", async () => {
+    if (captureDrain) { try { await captureDrain(); api.logger.info?.("[yaoyao-memory] Write queue drained"); } catch { /* ignore */ } }
+    storage.close();
+    cleanupStop();
+    api.logger.debug?.("[yaoyao-memory] Plugin stopped");
+  });
+
+  api.logger.debug?.("[yaoyao-memory] Plugin started");
+  return { drain: captureDrain };
+}

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { tokenize, buildBM25Index, scoreBM25, bm25Search } from "../utils/bm25.ts";
+import { tokenize, buildBM25Index, scoreBM25, bm25Search } from "../core/search/bm25.ts";
 
 describe("bm25", () => {
   it("tokenizes Chinese + English", () => {

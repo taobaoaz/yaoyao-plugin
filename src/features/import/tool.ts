@@ -10,8 +10,8 @@ import { createRequire } from "node:module";
 import type { MemoryStore } from "../../utils/memory-store.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import type { UnifiedDB } from "../../platform/db/types.ts";
-import { createCompatDB } from "../../platform/db/compat.ts";
+import type { UnifiedDB } from "../../storage/bridge.ts";
+import { createCompatDB } from "../../storage/bridge.ts";
 import { parseJSONL, batchImport, getTotalCount } from "../../core/import/import.ts";
 
 const _require = createRequire(import.meta.url);

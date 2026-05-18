@@ -3,7 +3,8 @@
  */
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 
-export type ToolHandler = (id: string, params: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text: string }> }>;
+export type ToolHandlerResult = { content: Array<{ type: string; text: string }> };
+export type ToolHandler = (id: string, params: Record<string, unknown>) => Promise<ToolHandlerResult>;
 export type ToolRegistration = Parameters<OpenClawPluginApi["registerTool"]>[0];
 
 /** Wrap a tool execute handler with try/catch for consistent error handling */

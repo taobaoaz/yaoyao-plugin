@@ -1,17 +1,17 @@
 /**
- * features/search/tool.ts — memory_search tool (modular).
+ * features/search/tool.ts — memory_search tool.
  *
- * Assembles core search logic + platform DB + sentiment formatting.
+ * Thin layer: param validation → SearchPipeline.search() → format output.
+ * No direct SQL, no getRawDb().
  */
 
 import { clampNum } from "../../utils/clamp.ts";
-import { detectSentiment } from "../../utils/sentiment.ts";
+import { detectSentiment } from "../../core/sentiment/index.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import type { DBBridge } from "../../utils/db-bridge.ts";
-import { searchFTS } from "../../core/search/search.ts";
+import type { SearchPipeline } from "../../core/search/pipeline.ts";
 
-export function createSearchTool(db: DBBridge): ToolRegistration {
+export function createSearchTool(pipeline: SearchPipeline): ToolRegistration {
   return {
     id: "memory_search",
     name: "memory_search",
@@ -30,11 +30,9 @@ export function createSearchTool(db: DBBridge): ToolRegistration {
       const limit = clampNum(params.maxResults, 10, 1, 50);
       if (!query) return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
 
-      // core layer: pure search logic
-      const results = searchFTS(db.getRawDb(), query, limit);
+      const results = await pipeline.search(query, { strategy: "fts", limit });
       if (results.length === 0) return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
 
-      // presentation layer: formatting + sentiment
       const text = results.map(r => {
         const mood = detectSentiment(r.snippet);
         return `${mood.emoji} 【${r.filename}】(得分: ${r.score.toFixed(3)})\n${r.snippet}`;

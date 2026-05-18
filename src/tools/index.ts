@@ -1,5 +1,6 @@
 /**
  * Tool index — registers all yaoyao-memory tools.
+ *
  * Tool logic lives in src/features/<feature>/tool.ts.
  * Core algorithms are in src/core/<domain>/.
  *
@@ -11,8 +12,10 @@ import type { MemoryStore } from "../utils/memory-store.ts";
 import type { DBBridge } from "../utils/db-bridge.ts";
 import type { EmbeddingService } from "../utils/embedding.ts";
 import type { FeatureRegistry } from "../optional/registry.ts";
+import type { Storage } from "../storage/bridge.ts";
+import { createSearchPipeline, type SearchPipeline } from "../core/search/pipeline.ts";
 
-/* ── Search ─────────────────────────────────────────── */
+/* ── Search (use SearchPipeline) ────────────────── */
 import { createSearchTool } from "../features/search/tool.ts";
 import { createGetTool } from "../features/get/tool.ts";
 import { createListTool } from "../features/list/tool.ts";
@@ -37,6 +40,9 @@ import { createQualityTool } from "../features/quality/tool.ts";
 import { createRetainTool } from "../features/retain/tool.ts";
 import { createGraphTool } from "../features/graph/tool.ts";
 
+/* ── Multi-signal search (mem0 v3 style) ────────── */
+import { createMultiSignalSearchTool } from "../features/multi-signal/tool.ts";
+
 /* ── Import ────────────────────────────────────────── */
 import { createImportTool } from "../features/import/tool.ts";
 import { createImportOCTool } from "../features/import-oc/tool.ts";
@@ -47,6 +53,9 @@ import { createRecommendTool } from "../features/recommend/tool.ts";
 import { createRemindTool } from "../features/remind/tool.ts";
 import { createHealthcheckTool } from "../features/healthcheck/tool.ts";
 
+/* ── Conflict detection ─────────────────────────── */
+import { createJudgeTool, createConflictsTool } from "../features/conflict/tool.ts";
+
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.ts";
 
@@ -54,18 +63,26 @@ export function registerMemoryTools(
   api: OpenClawPluginApi,
   store: MemoryStore,
   db: DBBridge,
+  storage?: Storage,
   embedding?: EmbeddingService | null,
   registry?: FeatureRegistry,
 ) {
   const tools: Array<import("./common.ts").ToolRegistration> = [];
 
+  // Create SearchPipeline once, share across all search tools
+  const pipeline = createSearchPipeline(
+    storage ?? (db as unknown as Storage),
+    embedding,
+  );
+
   /* ── Core tools (always registered) ── */
   tools.push(
-    createSearchTool(db),
+    createSearchTool(pipeline),
+    createMultiSignalSearchTool(db, embedding),
     createGetTool(store, db),
     createListTool(store),
-    createSearchTimelineTool(db),
-    createSaveTool(store, db),
+    createSearchTimelineTool(pipeline),
+    createSaveTool(store, db, true),
     createNoteTool(store, db),
     createForgetTool(store, db),
     createTagTool(store, db),
@@ -80,16 +97,16 @@ export function registerMemoryTools(
     createRecommendTool(db, store.baseDir),
     createRemindTool(),
     createHealthcheckTool(),
+
+    /* ── Conflict detection (v1.6.0) ── */
+    createJudgeTool(db),
+    createConflictsTool(db),
   );
 
   /* ── Optional tools (gated by FeatureRegistry) ── */
 
-  // Enhanced search — requires embedding
-  if (embedding) {
-    try { tools.push(createEnhancedSearchTool(db, embedding)); } catch { /* skip */ }
-  } else {
-    try { tools.push(createEnhancedSearchTool(db)); } catch { /* skip */ }
-  }
+  // Enhanced search — uses SearchPipeline, no longer needs raw embedding
+  tools.push(createEnhancedSearchTool(pipeline));
 
   // Cloud sync
   if (registry?.isActive("cloud-sync")) {
