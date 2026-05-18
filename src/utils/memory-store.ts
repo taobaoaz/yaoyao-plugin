@@ -95,6 +95,17 @@ export interface YaoyaoMemoryConfig {
     maxMemories?: number;
     maxAgeMs?: number;
   };
+  hooks?: {
+    commandNew?: {
+      enabled?: boolean;
+    };
+    heartbeat?: {
+      enabled?: boolean;
+      maxResults?: number;
+      minScore?: number;
+      maxContextChars?: number;
+    };
+  };
   snippetMaxLen?: number;
   searchMaxLimit?: number;
   likeFallbackScore?: number;

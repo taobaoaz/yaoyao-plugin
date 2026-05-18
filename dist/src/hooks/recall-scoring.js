@@ -6,7 +6,51 @@ export function jaccard(a, b) {
     const union = new Set([...setA, ...setB]);
     return intersection.size / union.size;
 }
-/** Diversity sampling: keep results that differ from each other */
+/**
+ * Maximal Marginal Relevance (MMR) re-ranking.
+ *
+ * Balances relevance with diversity. Uses Jaccard similarity on snippet
+ * text as the diversity metric (no vector embeddings needed at recall time).
+ *
+ * MMR = λ · score(q,d) - (1-λ) · max_j(Jaccard(d, d_j_selected))
+ *
+ * MemOS Local uses λ=0.7 as default.
+ * When λ=1.0, behaves like standard top-K (no diversity).
+ * When λ=0.5, equal weight on relevance and diversity.
+ */
+export function applyMmrDiversity(results, lambda = 0.7, topK = undefined) {
+    if (results.length <= 1)
+        return results;
+    const k = topK ?? results.length;
+    const selected = [];
+    const remaining = [...results];
+    while (selected.length < k && remaining.length > 0) {
+        let bestIdx = 0;
+        let bestMmr = -Infinity;
+        for (let i = 0; i < remaining.length; i++) {
+            const cand = remaining[i];
+            // Relevance to query = candidate score (already normalized from pipeline)
+            const relevance = cand.score;
+            // Diversity penalty: max Jaccard similarity to any selected item
+            let maxSimToSelected = 0;
+            if (selected.length > 0) {
+                for (const sel of selected) {
+                    const sim = jaccard(cand.snippet, sel.snippet);
+                    if (sim > maxSimToSelected)
+                        maxSimToSelected = sim;
+                }
+            }
+            const mmrScore = lambda * relevance - (1 - lambda) * maxSimToSelected;
+            if (mmrScore > bestMmr) {
+                bestMmr = mmrScore;
+                bestIdx = i;
+            }
+        }
+        selected.push(remaining.splice(bestIdx, 1)[0]);
+    }
+    return selected;
+}
+/** Diversity sampling: keep results that differ from each other (original greedy method) */
 export function applyDiversitySampling(results, baseThreshold, minThreshold) {
     if (results.length <= 1)
         return results;

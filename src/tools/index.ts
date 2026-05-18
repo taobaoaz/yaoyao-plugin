@@ -43,6 +43,9 @@ import { createGraphTool } from "../features/graph/tool.ts";
 /* ── Multi-signal search (mem0 v3 style) ────────── */
 import { createMultiSignalSearchTool } from "../features/multi-signal/tool.ts";
 
+/* ── Structured MemoryCall search (MemOS-style) ─── */
+import { createMemoryCallTool } from "../features/memory-call/tool.ts";
+
 /* ── Import ────────────────────────────────────────── */
 import { createImportTool } from "../features/import/tool.ts";
 import { createImportOCTool } from "../features/import-oc/tool.ts";
@@ -79,6 +82,7 @@ export function registerMemoryTools(
   tools.push(
     createSearchTool(pipeline),
     createMultiSignalSearchTool(db, embedding),
+    createMemoryCallTool(storage ?? (db as unknown as Storage), embedding),
     createGetTool(store, db),
     createListTool(store),
     createSearchTimelineTool(pipeline),

@@ -210,6 +210,62 @@ export function validateConfig(config) {
             suggestion: "Set verbose: true to see full debug output",
         });
     }
+    // ── hooks ──
+    const hooks = config.hooks;
+    if (hooks?.commandNew?.enabled !== undefined) {
+        if (typeof hooks.commandNew.enabled !== "boolean") {
+            results.push({
+                level: "warn",
+                field: "hooks.commandNew.enabled",
+                message: `Invalid value: ${hooks.commandNew.enabled}`,
+                suggestion: "Must be true or false",
+            });
+        }
+    }
+    // ── memoryCall ──
+    const mc = config.memoryCall;
+    if (mc?.enabled !== undefined && typeof mc.enabled !== "boolean") {
+        results.push({
+            level: "warn",
+            field: "memoryCall.enabled",
+            message: `Invalid value: ${mc.enabled}`,
+            suggestion: "Must be true or false",
+        });
+    }
+    // ── heartbeat ──
+    const hb = config.hooks?.heartbeat;
+    if (hb?.enabled !== undefined && typeof hb.enabled !== "boolean") {
+        results.push({
+            level: "warn",
+            field: "hooks.heartbeat.enabled",
+            message: `Invalid value: ${hb.enabled}`,
+            suggestion: "Must be true or false",
+        });
+    }
+    if (hb?.maxResults !== undefined && typeof hb.maxResults !== "number") {
+        results.push({
+            level: "warn",
+            field: "hooks.heartbeat.maxResults",
+            message: `Invalid value: ${hb.maxResults}`,
+            suggestion: "Must be a number",
+        });
+    }
+    if (hb?.minScore !== undefined && typeof hb.minScore !== "number") {
+        results.push({
+            level: "warn",
+            field: "hooks.heartbeat.minScore",
+            message: `Invalid value: ${hb.minScore}`,
+            suggestion: "Must be a number",
+        });
+    }
+    if (hb?.maxContextChars !== undefined && typeof hb.maxContextChars !== "number") {
+        results.push({
+            level: "warn",
+            field: "hooks.heartbeat.maxContextChars",
+            message: `Invalid value: ${hb.maxContextChars}`,
+            suggestion: "Must be a number",
+        });
+    }
     return results;
 }
 /** Print validation results to logger */

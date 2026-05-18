@@ -3,6 +3,8 @@ import { embeddingFeature, llmFeature, cloudSyncFeature, verifyFeature, cleanerF
 import { registerMemoryTools } from "../tools/index.js";
 import { registerCaptureHook } from "../hooks/auto-capture.js";
 import { registerRecallHook } from "../hooks/auto-recall.js";
+import { registerCommandNewHook } from "../hooks/command-new.js";
+import { registerHeartbeatRecallHook } from "../hooks/heartbeat-recall.js";
 import { readPluginVersion } from "../entry/version.js";
 import { createAuditLog } from "../utils/audit-log.js";
 import { runStartupTasks } from "./boot/startup-tasks.js";
@@ -52,6 +54,19 @@ export function bootstrapYaoyao(api, config) {
     }
     if (config.recall?.enabled !== false) {
         registerRecallHook(api, storage, config, embedding, scopeManager, audit);
+    }
+    // ── Session boundary cleanup for /new and /reset ──
+    if (config.hooks?.commandNew?.enabled !== false) {
+        registerCommandNewHook(api);
+    }
+    // ── Heartbeat memory injection (OpenClaw 2026.5.12+) ──
+    if (config.hooks?.heartbeat?.enabled !== false) {
+        registerHeartbeatRecallHook(api, storage, embedding, {
+            enabled: true,
+            maxResults: config.hooks?.heartbeat?.maxResults ?? 3,
+            minScore: config.hooks?.heartbeat?.minScore ?? 0.4,
+            maxContextChars: config.hooks?.heartbeat?.maxContextChars ?? 800,
+        });
     }
     // ── 8. Cleanup scheduler ──
     const { cleanupStop } = stepCleanupScheduler(api, config, storage);

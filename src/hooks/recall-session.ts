@@ -39,6 +39,12 @@ export function accumulateKeywords(sessionKey: string, text: string, maxKeywords
   }
 }
 
+/** Reset accumulated keywords for a session (e.g. after /new or /reset). */
+export function clearSessionKeywords(sessionKey: string): void {
+  _sessionContextKeywords.delete(sessionKey);
+  _sessionKeywordOrder.delete(sessionKey);
+}
+
 /** Get accumulated keywords for a session (ordered by recency). */
 export function getAccumulatedKeywords(sessionKey: string): string[] {
   return _sessionKeywordOrder.get(sessionKey) || [];

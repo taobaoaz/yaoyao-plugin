@@ -6,6 +6,17 @@ declare module "openclaw/plugin-sdk/plugin-entry" {
     debug?: (msg: string) => void;
   }
 
+  export interface PluginHeartbeatPromptContributionEvent {
+    sessionKey?: string;
+    agentId?: string;
+    heartbeatName?: string;
+  }
+
+  export interface PluginHeartbeatPromptContributionResult {
+    prependContext?: string;
+    appendContext?: string;
+  }
+
   export interface OpenClawPluginApi {
     pluginConfig: Record<string, unknown>;
     baseDir: string;

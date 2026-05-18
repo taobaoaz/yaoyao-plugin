@@ -3,31 +3,45 @@
  *
  * Extracted from auto-capture.ts for modularity.
  */
+/** Strip  tags from model output (DeepSeek-style reasoning). */
+const THINKING_TAG_RE = /<think[\s>][\s\S]*?<\/think>\s*/gi;
+/** Strip <final>…</final> tags (MiniMax-style). */
+const FINAL_TAG_RE = /<\/?final\s*>/gi;
 /** Safely extract text content from a message, handling string/array/object formats */
 export function extractContent(msg, maxLen) {
     if (!msg)
         return "";
     const content = msg.content;
+    const role = msg.role;
     const limit = maxLen && maxLen > 0 ? maxLen : 500;
-    if (typeof content === "string")
-        return content.slice(0, limit);
-    if (Array.isArray(content)) {
-        return content
+    let text;
+    if (typeof content === "string") {
+        text = content;
+    }
+    else if (Array.isArray(content)) {
+        text = content
             .map((part) => {
             if (part.type === "text")
                 return String(part.text ?? "");
             return "";
         })
             .filter(s => s.length > 0)
-            .join(" ")
-            .slice(0, limit);
+            .join(" ");
     }
-    try {
-        return safeStringify(content, limit);
+    else {
+        try {
+            text = safeStringify(content, limit);
+        }
+        catch {
+            text = "[unparseable content]";
+        }
     }
-    catch {
-        return "[unparseable content]";
+    // Strip reasoning tags from assistant output (DeepSeek think tags, MiniMax final tags)
+    if (role === "assistant") {
+        text = text.replace(THINKING_TAG_RE, "");
+        text = text.replace(FINAL_TAG_RE, "");
     }
+    return text.slice(0, limit);
 }
 /** Depth-limited JSON stringify to avoid OOM on deeply nested / massive objects */
 export function safeStringify(obj, maxLen) {

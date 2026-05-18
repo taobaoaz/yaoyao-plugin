@@ -8,7 +8,9 @@
     "register": "./dist/index.js",
     "hooks": [
       "./dist/src/hooks/auto-capture.js",
-      "./dist/src/hooks/auto-recall.js"
+      "./dist/src/hooks/auto-recall.js",
+      "./dist/src/hooks/command-new.js",
+      "./dist/src/hooks/heartbeat-recall.js"
     ]
   },
   "configSchema": {

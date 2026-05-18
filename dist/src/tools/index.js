@@ -23,6 +23,8 @@ import { createRetainTool } from "../features/retain/tool.js";
 import { createGraphTool } from "../features/graph/tool.js";
 /* ── Multi-signal search (mem0 v3 style) ────────── */
 import { createMultiSignalSearchTool } from "../features/multi-signal/tool.js";
+/* ── Structured MemoryCall search (MemOS-style) ─── */
+import { createMemoryCallTool } from "../features/memory-call/tool.js";
 /* ── Import ────────────────────────────────────────── */
 import { createImportTool } from "../features/import/tool.js";
 import { createImportOCTool } from "../features/import-oc/tool.js";
@@ -40,7 +42,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     // Create SearchPipeline once, share across all search tools
     const pipeline = createSearchPipeline(storage ?? db, embedding);
     /* ── Core tools (always registered) ── */
-    tools.push(createSearchTool(pipeline), createMultiSignalSearchTool(db, embedding), createGetTool(store, db), createListTool(store), createSearchTimelineTool(pipeline), createSaveTool(store, db, true), createNoteTool(store, db), createForgetTool(store, db), createTagTool(store, db), createBackupTool(store), createExportTool(db), createImportTool(store), createImportOCTool(store, db), createImportWorkspaceTool(store, db), createStatsTool(store, db), createTimelineTool(db), createTrendsTool(store), createRecommendTool(db, store.baseDir), createRemindTool(), createHealthcheckTool(), 
+    tools.push(createSearchTool(pipeline), createMultiSignalSearchTool(db, embedding), createMemoryCallTool(storage ?? db, embedding), createGetTool(store, db), createListTool(store), createSearchTimelineTool(pipeline), createSaveTool(store, db, true), createNoteTool(store, db), createForgetTool(store, db), createTagTool(store, db), createBackupTool(store), createExportTool(db), createImportTool(store), createImportOCTool(store, db), createImportWorkspaceTool(store, db), createStatsTool(store, db), createTimelineTool(db), createTrendsTool(store), createRecommendTool(db, store.baseDir), createRemindTool(), createHealthcheckTool(), 
     /* ── Conflict detection (v1.6.0) ── */
     createJudgeTool(db), createConflictsTool(db));
     /* ── Optional tools (gated by FeatureRegistry) ── */

@@ -20,6 +20,7 @@ import { maybeOffload } from "../utils/mermaid-canvas.js";
 import { isMMDBlock } from "../utils/mmd-filter.js";
 import { isTrivial } from "../core/filter/trivial.js";
 import { extractContent } from "./capture-content.js";
+import { classifyMemoryType } from "../core/memory-types.js";
 export function getCaptureConfig(config) {
     const captureCfg = getObj(config, "capture") || {};
     return {
@@ -86,7 +87,8 @@ export function runAntiHallucination(userContent, asstContent, verifyActive) {
 export async function buildMetaObj(userContent, asstContent, scopeManager, agentId, specCheck, corrCheck, enableL1, skipL1, brainMode, llmClient, logger, maxMemories, config) {
     const temporalType = classifyTemporal(userContent + " " + asstContent);
     const expiryAt = temporalType === "dynamic" ? inferExpiry(userContent + " " + asstContent) : undefined;
-    const metaObj = { temporal: temporalType };
+    const memoryTag = classifyMemoryType(userContent, asstContent);
+    const metaObj = { temporal: temporalType, memoryType: memoryTag.type };
     if (scopeManager)
         metaObj.scope = scopeManager.getDefaultScope(agentId);
     const identities = extractIdentityCandidates(userContent + " " + asstContent);
@@ -101,6 +103,9 @@ export async function buildMetaObj(userContent, asstContent, scopeManager, agent
     if (corrCheck.isCorrection) {
         metaObj.correction = true;
     }
+    if (memoryTag.tags.length > 0) {
+        metaObj.tags = memoryTag.tags;
+    }
     if (enableL1 && !skipL1) {
         try {
             const facts = await extractFacts(userContent, asstContent, { brainMode, llmClient, logger: logger });
@@ -111,7 +116,7 @@ export async function buildMetaObj(userContent, asstContent, scopeManager, agent
     }
     enrichMetadata(metaObj, userContent + " " + asstContent);
     const meta = Object.keys(metaObj).length > 1 ? JSON.stringify(metaObj) : undefined;
-    return { metaObj, meta };
+    return { metaObj, meta, memoryTag };
 }
 export function checkDedup(db, texts, config) {
     if (!config.enableDedup)

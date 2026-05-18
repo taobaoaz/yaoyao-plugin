@@ -14,6 +14,8 @@ import {
 import { registerMemoryTools } from "../tools/index.ts";
 import { registerCaptureHook } from "../hooks/auto-capture.ts";
 import { registerRecallHook } from "../hooks/auto-recall.ts";
+import { registerCommandNewHook } from "../hooks/command-new.ts";
+import { registerHeartbeatRecallHook } from "../hooks/heartbeat-recall.ts";
 import { readPluginVersion } from "../entry/version.ts";
 import { createAuditLog } from "../utils/audit-log.ts";
 import { runStartupTasks } from "./boot/startup-tasks.ts";
@@ -77,6 +79,21 @@ export function bootstrapYaoyao(
   }
   if (config.recall?.enabled !== false) {
     registerRecallHook(api, storage, config, embedding, scopeManager, audit);
+  }
+
+  // ── Session boundary cleanup for /new and /reset ──
+  if (config.hooks?.commandNew?.enabled !== false) {
+    registerCommandNewHook(api);
+  }
+
+  // ── Heartbeat memory injection (OpenClaw 2026.5.12+) ──
+  if (config.hooks?.heartbeat?.enabled !== false) {
+    registerHeartbeatRecallHook(api, storage, embedding, {
+      enabled: true,
+      maxResults: config.hooks?.heartbeat?.maxResults ?? 3,
+      minScore: config.hooks?.heartbeat?.minScore ?? 0.4,
+      maxContextChars: config.hooks?.heartbeat?.maxContextChars ?? 800,
+    });
   }
 
   // ── 8. Cleanup scheduler ──
