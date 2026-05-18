@@ -1,8 +1,8 @@
-# Yaoyao Memory Plugin v1.5.1-beta3
+# Yaoyao Memory Plugin v1.6.0
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**25+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 441+ 单元测试**
+**25+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 526 单元测试**
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
@@ -167,9 +167,11 @@ L4 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 
 ## 测试
 
-**441+ 单元测试 · 全原生运行 · 仅 sqlite-vec（外部 npm 依赖）**
+**526 单元测试 · 全原生运行 · 0 TypeScript 严格模式错误 · 仅 sqlite-vec（外部 npm 依赖）**
 
-覆盖 30+ 测试模块：情感分析、存储读写、session 过滤、FTS5/向量/混合搜索、导入导出、标签、图谱、增强搜索、质量评估、趋势分析、cron 提醒、反遗忘、防幻觉、L1 提取、Mermaid Canvas、glob 匹配、BM25、session 活动等。
+覆盖 35+ 测试模块：情感分析、存储读写、session 过滤、FTS5/向量/混合搜索、导入导出、标签、图谱、增强搜索、质量评估、趋势分析、cron 提醒、反遗忘、防幻觉、L1 提取、Mermaid Canvas、glob 匹配、BM25、session 活动、FileDB 回退、备份管理、内存清理、LLM 客户端等。
+
+**v1.6.0 新增架构强化**：9 项大文件拆分（最大文件 315 行）、TypeScript strict 模式全面修复、as any 消除、跨层引用规约固化。详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 运行：`npm test`
 
@@ -191,7 +193,7 @@ L4 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 
 ## 快速开始
 
-### 从旧版本升级（v1.4.x → v1.5.1-beta3）
+### 从旧版本升级（v1.4.x → v1.6.0）
 
 ```bash
 cd ~/.openclaw/extensions/yaoyao-memory
@@ -226,6 +228,8 @@ openclaw plugins install yaoyao-memory
 }
 ```
 
+> ⚠️ **从 v1.5.x 升级？** 架构有重大重构（文件拆分、类型修复），git pull 后请运行 `npm test` 确认无回归。
+
 > ⚠️ **必须** 在 `plugins.allow` 中添加 `"yaoyao-memory"`，否则插件不会加载。
 
 ### 手动安装
@@ -247,7 +251,7 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.5.1-beta3  ·  25+ Tools  ·  2 Hooks
+🎲    v1.6.0  ·  25+ Tools  ·  2 Hooks
 🎲 能力: FTS5✅ Vec✅ LLM⚪ Cloud⚪
 ```
 
@@ -387,7 +391,7 @@ openclaw gateway restart
 - **防幻觉** — 自动标记推测性 AI 输出与用户纠正，提供 `memory_verify` 工具
 - **Mermaid Canvas** — 长工具日志符号化卸载，节省 token
 - **极小依赖** — 仅 sqlite-vec（node:sqlite 内置），无 Python 无额外运行时
-- **441+ 测试全绿** — 原生运行
+- **526 测试全绿** — 原生运行，TypeScript 严格模式零错误
 
 > 💡 **心理学模型**（PersonaStateMachine、情绪追踪、L4 反馈学习）在 v1.5.0+ 已拆分为独立插件 [yaoyao-soul](https://github.com/taobaoaz/yaoyao-soul)。
 
