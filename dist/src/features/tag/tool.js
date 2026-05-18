@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { clampNum } from "../../utils/clamp.js";
 import { withErrorHandling } from "../../tools/common.js";
-import { createCompatDB } from "../../platform/db/compat.js";
+import { createCompatDB } from "../../storage/bridge.js";
 import { ensureTagTable, addTagsToQuery, removeTags, removeAllTags, cleanOrphanTags, getPopularTags, searchByTagWithQuery, } from "../../core/tag/tag.js";
 function getDbPath(store) {
     return path.join(store.baseDir, ".yaoyao.db");

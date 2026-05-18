@@ -13,6 +13,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { createRequire } from "node:module";
+import { clampNum } from "../clamp.js";
 export class HnswlibBackend {
     name = "hnswlib";
     isAvailable = false;
@@ -211,10 +212,4 @@ function requireHnswlib() {
     }
     catch { /* not installed or platform incompatible */ }
     return null;
-}
-function clampNum(val, def, min, max) {
-    const n = Number(val);
-    if (!Number.isFinite(n))
-        return def;
-    return Math.min(Math.max(n, min), max);
 }

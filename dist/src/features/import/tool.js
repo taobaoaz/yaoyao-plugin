@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { withErrorHandling } from "../../tools/common.js";
-import { createCompatDB } from "../../platform/db/compat.js";
+import { createCompatDB } from "../../storage/bridge.js";
 import { parseJSONL, batchImport, getTotalCount } from "../../core/import/import.js";
 const _require = createRequire(import.meta.url);
 function tryLoadVec(db) {

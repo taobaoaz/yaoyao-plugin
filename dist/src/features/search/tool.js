@@ -1,13 +1,13 @@
 /**
- * features/search/tool.ts — memory_search tool (modular).
+ * features/search/tool.ts — memory_search tool.
  *
- * Assembles core search logic + platform DB + sentiment formatting.
+ * Thin layer: param validation → SearchPipeline.search() → format output.
+ * No direct SQL, no getRawDb().
  */
 import { clampNum } from "../../utils/clamp.js";
-import { detectSentiment } from "../../utils/sentiment.js";
+import { detectSentiment } from "../../core/sentiment/index.js";
 import { withErrorHandling } from "../../tools/common.js";
-import { searchFTS } from "../../core/search/search.js";
-export function createSearchTool(db) {
+export function createSearchTool(pipeline) {
     return {
         id: "memory_search",
         name: "memory_search",
@@ -26,11 +26,9 @@ export function createSearchTool(db) {
             const limit = clampNum(params.maxResults, 10, 1, 50);
             if (!query)
                 return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
-            // core layer: pure search logic
-            const results = searchFTS(db.getRawDb(), query, limit);
+            const results = await pipeline.search(query, { strategy: "fts", limit });
             if (results.length === 0)
                 return { content: [{ type: "text", text: "没有找到相关记忆。" }] };
-            // presentation layer: formatting + sentiment
             const text = results.map(r => {
                 const mood = detectSentiment(r.snippet);
                 return `${mood.emoji} 【${r.filename}】(得分: ${r.score.toFixed(3)})\n${r.snippet}`;

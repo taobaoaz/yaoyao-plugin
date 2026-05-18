@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import { createCompatDB } from "../../platform/db/compat.js";
+import { createCompatDB } from "../../storage/bridge.js";
 function getOCLocation() {
     const defaultPath = path.join(os.homedir(), ".openclaw", "memory", "main.sqlite");
     if (fs.existsSync(defaultPath))

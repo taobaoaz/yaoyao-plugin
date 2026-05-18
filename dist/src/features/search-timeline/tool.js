@@ -1,10 +1,12 @@
 /**
- * features/search-timeline/tool.ts — memory_search_timeline tool (modular).
+ * features/search-timeline/tool.ts — memory_search_timeline tool.
+ *
+ * Uses SearchPipeline for queries, groups results by date for timeline display.
  */
 import { clampNum } from "../../utils/clamp.js";
-import { detectSentiment } from "../../utils/sentiment.js";
+import { detectSentiment } from "../../core/sentiment/index.js";
 import { withErrorHandling } from "../../tools/common.js";
-export function createSearchTimelineTool(db) {
+export function createSearchTimelineTool(pipeline) {
     return {
         id: "memory_search_timeline",
         name: "memory_search_timeline",
@@ -23,7 +25,7 @@ export function createSearchTimelineTool(db) {
             const limit = clampNum(params.maxResults, 10, 1, 50);
             if (!query)
                 return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
-            const results = db.search(query, limit);
+            const results = await pipeline.search(query, { strategy: "fts", limit });
             if (results.length === 0) {
                 return { content: [{ type: "text", text: `没有找到与 "${query}" 相关的记忆。` }] };
             }
