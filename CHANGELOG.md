@@ -1,6 +1,16 @@
 # Changelog
 
-## v1.6.0 (2026-05-18)
+## v1.7.0 (2026-05-18)
+
+### 📖 MemOS-Inspired Enhancements
+- **core/search/intent.ts** — Query intent classifier + dynamic weight profiles (entity/temporal/relational/exploratory)
+- **core/search/pipeline.ts** — New `"intent-driven"` strategy with intent-weighted composite re-ranking
+- **core/memory-types.ts** — Rule-based memory type tagging at capture time (preference/fact/event/entity/goal/relationship/behavior)
+- **utils/capture-debouncer.ts** — Debounced capture queue: merges rapid successive events within configurable window (default 3s)
+- **hooks/recall-config.ts** — Per-agent overrides (maxResults/scoreThreshold/queryPrefix/recall filter), query prefix enhancement
+- **hooks/auto-recall.ts** — Intent-driven search strategy, model-based secondary recall filtering (OpenAI-compatible), agent-aware cache keys
+- **hooks/auto-capture.ts** — Capture debouncer integration, fully async L0+L1+L2 persist pipeline
+- **utils/retrieval-trace.ts** — Support `"intent-driven"` mode in RetrievalTrace type
 
 ### 🧱 Architecture Cleanup — 大文件拆分 & 严格模式
 - **大文件拆分** (8 files):
@@ -34,7 +44,7 @@
 ### 📚 文档与开发者体验
 - `DEVELOPER_GUIDE.md` — v2.0.0 架构基线, 完整架构债务清单 (14.1-14.8)
 
-### ⚠️ 升级注意事项（v1.5.x → v1.6.0）
+### ⚠️ 升级注意事项（v1.5.x → v1.7.0）
 
 1. **测试数量变化** — 从 481 增加到 526。如果自行修改过源码，pull 后运行 `npx tsc` 可能因 strict 模式新增约束而编译失败（原允许 `as any` 处现报错）。建议升级后执行 `git pull && npm test` 确认无回归。
 

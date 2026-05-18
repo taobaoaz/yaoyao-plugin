@@ -1,4 +1,4 @@
-# Yaoyao Memory Plugin v1.6.0
+# Yaoyao Memory Plugin v1.7.0
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
@@ -171,7 +171,7 @@ L4 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 
 覆盖 35+ 测试模块：情感分析、存储读写、session 过滤、FTS5/向量/混合搜索、导入导出、标签、图谱、增强搜索、质量评估、趋势分析、cron 提醒、反遗忘、防幻觉、L1 提取、Mermaid Canvas、glob 匹配、BM25、session 活动、FileDB 回退、备份管理、内存清理、LLM 客户端等。
 
-**v1.6.0 新增架构强化**：9 项大文件拆分（最大文件 315 行）、TypeScript strict 模式全面修复、as any 消除、跨层引用规约固化。详见 [CHANGELOG.md](./CHANGELOG.md)。
+**v1.7.0 新增架构强化**：9 项大文件拆分（最大文件 315 行）、TypeScript strict 模式全面修复、as any 消除、跨层引用规约固化。详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 运行：`npm test`
 
@@ -193,7 +193,7 @@ L4 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 
 ## 快速开始
 
-### 从旧版本升级（v1.4.x → v1.6.0）
+### 从旧版本升级（v1.4.x → v1.7.0）
 
 ```bash
 cd ~/.openclaw/extensions/yaoyao-memory
@@ -251,7 +251,7 @@ openclaw gateway restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.6.0  ·  25+ Tools  ·  2 Hooks
+🎲    v1.7.0  ·  25+ Tools  ·  2 Hooks
 🎲 能力: FTS5✅ Vec✅ LLM⚪ Cloud⚪
 ```
 

@@ -2,8 +2,24 @@
  * hooks/recall-config.ts — Recall configuration types and extraction.
  *
  * Pure config reading from YaoyaoMemoryConfig. No other dependencies.
+ *
+ * v1.7.0: Added per-agent overrides, query prefix, and recall filter support.
  */
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+
+export interface PerAgentRecallOverride {
+  maxResults?: number;
+  minScore?: number;
+  halfLife?: number;
+  decayMode?: "weibull" | "logistic";
+  position?: "append" | "prepend";
+  maxChars?: number;
+  timeoutMs?: number;
+  queryPrefix?: string;
+  enableRecallFilter?: boolean;
+  jaccardBase?: number;
+  jaccardMin?: number;
+}
 
 export interface RecallThresholds {
   cacheTTL: number;
@@ -27,25 +43,92 @@ export interface RecallThresholds {
   maxChars: number;
   /** Score threshold for confidence scoring */
   scoreThreshold: number;
+  /** Query prefix for memory search — enhances user's raw query */
+  queryPrefix: string;
+  /** Per-agent recall overrides. Keyed by agentId */
+  perAgentOverrides: Record<string, PerAgentRecallOverride>;
+  /** Enable secondary model-based recall filtering */
+  enableRecallFilter: boolean;
+  /** Filter model base URL (OpenAI-compatible) */
+  recallFilterBaseUrl: string;
+  /** Filter model API key */
+  recallFilterApiKey: string;
+  /** Filter model name */
+  recallFilterModel: string;
+  /** Filter request timeout */
+  recallFilterTimeoutMs: number;
+  /** Filter retries */
+  recallFilterRetries: number;
+  /** Candidate limit per search for filtering */
+  recallFilterCandidateLimit: number;
+  /** Max chars per candidate sent to filter */
+  recallFilterMaxItemChars: number;
+  /** If true, fallback to unfiltered results on filter failure */
+  recallFilterFailOpen: boolean;
+  /** Max chars for recall context injection */
+  maxContextChars: number;
+  /** Use intent-driven search strategy */
+  enableIntentDriven: boolean;
 }
 
 export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
-  const r = config.recall || {};
+  const r = (config.recall || {}) as Record<string, unknown>;
   return {
-    cacheTTL: r.cacheTTL ?? 30000,
-    maxCacheSize: r.maxCacheSize ?? 50,
-    halfLife: r.halfLife ?? 30,
-    jaccardBase: r.jaccardBase ?? 0.75,
-    jaccardMin: r.jaccardMin ?? 0.5,
-    maxSessions: r.maxSessions ?? 1000,
-    maxContextKeywords: r.maxContextKeywords ?? 20,
-    maxResults: r.maxResults ?? 3,
+    cacheTTL: (r.cacheTTL as number) ?? 30000,
+    maxCacheSize: (r.maxCacheSize as number) ?? 50,
+    halfLife: (r.halfLife as number) ?? 30,
+    jaccardBase: (r.jaccardBase as number) ?? 0.75,
+    jaccardMin: (r.jaccardMin as number) ?? 0.5,
+    maxSessions: (r.maxSessions as number) ?? 1000,
+    maxContextKeywords: (r.maxContextKeywords as number) ?? 20,
+    maxResults: (r.maxResults as number) ?? 3,
     decayMode: (r.decayMode as "weibull" | "logistic") ?? "weibull",
     position: (r.position as "append" | "prepend") ?? "append",
-    timeoutMs: r.timeoutMs ?? 800,
-    excludeRecentMS: r.excludeRecentMS ?? 0,
-    minResults: r.minResults ?? 0,
-    maxChars: r.maxChars ?? 1200,
-    scoreThreshold: r.minScore ?? 0.5,
+    timeoutMs: (r.timeoutMs as number) ?? 800,
+    excludeRecentMS: (r.excludeRecentMS as number) ?? 0,
+    minResults: (r.minResults as number) ?? 0,
+    maxChars: (r.maxChars as number) ?? 1200,
+    scoreThreshold: (r.minScore as number) ?? 0.5,
+    queryPrefix: (r.queryPrefix as string) ?? "",
+    perAgentOverrides: (r.perAgentOverrides ?? {}) as Record<string, PerAgentRecallOverride>,
+    enableRecallFilter: (r.enableRecallFilter as boolean) ?? false,
+    recallFilterBaseUrl: (r.recallFilterBaseUrl as string) ?? "",
+    recallFilterApiKey: (r.recallFilterApiKey as string) ?? "",
+    recallFilterModel: (r.recallFilterModel as string) ?? "",
+    recallFilterTimeoutMs: (r.recallFilterTimeoutMs as number) ?? 30000,
+    recallFilterRetries: (r.recallFilterRetries as number) ?? 1,
+    recallFilterCandidateLimit: (r.recallFilterCandidateLimit as number) ?? 30,
+    recallFilterMaxItemChars: (r.recallFilterMaxItemChars as number) ?? 500,
+    recallFilterFailOpen: (r.recallFilterFailOpen as boolean) ?? true,
+    maxContextChars: (r.maxContextChars as number) ?? 1200,
+    enableIntentDriven: (r.enableIntentDriven as boolean) ?? false,
+  };
+}
+
+/**
+ * Merge per-agent overrides into base config.
+ * Returns a new config object (does not mutate input).
+ */
+export function applyAgentOverrides(
+  base: RecallThresholds,
+  agentId: string | undefined,
+): RecallThresholds {
+  if (!agentId || !base.perAgentOverrides) return base;
+  const overrides = base.perAgentOverrides[agentId];
+  if (!overrides) return base;
+
+  return {
+    ...base,
+    maxResults: overrides.maxResults ?? base.maxResults,
+    scoreThreshold: overrides.minScore ?? base.scoreThreshold,
+    halfLife: overrides.halfLife ?? base.halfLife,
+    decayMode: overrides.decayMode ?? base.decayMode,
+    position: overrides.position ?? base.position,
+    maxChars: overrides.maxChars ?? base.maxChars,
+    timeoutMs: overrides.timeoutMs ?? base.timeoutMs,
+    queryPrefix: overrides.queryPrefix ?? base.queryPrefix,
+    enableRecallFilter: overrides.enableRecallFilter ?? base.enableRecallFilter,
+    jaccardBase: overrides.jaccardBase ?? base.jaccardBase,
+    jaccardMin: overrides.jaccardMin ?? base.jaccardMin,
   };
 }

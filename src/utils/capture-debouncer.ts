@@ -21,6 +21,8 @@ export interface DebouncedCapture {
   date: string;
   timestamp: string;
   meta?: string;
+  /** L0 markdown entry string */
+  entry?: string;
   /** How many raw calls were merged into this one */
   mergedCount: number;
 }
@@ -108,6 +110,7 @@ export function createCaptureDebouncer(
       date: string;
       timestamp: string;
       meta?: string;
+      entry?: string;
     }): void {
       const existing = pending.get(item.sessionKey);
       if (existing) {
@@ -117,6 +120,7 @@ export function createCaptureDebouncer(
         existing.date = item.date;
         existing.timestamp = item.timestamp;
         existing.meta = item.meta;
+        existing.entry = item.entry ?? existing.entry;
         existing._lastAt = Date.now();
         existing.mergedCount++;
         mergedCount++;

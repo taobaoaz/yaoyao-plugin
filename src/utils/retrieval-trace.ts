@@ -23,7 +23,7 @@ export interface RetrievalTrace {
   /** The original search query */
   query: string;
   /** Retrieval mode used */
-  mode: "hybrid" | "fts";
+  mode: "hybrid" | "fts" | "intent-driven";
   /** Timestamp when retrieval started */
   startedAt: number;
   /** Per-stage results in pipeline order */
