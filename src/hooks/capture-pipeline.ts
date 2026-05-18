@@ -20,6 +20,7 @@ import { maybeOffload } from "../utils/mermaid-canvas.ts";
 import { isMMDBlock } from "../utils/mmd-filter.ts";
 import { isTrivial } from "../core/filter/trivial.ts";
 import { extractContent } from "./capture-content.ts";
+import { classifyMemoryType, type MemoryTag } from "../core/memory-types.ts";
 import type { YaoyaoMemoryConfig, MemoryStore } from "../utils/memory-store.ts";
 import type { DBBridge } from "../utils/db-bridge.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
@@ -127,10 +128,11 @@ export async function buildMetaObj(
   logger: any,
   maxMemories: number,
   config: YaoyaoMemoryConfig,
-): Promise<{ metaObj: Record<string, unknown>; meta: string | undefined }> {
+): Promise<{ metaObj: Record<string, unknown>; meta: string | undefined; memoryTag?: MemoryTag }> {
   const temporalType = classifyTemporal(userContent + " " + asstContent);
   const expiryAt = temporalType === "dynamic" ? inferExpiry(userContent + " " + asstContent) : undefined;
-  const metaObj: Record<string, unknown> = { temporal: temporalType };
+  const memoryTag = classifyMemoryType(userContent, asstContent);
+  const metaObj: Record<string, unknown> = { temporal: temporalType, memoryType: memoryTag.type };
 
   if (scopeManager) metaObj.scope = scopeManager.getDefaultScope(agentId);
   const identities = extractIdentityCandidates(userContent + " " + asstContent);
@@ -138,6 +140,7 @@ export async function buildMetaObj(
   if (expiryAt) metaObj.expiryAt = expiryAt;
   if (specCheck.isSpeculative) { metaObj.speculative = true; metaObj.confidence = specCheck.confidence; }
   if (corrCheck.isCorrection) { metaObj.correction = true; }
+  if (memoryTag.tags.length > 0) { metaObj.tags = memoryTag.tags; }
 
   if (enableL1 && !skipL1) {
     try {
@@ -148,7 +151,7 @@ export async function buildMetaObj(
 
   enrichMetadata(metaObj, userContent + " " + asstContent);
   const meta = Object.keys(metaObj).length > 1 ? JSON.stringify(metaObj) : undefined;
-  return { metaObj, meta };
+  return { metaObj, meta, memoryTag };
 }
 
 export function checkDedup(db: DBBridge, texts: string, config: CaptureConfig): boolean {
