@@ -36,7 +36,7 @@ export async function sendHeartbeat(
   try {
     const res = await fetch(target, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
