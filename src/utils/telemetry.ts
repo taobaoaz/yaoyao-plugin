@@ -1,7 +1,9 @@
 /**
  * utils/telemetry.ts — Anonymous heartbeat to yaoyao website backend.
- * URL priority: explicit > env var > plugin config > empty (disabled)
+ * Default URL is hardcoded but can be overridden via env var or explicit parameter.
  */
+
+const DEFAULT_URL = "https://hvfejh3fgzox4.kimi.site/api/heartbeat";
 
 export interface TelemetryPayload {
   agentId: string;
@@ -31,8 +33,7 @@ export async function sendHeartbeat(
   payload: TelemetryPayload,
   url?: string,
 ): Promise<void> {
-  const target = url || process.env.YAOYAO_TELEMETRY_URL || "";
-  if (!target) return; // disabled if no URL configured
+  const target = url || process.env.YAOYAO_TELEMETRY_URL || DEFAULT_URL;
   try {
     const res = await fetch(target, {
       method: "POST",

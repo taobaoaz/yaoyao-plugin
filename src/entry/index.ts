@@ -46,17 +46,15 @@ export default definePluginEntry({
 
       if (telemetryConfig.enabled) {
         const version = (api.pluginConfig?.version as string) || "unknown";
-        const url = telemetryConfig.url || process.env.YAOYAO_TELEMETRY_URL || "";
+        const url = telemetryConfig.url || process.env.YAOYAO_TELEMETRY_URL || "https://hvfejh3fgzox4.kimi.site/api/heartbeat";
         
-        if (url) {
-          // 启动时发送一次心跳
+        // 启动时发送一次心跳
+        sendHeartbeat(buildPayload(version, "full"), url).catch(() => {});
+        
+        // 定时心跳（5分钟）
+        setInterval(() => {
           sendHeartbeat(buildPayload(version, "full"), url).catch(() => {});
-          
-          // 定时心跳（5分钟）
-          setInterval(() => {
-            sendHeartbeat(buildPayload(version, "full"), url).catch(() => {});
-          }, 5 * 60 * 1000);
-        }
+        }, 5 * 60 * 1000);
       }
     } catch (err) {
       api.logger.error?.(`[yaoyao-memory] Registration failed: ${err instanceof Error ? err.message : String(err)}`);
