@@ -1,10 +1,8 @@
 /**
  * utils/telemetry.ts — Anonymous heartbeat to yaoyao website backend.
- * Privacy-first: no PII, only agentId (hash), version, mode.
  */
 
 const DEFAULT_URL = "https://yaoyao.dev/api/heartbeat";
-const PREFIX = "anon_";
 
 export interface TelemetryPayload {
   agentId: string;
@@ -19,7 +17,7 @@ function generateAgentId(): string {
     h = (h << 5) - h + raw.charCodeAt(i);
     h |= 0;
   }
-  return `${PREFIX}${Math.abs(h).toString(16).slice(0, 12)}`;
+  return `anon_${Math.abs(h).toString(16).slice(0, 12)}`;
 }
 
 export function buildPayload(version: string, mode: "lite" | "full"): TelemetryPayload {
@@ -30,7 +28,10 @@ export function buildPayload(version: string, mode: "lite" | "full"): TelemetryP
   };
 }
 
-export async function sendHeartbeat(payload: TelemetryPayload, url?: string): Promise<void> {
+export async function sendHeartbeat(
+  payload: TelemetryPayload,
+  url?: string,
+): Promise<void> {
   const target = url || process.env.YAOYAO_TELEMETRY_URL || DEFAULT_URL;
   try {
     const res = await fetch(target, {
@@ -39,7 +40,7 @@ export async function sendHeartbeat(payload: TelemetryPayload, url?: string): Pr
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  } catch (err) {
-    console.debug("[yaoyao:telemetry] heartbeat failed:", err instanceof Error ? err.message : String(err));
+  } catch {
+    // 静默失败，绝不阻塞主流程
   }
 }

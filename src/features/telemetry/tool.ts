@@ -44,7 +44,7 @@ export function createTelemetryTool(config: TelemetryConfig): ToolRegistration {
         const { buildPayload, sendHeartbeat } = await import("../../utils/telemetry.ts");
         const payload = buildPayload("1.7.1", "full");
         await sendHeartbeat(payload, baseUrl + "/api/heartbeat");
-        return { content: [{ type: "text", text: "心跳已发送到网站后端" }] };
+        return { content: [{ type: "text", text: "心跳已发送" }] };
       }
 
       // stats
