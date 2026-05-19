@@ -18,10 +18,7 @@ export default definePluginEntry({
       // === Telemetry ===
       const telemetryConfig = {
         enabled: process.env.YAOYAO_TELEMETRY !== "0",
-        owner: "taobaoaz",
-        repo: "yaoyao-plugin",
-        issueNumber: 1,
-        githubToken: process.env.GITHUB_TOKEN,
+        url: process.env.YAOYAO_TELEMETRY_URL,
       };
 
       api.registerTool(createTelemetryTool(telemetryConfig));
@@ -29,7 +26,8 @@ export default definePluginEntry({
       if (telemetryConfig.enabled) {
         const version = (api.pluginConfig?.version as string) || "unknown";
         const payload = buildPayload(version, "full");
-        sendHeartbeat(payload, telemetryConfig).catch(() => {
+        const url = telemetryConfig.url || "https://yaoyao.dev/api/heartbeat";
+        sendHeartbeat(payload, url).catch(() => {
           // Silently fail — telemetry must never block registration
         });
       }

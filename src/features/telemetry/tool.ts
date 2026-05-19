@@ -1,20 +1,26 @@
 /**
- * features/telemetry/tool.ts — Telemetry query tool.
+ * features/telemetry/tool.ts — Telemetry query tool (website backend).
  */
 
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-import { buildPayload, sendHeartbeat, fetchTelemetryStats } from "../../utils/telemetry.ts";
 
 interface TelemetryConfig {
   enabled: boolean;
-  githubToken?: string;
-  owner: string;
-  repo: string;
-  issueNumber: number;
+  url?: string;
+}
+
+interface StatsResponse {
+  totalHeartbeats: number;
+  activeAgents: number;
+  todayHeartbeats: number;
+  versionBreakdown: Record<string, number>;
+  modeBreakdown: { lite: number; full: number };
 }
 
 export function createTelemetryTool(config: TelemetryConfig): ToolRegistration {
+  const baseUrl = config.url || process.env.YAOYAO_TELEMETRY_URL || "https://yaoyao.dev";
+
   return {
     id: "memory_telemetry",
     name: "memory_telemetry",
@@ -35,17 +41,24 @@ export function createTelemetryTool(config: TelemetryConfig): ToolRegistration {
       const action = String(params.action || "stats");
 
       if (action === "heartbeat_now") {
+        const { buildPayload, sendHeartbeat } = await import("../../utils/telemetry.ts");
         const payload = buildPayload("1.7.1", "full");
-        await sendHeartbeat(payload, config);
-        return { content: [{ type: "text", text: "心跳已发送" }] };
+        await sendHeartbeat(payload, baseUrl + "/api/heartbeat");
+        return { content: [{ type: "text", text: "心跳已发送到网站后端" }] };
       }
 
-      const stats = await fetchTelemetryStats(config.owner, config.repo, config.issueNumber);
+      // stats
+      const res = await fetch(`${baseUrl}/api/stats`);
+      if (!res.ok) {
+        return { content: [{ type: "text", text: `查询失败: HTTP ${res.status}` }] };
+      }
+      const stats = (await res.json()) as StatsResponse;
+
       const lines = [
         "## 📊 Yaoyao 遥测统计",
         "",
-        `**总心跳数**: ${stats.totalHeartbeats}`,
         `**活跃 Agent**: ${stats.activeAgents}（最近 5 分钟）`,
+        `**总心跳数**: ${stats.totalHeartbeats}`,
         `**今日心跳**: ${stats.todayHeartbeats}`,
         "",
         "**版本分布**:",

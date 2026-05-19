@@ -108,10 +108,7 @@ export function registerMemoryTools(
     createCronTool(api),
     createTelemetryTool({
       enabled: process.env.YAOYAO_TELEMETRY !== "0",
-      owner: "taobaoaz",
-      repo: "yaoyao-plugin",
-      issueNumber: 1,
-      githubToken: process.env.GITHUB_TOKEN,
+      url: process.env.YAOYAO_TELEMETRY_URL,
     }),
 
     /* ── Conflict detection (v1.6.0) ── */
