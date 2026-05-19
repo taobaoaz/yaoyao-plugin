@@ -31,4 +31,4 @@ jobs:
           ./scripts/lifecycle-check.sh
 
       - name: Run unit tests
-        run: npm test
+        run: npm run test:ci

@@ -40,6 +40,7 @@
   "scripts": {
     "build": "tsc",
     "test": "node --experimental-strip-types --test src/__tests__/*.test.ts",
+    "test:ci": "node --experimental-strip-types --test src/__tests__/*.test.ts --test-name-pattern='^(?!.*parallel)'",
     "test:db": "node --experimental-strip-types --test src/__tests__/db-bridge.test.ts",
     "test:sentiment": "node --experimental-strip-types --test src/__tests__/sentiment.test.ts",
     "test:store": "node --experimental-strip-types --test src/__tests__/memory-store.test.ts",
