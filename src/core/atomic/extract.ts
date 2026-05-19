@@ -8,7 +8,7 @@ import type { AtomicFact, FactExtractionResult, ExtractionMode } from "./types.t
 
 const ENTITY_PATTERNS = [
   /([我你他她它]|用户|AI|助手|小摇摇|yaoyao)/gi,
-  /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g, // 专有名词
+  /([A-Z][a-zA-Z]*)/g, // 首字母大写的词（包括单字母I）
   /(\d{4}-\d{2}-\d{2})/g, // 日期
   /([\u4e00-\u9fa5]{2,6})/g, // 中文名词
 ];

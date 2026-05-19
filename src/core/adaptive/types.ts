@@ -2,13 +2,15 @@
  * core/adaptive/types.ts — Query classification and adaptive search types.
  */
 
-export enum QueryType {
-  CONCEPTUAL = "conceptual",  // 概念查询 → 语义搜索权重高
-  TEMPORAL = "temporal",      // 时序查询 → 时间衰减权重高
-  CAUSAL = "causal",          // 因果查询 → 图遍历权重高
-  ENTITY = "entity",          // 实体查询 → 实体匹配权重高
-  UNKNOWN = "unknown",      // 未知 → 均衡权重
-}
+export type QueryType = "conceptual" | "temporal" | "causal" | "entity" | "unknown";
+
+export const QueryType = {
+  CONCEPTUAL: "conceptual" as const,
+  TEMPORAL: "temporal" as const,
+  CAUSAL: "causal" as const,
+  ENTITY: "entity" as const,
+  UNKNOWN: "unknown" as const,
+};
 
 export interface QueryClassification {
   type: QueryType;
