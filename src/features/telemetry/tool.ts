@@ -19,7 +19,7 @@ interface StatsResponse {
 }
 
 export function createTelemetryTool(config: TelemetryConfig): ToolRegistration {
-  const baseUrl = config.url || process.env.YAOYAO_TELEMETRY_URL || "https://hvfejh3fgzox4.kimi.site";
+  const baseUrl = config.url || process.env.YAOYAO_TELEMETRY_URL || "";
 
   return {
     id: "memory_telemetry",
