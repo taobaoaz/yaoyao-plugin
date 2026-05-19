@@ -5,28 +5,28 @@
 import { QueryType, type QueryClassification } from "./types.ts";
 
 // Keyword triggers for each query type
-const TRIGGERS: Record<QueryType, string[]> = {
-  [QueryType.CONCEPTUAL]: [
+const TRIGGERS: Record<string, string[]> = {
+  conceptual: [
     "什么", "概念", "定义", "意思", "含义", "介绍", "解释",
     "what", "concept", "define", "meaning", "explain", "describe",
     "how does", "what is", "tell me about",
   ],
-  [QueryType.TEMPORAL]: [
+  temporal: [
     "什么时候", "时间", "日期", "之前", "之后", "最近", "上次", "下次",
     "when", "time", "date", "before", "after", "recent", "last", "next",
     "yesterday", "today", "tomorrow", "ago", "schedule",
   ],
-  [QueryType.CAUSAL]: [
+  causal: [
     "为什么", "原因", "导致", "因为", "所以", "结果", "影响",
     "why", "cause", "reason", "because", "result", "effect", "impact",
     "how come", "what caused", "lead to", "due to",
   ],
-  [QueryType.ENTITY]: [
+  entity: [
     "谁", "哪里", "哪个", "名称", "叫", "关于",
     "who", "where", "which", "name", "called", "about",
     "find", "search for", "look up",
   ],
-  [QueryType.UNKNOWN]: [],
+  unknown: [],
 };
 
 function countMatches(query: string, keywords: string[]): number {
@@ -39,20 +39,20 @@ function countMatches(query: string, keywords: string[]): number {
 }
 
 export function classifyQuery(query: string): QueryClassification {
-  const scores: Record<QueryType, number> = {
-    [QueryType.CONCEPTUAL]: 0,
-    [QueryType.TEMPORAL]: 0,
-    [QueryType.CAUSAL]: 0,
-    [QueryType.ENTITY]: 0,
-    [QueryType.UNKNOWN]: 0,
+  const scores: Record<string, number> = {
+    conceptual: 0,
+    temporal: 0,
+    causal: 0,
+    entity: 0,
+    unknown: 0,
   };
 
-  const matchedKeywords: Record<QueryType, string[]> = {
-    [QueryType.CONCEPTUAL]: [],
-    [QueryType.TEMPORAL]: [],
-    [QueryType.CAUSAL]: [],
-    [QueryType.ENTITY]: [],
-    [QueryType.UNKNOWN]: [],
+  const matchedKeywords: Record<string, string[]> = {
+    conceptual: [],
+    temporal: [],
+    causal: [],
+    entity: [],
+    unknown: [],
   };
 
   // Count matches for each type
@@ -68,7 +68,7 @@ export function classifyQuery(query: string): QueryClassification {
   }
 
   // Find best match
-  let bestType = QueryType.UNKNOWN;
+  let bestType: QueryType = QueryType.UNKNOWN;
   let bestScore = 0;
 
   for (const [type, score] of Object.entries(scores)) {

@@ -25,14 +25,53 @@ export default definePluginEntry({
 
       // === XiaoYi Claw Adaptations ===
       if (isXiaoYi) {
-        api.logger.info?.("[yaoyao-memory] XiaoYi Claw mode — enabling compatibility layer");
+        api.logger.info?.("[yaoyao-memory] XiaoYi Claw mode — enabling v4.3 compatibility layer");
         
-        // Lazy load XiaoYi adapter
-        import("./xiaoyi-adapter.ts").then(({ getAdaptedApi }) => {
-          const adapted = getAdaptedApi(api);
+        import("./xiaoyi-adapter.ts").then(({ getAdaptedApiExtended }) => {
+          const adapted = getAdaptedApiExtended(api);
           api.logger.info?.(`[yaoyao-memory] Using ${adapted.type} adapter`);
-        }).catch(() => {
-          api.logger.error?.("[yaoyao-memory] Failed to load XiaoYi adapter");
+          
+          // Register as ContextEngine if available (v4.3+)
+          if (adapted.contextEngine) {
+            const registered = adapted.contextEngine.register({
+              onCapture: async (ctx) => {
+                // Memory capture after each turn
+                api.logger.info?.("[yaoyao-memory] ContextEngine ingest");
+              },
+              onRecall: async (ctx) => {
+                // Memory recall before prompt build
+                api.logger.info?.("[yaoyao-memory] ContextEngine assemble");
+                return [];
+              },
+              onCompact: async (ctx) => {
+                // Custom compaction
+                api.logger.info?.("[yaoyao-memory] ContextEngine compact");
+              },
+            });
+            
+            if (registered) {
+              api.logger.info?.("[yaoyao-memory] ContextEngine registered (ownsCompaction=true)");
+            }
+          }
+          
+          // Setup UDS memory client if available
+          if (adapted.uds) {
+            api.logger.info?.(`[yaoyao-memory] UDS RPC connected (latency: ${adapted.uds.ping()}ms)`);
+          }
+          
+          // Subscribe to ZMQ events if available
+          if (adapted.zmq) {
+            adapted.zmq.subscribe({
+              onIngest: (data) => {
+                api.logger.info?.("[yaoyao-memory] ZMQ ingest event received");
+              },
+              onCompact: (data) => {
+                api.logger.info?.("[yaoyao-memory] ZMQ compact event received");
+              },
+            });
+          }
+        }).catch((e) => {
+          api.logger.error?.(`[yaoyao-memory] Failed to load XiaoYi adapter: ${e}`);
         });
       }
 
