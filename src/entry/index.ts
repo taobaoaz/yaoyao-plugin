@@ -25,11 +25,15 @@ export default definePluginEntry({
 
       // === XiaoYi Claw Adaptations ===
       if (isXiaoYi) {
-        // 小艺 Claw 特定适配
         api.logger.info?.("[yaoyao-memory] XiaoYi Claw mode — enabling compatibility layer");
         
-        // 小艺 Claw 可能有不同的 hook 系统，需要适配
-        // 这里可以添加特定适配代码
+        // Lazy load XiaoYi adapter
+        import("./xiaoyi-adapter.ts").then(({ getAdaptedApi }) => {
+          const adapted = getAdaptedApi(api);
+          api.logger.info?.(`[yaoyao-memory] Using ${adapted.type} adapter`);
+        }).catch(() => {
+          api.logger.error?.("[yaoyao-memory] Failed to load XiaoYi adapter");
+        });
       }
 
       // === Telemetry ===
