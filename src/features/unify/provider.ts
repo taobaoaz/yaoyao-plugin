@@ -7,25 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { createCompatDB } from "../../storage/bridge.ts";
-import type { SQLiteRow } from "../../storage/bridge.ts";
-
-function getOpenClawMemoryDir() {
-  return path.join(os.homedir(), ".openclaw", "memory");
-}
-
-export function queryOpenClawDB(sql: string, params?: unknown[]): SQLiteRow[] | null {
-  const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");
-  try { if (!fs.existsSync(dbPath)) return null; } catch { return null; }
-  try {
-    const { db } = createCompatDB(dbPath);
-    const rows = db.prepare(sql).all(...(params || []));
-    db.close();
-    return rows as SQLiteRow[];
-  } catch {
-    return null;
-  }
-}
+import { queryOpenClawDB, type SQLiteRow } from "../../storage/external-oc.ts";
 
 export function readDreams(memoryDir: string) {
   const result = { events: [] as unknown[], shortTermRecall: null as unknown };
@@ -45,6 +27,8 @@ export function readDreams(memoryDir: string) {
   } catch { /* best effort */ }
   return result;
 }
+
+export { queryOpenClawDB } from "../../storage/external-oc.ts";
 
 export function getYaoyaoDbPath(memoryDir: string): string {
   return path.join(memoryDir, ".yaoyao.db");

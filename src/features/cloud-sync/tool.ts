@@ -20,6 +20,7 @@ import {
   doDownload,
   doBidirectional,
   TEMPLATE,
+  type SyncResult,
 } from "./provider.ts";
 
 export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
@@ -121,7 +122,7 @@ export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
 
       for (const adapter of configuredAdapters) {
         try {
-          let syncResult: any;
+          let syncResult: SyncResult | undefined;
           switch (action) {
             case "upload":
               syncResult = await doUpload(adapter, store, options, state.lastSync);

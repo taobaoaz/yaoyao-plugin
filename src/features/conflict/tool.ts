@@ -15,7 +15,6 @@ import { VALID_RELATIONS, formatRelation, formatJudgeResult } from "./formatter.
  * memory_judge — Judge a conflict between two memories.
  */
 export function createJudgeTool(db: DBBridge): ToolRegistration {
-  const rawDb = db.getRawDb();
   return {
     id: "memory_judge",
     name: "memory_judge",
@@ -56,12 +55,11 @@ export function createJudgeTool(db: DBBridge): ToolRegistration {
       const judgedAt = new Date().toISOString();
 
       // Store in the target memory's meta field
-      const sql = "SELECT meta FROM memory_meta WHERE id = ?";
-      const existing = rawDb.prepare(sql).get(memoryId) as { meta: string | null } | undefined;
+      const metaRaw = db.getMemoryMeta(memoryId);
 
       let meta: Record<string, unknown> = {};
-      if (existing?.meta) {
-        try { meta = JSON.parse(existing.meta); } catch { meta = {}; }
+      if (metaRaw) {
+        try { meta = JSON.parse(metaRaw); } catch { meta = {}; }
       }
 
       const relationsArray: Array<Record<string, unknown>> = Array.isArray(meta.relations)
@@ -71,7 +69,7 @@ export function createJudgeTool(db: DBBridge): ToolRegistration {
 
       relationsArray.push({ relation: typedRelation, reason, evidence: evidence || undefined, judgedAt });
 
-      rawDb.prepare("UPDATE memory_meta SET meta = ? WHERE id = ?").run(JSON.stringify(meta), memoryId);
+      db.updateMetadata(memoryId, JSON.stringify(meta));
 
       return {
         content: [{
@@ -87,7 +85,6 @@ export function createJudgeTool(db: DBBridge): ToolRegistration {
  * memory_conflicts — List or scan conflict relations.
  */
 export function createConflictsTool(db: DBBridge): ToolRegistration {
-  const rawDb = db.getRawDb();
   return {
     id: "memory_conflicts",
     name: "memory_conflicts",
@@ -112,11 +109,7 @@ export function createConflictsTool(db: DBBridge): ToolRegistration {
       const limit = Math.min(Math.max(Number(params.limit ?? 20), 1), 100);
 
       if (action === "list") {
-        const rows = rawDb.prepare(
-          "SELECT id, date, user_text, meta FROM memory_meta " +
-          "WHERE meta IS NOT NULL AND json_extract(meta, '$.relations') IS NOT NULL " +
-          "ORDER BY id DESC LIMIT ?"
-        ).all(limit) as Array<{ id: number; date: string; user_text: string | null; meta: string }>;
+        const rows = db.searchByMetaRelations(limit);
 
         if (rows.length === 0) {
           return { content: [{ type: "text", text: "📋 当前没有已裁决的冲突关系。" }] };

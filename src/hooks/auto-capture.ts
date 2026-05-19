@@ -11,75 +11,23 @@ import { clampNum } from "../utils/clamp.ts";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import type { DBBridge } from "../utils/db-bridge.ts";
-import { getObj, getProp, getBool } from "../utils/config.ts";
+import { getProp, getBool } from "../utils/config.ts";
 import { appendSelfImprovementEntry } from "../utils/self-improvement.ts";
 import { compressTexts } from "../utils/session-compressor.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
 import { createWriteQueue } from "../utils/write-queue.ts";
 import { createCaptureDebouncer, type CaptureDebouncer } from "../utils/capture-debouncer.ts";
 import { DedupEngine } from "../utils/dedup-engine.ts";
-import { evaluateWatermark } from "./capture-watermark.ts";
-import { shouldCaptureTurn, trackSessionActivity } from "./capture-filter.ts";
-import { extractContent } from "./capture-content.ts";
 import {
+  shouldCaptureTurn, trackSessionActivity,
   getCaptureConfig, buildCaptureContext, estimateConversation,
-  shouldSkipContent, runAntiHallucination, buildMetaObj,
-  indexToFTS5, handleMermaidOffload,
-} from "./capture-pipeline.ts";
+  shouldSkipContent, handleMermaidOffload,
+  runAntiHallucination, buildMetaObj,
+  evaluateWatermark,
+  createPersistHandlers,
+} from "./capture-barrel.ts";
 
 export { extractContent, safeStringify } from "./capture-content.ts";
-
-// ── Write queue per persistence layer ──
-
-interface WriteResult {
-  rowId: number;
-  text: string;
-  meta?: string;
-}
-
-function createPersistHandlers(
-  api: OpenClawPluginApi,
-  db: DBBridge,
-  store: MemoryStore,
-  embedding?: import("../utils/embedding.ts").EmbeddingService | null,
-) {
-  return {
-    /** Write L0 markdown + L1 FTS5 + L2 vector in one async batch */
-    flushBatch: async (tasks: Array<{
-      userContent: string;
-      asstContent: string;
-      date: string;
-      meta?: string;
-    }>) => {
-      const rows: WriteResult[] = [];
-      for (const task of tasks) {
-        try {
-          const rowId = db.indexTurn(task.userContent, task.asstContent, task.date, task.meta);
-          if (rowId > 0 && embedding) {
-            rows.push({ rowId, text: `${task.userContent}\n${task.asstContent}`, meta: task.meta });
-          }
-        } catch (e2: unknown) {
-          api.logger.error?.(`[yaoyao-memory:persist] indexTurn failed: ${e2 instanceof Error ? e2.message : String(e2)}`);
-        }
-      }
-      if (rows.length > 0 && embedding) {
-        try {
-          const vectors = await embedding.embedBatch(rows.map(r => r.text));
-          for (let i = 0; i < rows.length; i++) {
-            if (vectors && vectors[i]) db.storeVector(rows[i].rowId, vectors[i]);
-          }
-        } catch (e2: unknown) {
-          api.logger.debug?.(`[yaoyao-memory:persist] Batch vector store failed: ${e2 instanceof Error ? e2.message : String(e2)}`);
-        }
-      }
-    },
-
-    /** Write L0 markdown file entry only (safety net, always runs first) */
-    writeDailyEntry: (date: string, entry: string) => {
-      store.appendToDaily(date, entry);
-    },
-  };
-}
 
 export function registerCaptureHook(
   api: OpenClawPluginApi,

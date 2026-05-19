@@ -19,56 +19,16 @@ import { createCompatDB, type UnifiedDB, type DBCompatResult } from "../platform
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import { ensureSchema } from "./schema.ts";
-import { createFtsEngine, type FtsEngine } from "./fts.ts";
-import { createVectorStore, type VectorStore } from "./vector-store.ts";
-import { createHybridSearch, type HybridSearch } from "./hybrid.ts";
-import type { SearchResult, EmbeddedSearchResult, DBStats } from "./types.ts";
+import { createFtsEngine, type FtsEngine, createVectorStore, type VectorStore, createHybridSearch, type HybridSearch } from "./engine-barrel.ts";
+import type { SearchResult, EmbeddedSearchResult } from "./types.ts";
+import * as hybridHelpers from "./hybrid-helpers.ts";
+import { setupWAL, setLoggerRef } from "./wal-setup.ts";
+import { createQueryApi } from "./query-api.ts";
 
-export type { SearchResult, EmbeddedSearchResult, DBStats };
+export type { SearchResult, EmbeddedSearchResult, DBStats } from "./types.ts";
 export type { UnifiedDB, SQLiteRow } from "../platform/db/types.ts";
 export { createCompatDB } from "../platform/db/compat.ts";
 
-/** Compute a normalized score from FTS5 rank (negative = better) */
-function computeScore(rank: number | null | undefined): number {
-  const r = Number(rank);
-  if (!Number.isFinite(r)) return 0.3;
-  if (r < 0) return Math.min(1, Math.max(0.1, -r / 15));
-  return 0.3;
-}
-
-// ── WAL setup (extracted from db-bridge.ts) ──
-
-function setupWAL(db: UnifiedDB, dbPath: string, dbBackend: DBCompatResult, log: (msg: string) => void): void {
-  if (dbBackend.backend === "file-db") return;
-  try {
-    db.exec("PRAGMA journal_mode = WAL");
-    const mode = db.prepare("PRAGMA journal_mode").get() as Record<string, unknown> | undefined;
-    const walEnabled = String(mode?.journal_mode) === "wal" || String(mode) === "wal";
-    if (!walEnabled) {
-      log("WAL mode not supported by filesystem, continuing with default journal mode");
-    }
-  } catch (e: unknown) {
-    if ((e as Error).message?.includes("disk I/O")) {
-      log("Stale WAL files detected, cleaning up");
-      try { db.close(); } catch { /* ignore */ }
-      db = null as unknown as UnifiedDB; // won't be used, re-created after
-      for (const ext of ["-wal", "-shm"]) {
-        try { fs.unlinkSync(dbPath + ext); } catch { /* ignore */ }
-      }
-      // Re-connect
-      const newBackend = createCompatDB(dbPath, { allowExtension: true }, loggerRef);
-      Object.assign(db, newBackend.db); // swap ref
-      try { newBackend.db.exec("PRAGMA journal_mode = WAL"); } catch { log("WAL recovery failed"); }
-    } else {
-      log(`WAL setup failed: ${(e as Error).message}`);
-    }
-  }
-  try { db.exec("PRAGMA busy_timeout = 5000"); } catch { /* ignore */ }
-  try { db.exec("PRAGMA cache_size = -65536"); } catch { /* ignore */ }
-}
-
-// Mutable logger ref for WAL recovery callback
-let loggerRef: PluginLogger | undefined;
 
 export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   const baseDir = path.resolve(
@@ -76,7 +36,7 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
   );
   if (/[\x00-\x1f]/.test(baseDir)) throw new TypeError("memoryDir contains invalid control characters");
 
-  loggerRef = logger;
+  setLoggerRef(logger);
   const dbPath = path.join(baseDir, ".yaoyao.db");
   const log = (msg: string) => logger?.debug?.(`[yaoyao:storage] ${msg}`);
 
@@ -143,6 +103,8 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
 
   // ── Public API (mirrors DBBridge interface for backward compat) ──
 
+  const queryApi = createQueryApi(ensureDB, vector);
+
   return {
     init,
 
@@ -163,22 +125,11 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
     },
 
     hybridSearch(query: string, embedding: Float32Array | null, limit: number = 10): EmbeddedSearchResult[] {
-      const ftsResults = this.search(query, limit);
-      if (!embedding || ftsResults.length === 0) {
-        return ftsResults.map(r => ({ ...r, vectorScore: 0, hybridScore: (r.score ?? 0) * 0.6 }));
-      }
-      const vecResults = this.vectorSearch(embedding, limit);
-      return hybrid!.weighted(ftsResults, vecResults, limit);
+      return hybridHelpers.hybridSearch(ensureDB(), query, embedding, limit, fts!, vector!, hybrid!);
     },
 
     rrfHybridSearch(query: string, embedding: Float32Array | null, limit: number = 10, k = 60): EmbeddedSearchResult[] {
-      const overfetchLimit = limit * 2;
-      const ftsResults = this.search(query, overfetchLimit);
-      if (!embedding || ftsResults.length === 0) {
-        return ftsResults.slice(0, limit).map(r => ({ ...r, vectorScore: 0, hybridScore: r.score }));
-      }
-      const vecResults = this.vectorSearch(embedding, overfetchLimit);
-      return hybrid!.rrf(ftsResults, vecResults, limit);
+      return hybridHelpers.rrfHybridSearch(ensureDB(), query, embedding, limit, k, fts!, vector!, hybrid!);
     },
 
     storeVector(metaId: number, embedding: Float32Array): boolean {
@@ -209,30 +160,6 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       return fts!.searchAll(ensureDB(), limit);
     },
 
-    getStats(): DBStats {
-      try {
-        const d = ensureDB();
-        const totalCount = d.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as { c: number } | undefined;
-        const total = totalCount?.c ?? 0;
-        const datesRaw = d.prepare(
-          "SELECT date, COUNT(*) as c FROM memory_meta GROUP BY date ORDER BY date DESC LIMIT 10"
-        ).all() as Array<{ date: string; c: number }>;
-        let vecCount = 0;
-        let dims = 0;
-        try { vecCount = vector?.count() ?? 0; dims = vector?.dimensions() ?? 0; } catch { /* ignore */ }
-        return {
-          totalMemories: total,
-          datesSummary: datesRaw.map(r => ({ date: r.date, count: r.c })),
-          ftsEnabled: true,
-          vecEnabled: vector?.isAvailable ?? false,
-          totalVectors: vecCount,
-          dimensions: dims,
-        };
-      } catch {
-        return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
-      }
-    },
-
     getLocalDate(tz?: string): string {
       try {
         return new Date().toLocaleDateString("sv-SE", { timeZone: tz || "Asia/Shanghai" });
@@ -255,60 +182,10 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       return ensureDB();
     },
 
-    /** Get all tags from memory_tags table */
-    getAllTags(): Array<{ tag: string; memory_id: number }> {
-      try {
-        const rows = ensureDB().prepare("SELECT tag, memory_id FROM memory_tags").all() as Array<{ tag: string; memory_id: number }>;
-        return rows;
-      } catch { return []; }
-    },
-
-    /** Get all meta entries */
-    getAllMeta(): Array<{ id: number; filename: string }> {
-      try {
-        const rows = ensureDB().prepare("SELECT id, date FROM memory_meta").all() as Array<{ id: number; date: string }>;
-        return rows.map(r => ({ id: r.id, filename: r.date ? `${r.date}.md` : `${r.id}.md` }));
-      } catch { return []; }
-    },
-
-    /** Config key-value store */
-    getConfig(key: string, defaultValue?: string | null): string | null {
-      try {
-        const d = ensureDB();
-        const row = d.prepare("SELECT value FROM memory_config WHERE key = ?").get(key) as { value: string } | undefined;
-        return row ? row.value : (defaultValue ?? null);
-      } catch { return defaultValue ?? null; }
-    },
-
-    setConfig(key: string, value: string): void {
-      try {
-        ensureDB().prepare("INSERT OR REPLACE INTO memory_config (key, value) VALUES (?, ?)").run(key, value);
-      } catch { /* best effort */ }
-    },
-
-    updateMetadata(id: number, metadata: string): void {
-      try {
-        ensureDB().prepare("UPDATE memory_meta SET meta = ? WHERE id = ?").run(metadata, id);
-      } catch { /* best effort */ }
-    },
-
-    incrementAccessCount(id: number): void {
-      try {
-        const d = ensureDB();
-        const row = d.prepare("SELECT access_count, tier, importance FROM memory_meta WHERE id = ?").get(id) as {
-          access_count: number; tier: string; importance: number } | undefined;
-        if (!row) return;
-        const newCount = (row.access_count || 0) + 1;
-        let newTier = row.tier || "active";
-        if (newCount >= 10 && (row.importance || 0) >= 0.8) newTier = "core";
-        else if (newCount >= 3) newTier = "working";
-        d.prepare("UPDATE memory_meta SET access_count = ?, tier = ? WHERE id = ?")
-          .run(newCount, newTier, id);
-      } catch { /* best effort */ }
-    },
-
     /** Backward-compat alias */
     dbPath,
+
+    ...queryApi,
   };
 }
 

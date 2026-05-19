@@ -27,23 +27,11 @@ export function stripResetSuffix(fileName: string): string {
   return beforeReset;
 }
 
-function deriveOpenClawHomeFromWorkspacePath(workspacePath: string): string | undefined {
-  const normalized = workspacePath.trim().replace(/[\\/]+$/, "");
-  if (!normalized) return undefined;
-  const matched = normalized.match(/^(.*?)[\\/]workspace(?:[\\/].*)?$/);
-  if (!matched || !matched[1]) return undefined;
-  const home = matched[1].trim();
-  return home.length ? home : undefined;
-}
+import { deriveOpenClawHomeFromWorkspacePath, deriveOpenClawHomeFromSessionFilePath } from "./session-recovery-paths.ts";
+import { readCrossSessionMemories } from "./session-recovery-read.ts";
 
-function deriveOpenClawHomeFromSessionFilePath(sessionFilePath: string): string | undefined {
-  const normalized = sessionFilePath.trim();
-  if (!normalized) return undefined;
-  const matched = normalized.match(/^(.*?)[\\/]agents[\\/][^\\/]+[\\/]sessions(?:[\\/][^\\/]+)?$/);
-  if (!matched || !matched[1]) return undefined;
-  const home = matched[1].trim();
-  return home.length ? home : undefined;
-}
+export { readCrossSessionMemories };
+export type { CrossSessionMemory } from "./session-recovery-read.ts";
 
 function listConfiguredAgentIds(cfg: unknown): string[] {
   try {
@@ -156,60 +144,4 @@ export function resolveSessionSearchDirs(params: SessionSearchParams): string[] 
   }
 
   return out;
-}
-
-/**
- * Read recent memories from other sessions for context restoration.
- * Returns { text, source, timestamp } tuples sorted by recency.
- */
-export interface CrossSessionMemory {
-  text: string;
-  source: string; // e.g. "agent:main:session:abc123"
-  timestamp: number;
-}
-
-export function readCrossSessionMemories(
-  searchDirs: string[],
-  options: { maxMemories?: number; maxAgeMs?: number } = {},
-): CrossSessionMemory[] {
-  const { maxMemories = 20, maxAgeMs = 7 * 24 * 60 * 60 * 1000 } = options;
-  const now = Date.now();
-  const results: CrossSessionMemory[] = [];
-
-  for (const dir of searchDirs) {
-    try {
-      if (!existsSync(dir)) continue;
-      const files = readdirSync(dir).filter((f: string) => f.endsWith(".json") || f.endsWith(".jsonl"));
-      for (const file of files) {
-        const filePath = join(dir, file);
-        try {
-          const content = readFileSync(filePath, "utf8");
-          const lines = content.split("\n").filter((l: string) => l.trim());
-          for (const line of lines.slice(-10)) {
-            try {
-              const entry = JSON.parse(line) as Record<string, unknown>;
-              const text = asNonEmptyString(entry.text || entry.content);
-              const ts = typeof entry.timestamp === "number" ? entry.timestamp : now;
-              if (text && now - ts < maxAgeMs) {
-                results.push({
-                  text,
-                  source: `session:${stripResetSuffix(file)}`,
-                  timestamp: ts,
-                });
-              }
-            } catch {
-              // skip malformed lines
-            }
-          }
-        } catch {
-          // skip unreadable files
-        }
-      }
-    } catch {
-      // skip inaccessible dirs
-    }
-  }
-
-  results.sort((a, b) => b.timestamp - a.timestamp);
-  return results.slice(0, maxMemories);
 }

@@ -142,13 +142,7 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
       // 批量写入去重 hash，减少 WAL 频繁 checkpoint
       if (newHashes.length > 0) {
         try {
-          const rawDb = db.getRawDb();
-          rawDb.exec("BEGIN TRANSACTION");
-          const stmt = rawDb.prepare("INSERT OR REPLACE INTO memory_config (key, value) VALUES (?, ?)");
-          for (const h of newHashes) {
-            stmt.run(h.key, h.value);
-          }
-          rawDb.exec("COMMIT");
+          db.batchSetConfig(newHashes.map(h => ({ key: h.key, value: h.value })));
         } catch {
           // 批量写入失败不阻断主流程，下次导入时 hash 检查会重新处理
         }

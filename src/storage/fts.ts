@@ -6,6 +6,8 @@
  */
 import type { UnifiedDB } from "../platform/db/types.ts";
 import type { SearchResult, FtsRow, LikeRow } from "./types.ts";
+import { rankToScore, sanitizeFTSQuery } from "./fts-utils.ts";
+import { extractCjkBigrams } from "./fts-cjk.ts";
 
 /** Configurable limits */
 export interface FtsConfig {
@@ -19,27 +21,6 @@ const DEFAULT_FTS_CONFIG: FtsConfig = {
   searchMaxLimit: 100,
   likeFallbackScore: 0.5,
 };
-
-/** Normalize FTS5 rank (negative = better) to a [0,1] score */
-function rankToScore(rank: number | null | undefined): number {
-  const r = Number(rank);
-  if (!Number.isFinite(r)) return 0.3;
-  if (r < 0) return Math.min(1, Math.max(0.1, -r / 15));
-  return 0.3;
-}
-
-/** Sanitize query for FTS5 MATCH syntax. */
-function sanitizeFTSQuery(query: string): string {
-  let s = query
-    .replace(/["^`()~]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 200);
-  if (!s) return "";
-  s = s.replace(/(^|\s)\*+(?=\s|$)/g, "$1")
-       .replace(/\*{2,}/g, "*");
-  return s.trim();
-}
 
 export function createFtsEngine(config?: Partial<FtsConfig>) {
   const cfg = { ...DEFAULT_FTS_CONFIG, ...config };
@@ -104,9 +85,6 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
         .replace(/\\/g, '\\\\')
         .replace(/%/g, '\\%')
         .replace(/_/g, '\\_');
-      // FTS5 miss → LIKE fallback with CJK bigram expansion
-      // Local memory system pattern: for short CJK queries (trigram FTS requires >=3 chars),
-      // extract 2-char sliding windows and OR them in LIKE conditions.
       const cjkBigrams = extractCjkBigrams(query);
       const likeTerms = cjkBigrams.length > 0 ? cjkBigrams : [safeLikeQuery];
 
@@ -116,7 +94,6 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
          ORDER BY id DESC LIMIT ?`
       );
 
-      // If bigrams exist, try each one and dedup results
       const seenIds = new Set<number>();
       const likeRows: LikeRow[] = [];
       for (const term of likeTerms) {
@@ -163,7 +140,6 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
 
     /** Schedule FTS5 rebuild (deferred batch). */
     scheduleRebuild(db: UnifiedDB): void {
-      // Best-effort; caller must handle debounce
       try {
         db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
       } catch { /* best effort */ }
@@ -196,34 +172,3 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
 }
 
 export type FtsEngine = ReturnType<typeof createFtsEngine>;
-
-/**
- * Extract CJK bigrams (2-character sliding windows) from query.
- * Local memory system pattern: for short CJK queries that FTS5's trigram minimum
- * can't match, fall back to LIKE with bigram expansion.
- *
- * Example: "唐波是谁" → ["唐波", "波是", "是谁"]
- * Only yields bigrams that contain at least one CJK character.
- */
-function extractCjkBigrams(query: string): string[] {
-  const bigrams: string[] = [];
-  const safe = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-  for (let i = 0; i < safe.length - 1; i++) {
-    const pair = safe.slice(i, i + 2);
-    // Check if at least one char is CJK
-    let hasCjk = false;
-    for (let j = 0; j < pair.length; j++) {
-      const cp = pair.charCodeAt(j);
-      if ((cp >= 0x4E00 && cp <= 0x9FFF) ||
-          (cp >= 0x3400 && cp <= 0x4DBF) ||
-          (cp >= 0xF900 && cp <= 0xFAFF) ||
-          (cp >= 0x2E80 && cp <= 0x2EFF) ||
-          cp === 0x3005 || cp === 0x3006) {
-        hasCjk = true;
-        break;
-      }
-    }
-    if (hasCjk) bigrams.push(pair);
-  }
-  return bigrams;
-}

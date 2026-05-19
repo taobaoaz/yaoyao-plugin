@@ -46,11 +46,9 @@ export function createStatsTool(store: MemoryStore, db: DBBridge): ToolRegistrat
       let tagCount = 0;
       let uniqueTags = 0;
       try {
-        const rawDb = db.getRawDb();
-        const tagRow = rawDb.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as { c: number } | undefined;
-        tagCount = tagRow?.c || 0;
-        const uniqueRow = rawDb.prepare("SELECT COUNT(DISTINCT tag) as c FROM memory_tags").get() as { c: number } | undefined;
-        uniqueTags = uniqueRow?.c || 0;
+        const tagStats = db.countTags();
+        tagCount = tagStats.total;
+        uniqueTags = tagStats.unique;
       } catch { /* tags table may not exist */ }
 
       // Retrieval stats from Brain-style collector

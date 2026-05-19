@@ -46,7 +46,8 @@ import { createMultiSignalSearchTool } from "../features/multi-signal/tool.ts";
 /* ── Structured MemoryCall search style ─── */
 import { createMemoryCallTool } from "../features/memory-call/tool.ts";
 
-/* ── Import ────────────────────────────────────────── */
+/* ── Cron management (v1.6.0+) ───────────────────── */
+import { createCronTool } from "../features/cron/tool.ts";
 import { createImportTool } from "../features/import/tool.ts";
 import { createImportOCTool } from "../features/import-oc/tool.ts";
 import { createImportWorkspaceTool } from "../features/import-workspace/tool.ts";
@@ -101,6 +102,7 @@ export function registerMemoryTools(
     createRecommendTool(db, store.baseDir),
     createRemindTool(),
     createHealthcheckTool(),
+    createCronTool(api),
 
     /* ── Conflict detection (v1.6.0) ── */
     createJudgeTool(db),

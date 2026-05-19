@@ -4,25 +4,8 @@
  * Pure local rule-based fact-checking against text snippets.
  * No LLM calls. Hybrid scoring: Chinese char overlap + English word Jaccard.
  */
-
-/** Speculative language markers that indicate low-confidence AI output */
-export const SPECULATIVE_MARKERS = [
-  "我认为", "我觉得", "我猜", "我推测", "我假设",
-  "可能", "也许", "大概", "或许", "说不定",
-  "应该", "似乎", "好像", "看起来", "据我了解",
-  "不确定", "不太确定", "我不确定",
-  "I think", "I guess", "I suppose", "maybe", "perhaps",
-  "probably", "likely", "seems", "appears", "I assume",
-  "not sure", "uncertain", "I believe",
-];
-
-/** User correction markers that dispute AI claims */
-export const CORRECTION_MARKERS = [
-  "不对", "错了", "不是", "没有", "不准确", "不完全",
-  "你记错了", "你说错了", "并非如此", "不完全是",
-  "no", "wrong", "incorrect", "not exactly", "that's not",
-  "you're wrong", "not true", "false",
-];
+import { SPECULATIVE_MARKERS, CORRECTION_MARKERS } from "./verify-markers.ts";
+import { hybridOverlap, extractKeywords, hasNegation } from "./verify-text.ts";
 
 /** Detect speculative language in text */
 export function detectSpeculative(text: unknown): {
@@ -90,7 +73,6 @@ export function scoreEvidence(
     };
   }
 
-  // Defensive: validate snippets array structure
   let validSnippets: Array<{ snippet: string; filename: string }> = [];
   if (Array.isArray(snippets)) {
     validSnippets = snippets.filter(
@@ -118,7 +100,6 @@ export function scoreEvidence(
   const top = scored[0];
   const highOverlap = scored.filter(s => s.overlap > 0.3);
 
-  // Contradiction detection FIRST
   const negationInClaim = hasNegation(claim);
   const negationInTop = hasNegation(top.snippet);
   if (negationInClaim !== negationInTop && top.overlap > 0.25) {
@@ -158,77 +139,4 @@ export function scoreEvidence(
     evidence: scored.slice(0, 3),
     reasoning,
   };
-}
-
-/** Hybrid overlap: Chinese character inclusion + English word Jaccard */
-function hybridOverlap(claim: string, snippet: string): number {
-  const claimChars = new Set(claim.match(/[\u4e00-\u9fff]/g) || []);
-  const snippetChars = new Set(snippet.match(/[\u4e00-\u9fff]/g) || []);
-  let charMatches = 0;
-  for (const ch of claimChars) {
-    if (snippetChars.has(ch)) charMatches++;
-  }
-  const charScore = claimChars.size > 0 ? charMatches / claimChars.size : 0;
-
-  const claimWords = extractKeywords(claim).filter(w => /[a-z]/.test(w));
-  const snippetWords = extractKeywords(snippet).filter(w => /[a-z]/.test(w));
-  let wordScore = 0;
-  if (claimWords.length > 0 && snippetWords.length > 0) {
-    const setA = new Set(claimWords);
-    const setB = new Set(snippetWords);
-    const intersection = new Set([...setA].filter(x => setB.has(x)));
-    const union = new Set([...setA, ...setB]);
-    wordScore = union.size === 0 ? 0 : intersection.size / union.size;
-  }
-
-  if (claimWords.length === 0) return charScore;
-  if (claimChars.size === 0) return wordScore;
-  return charScore * 0.6 + wordScore * 0.4;
-}
-
-/** Extract meaningful keywords from text */
-function extractKeywords(text: string): string[] {
-  const stopwords = new Set([
-    "的", "了", "是", "在", "我", "有", "和", "就", "不", "人",
-    "都", "一", "一个", "上", "也", "很", "到", "说", "要", "去",
-    "你", "会", "着", "没有", "看", "好", "自己", "这", "那",
-    "the", "a", "an", "is", "are", "was", "were", "be", "been",
-    "have", "has", "had", "do", "does", "did", "will", "would",
-    "could", "should", "may", "might", "can", "this", "that",
-    "these", "those", "i", "you", "he", "she", "it", "we", "they",
-    "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    "as", "into", "through", "during", "before", "after",
-    "above", "below", "between", "under", "again", "further",
-    "then", "once", "here", "there", "when", "where", "why",
-    "how", "all", "each", "few", "more", "most", "other", "some",
-    "such", "no", "nor", "not", "only", "own", "same", "so",
-    "than", "too", "very", "just", "now",
-  ]);
-
-  const lower = text.toLowerCase();
-  const tokens: string[] = [];
-
-  const chineseChars = lower.match(/[\u4e00-\u9fff]/g) || [];
-  for (const ch of chineseChars) {
-    if (!stopwords.has(ch)) tokens.push(ch);
-  }
-  for (let i = 0; i < chineseChars.length - 1; i++) {
-    const bigram = chineseChars[i] + chineseChars[i + 1];
-    if (!stopwords.has(bigram)) tokens.push(bigram);
-  }
-
-  const words = lower
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(w => w.length >= 2 && !stopwords.has(w));
-  tokens.push(...words);
-
-  return tokens;
-}
-
-/** Detect negation in text */
-function hasNegation(text: string): boolean {
-  const negations = ["不", "没", "无", "未", "别", "莫", "否", "非", "no", "not", "never", "none", "without", "don't", "doesn't", "didn't", "won't", "can't", "isn't", "aren't", "wasn't", "weren't", "haven't", "hasn't", "hadn't"];
-  const lower = text.toLowerCase();
-  return negations.some(n => lower.includes(n.toLowerCase()));
 }

@@ -1,59 +1,12 @@
 /**
- * core/graph/graph.ts — Pure graph building algorithms, zero platform awareness.
+ * core/graph/graph.ts — Pure graph building algorithm.
+ *
+ * Types and formatter live in sibling modules.
  */
-
-export interface GraphNode {
-  id: string;
-  label: string;
-  type: "memory" | "scene" | "tag" | "date";
-  snippet: string;
-  score: number;
-  degree: number;
-  date: string;
-  tags?: string[];
-}
-
-export interface GraphEdge {
-  source: string;
-  target: string;
-  relation: string;
-  weight: number;
-  detail?: string;
-}
-
-export interface GraphResult {
-  query: string;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  stats: {
-    totalNodes: number;
-    totalEdges: number;
-    avgDegree: number;
-    maxDegree: number;
-    clusterCoeff: number;
-    connectionDensity: string;
-  };
-}
-
-export interface SceneData {
-  name: string;
-  memories: string[];
-}
-
-export interface GraphWeights {
-  tagNode: number;
-  tagEdge: number;
-  sceneNode: number;
-  sceneEdge: number;
-  sceneInner: number;
-  dateEdge: number;
-  orphanNode: number;
-  unseenNode: number;
-  nodeLimitMul: number;
-  edgeLimitMul: number;
-  nodeLimitMax: number;
-  edgeLimitMax: number;
-}
+import type {
+  GraphNode, GraphEdge, GraphResult, SceneData, GraphWeights,
+} from "./types.ts";
+import { createNodeMutator, createEdgeMutator } from "./mutators.ts";
 
 export function buildGraph(
   query: string,
@@ -69,26 +22,14 @@ export function buildGraph(
   if (!(tags instanceof Map)) throw new TypeError("buildGraph: tags must be a Map");
   if (!(memFilenameMap instanceof Map)) throw new TypeError("buildGraph: memFilenameMap must be a Map");
   if (!weights || typeof weights !== "object") throw new TypeError("buildGraph: weights must be an object");
+
   const nodes = new Map<string, GraphNode>();
   const edges = new Map<string, GraphEdge>();
   const nodeOrder: string[] = [];
 
+  const addNode = createNodeMutator(nodes, nodeOrder);
+  const addEdge = createEdgeMutator(edges);
   const w = weights;
-
-  function addNode(id: string, node: GraphNode) {
-    if (!nodes.has(id)) {
-      nodes.set(id, node);
-      nodeOrder.push(id);
-    }
-  }
-
-  function addEdge(src: string, tgt: string, relation: string, weight: number, detail?: string) {
-    const key = [src, tgt].sort().join("|");
-    const existing = edges.get(key);
-    if (!existing || existing.weight < weight) {
-      edges.set(key, { source: src, target: tgt, relation, weight, detail });
-    }
-  }
 
   // Step 1: Initial nodes from FTS5
   const initialSeen = new Set<string>();
@@ -248,41 +189,6 @@ export function buildGraph(
   };
 }
 
-export function formatGraph(graph: GraphResult): string {
-  if (!graph || typeof graph !== "object") throw new TypeError("formatGraph: graph must be an object");
-  const lines: string[] = [
-    `## 记忆关联图谱`,
-    `查询: "${graph.query}"`,
-    ``,
-    `### 统计`,
-    `- 节点数: ${graph.stats.totalNodes}`,
-    `- 边数: ${graph.stats.totalEdges}`,
-    `- 平均度数: ${graph.stats.avgDegree.toFixed(2)}`,
-    `- 最大度数: ${graph.stats.maxDegree}`,
-    `- 聚类系数: ${graph.stats.clusterCoeff.toFixed(3)}`,
-    `- 连接密度: ${graph.stats.connectionDensity}`,
-    ``,
-  ];
-
-  if (graph.edges.length > 0) {
-    lines.push(`### 关联关系 (前 20 条)`);
-    for (let i = 0; i < 20 && i < graph.edges.length; i++) {
-      const e = graph.edges[i];
-      const srcLabel = graph.nodes.find(n => n.id === e.source)?.label || e.source;
-      const tgtLabel = graph.nodes.find(n => n.id === e.target)?.label || e.target;
-      const detail = e.detail ? ` (${e.detail})` : "";
-      lines.push(`- **${srcLabel}** → **${tgtLabel}** [${e.relation}] ${detail}`);
-    }
-  }
-  lines.push(``);
-
-  if (graph.nodes.length > 0) {
-    lines.push(`### 重要节点 (按关联度)`);
-    for (const node of graph.nodes.slice(0, 10)) {
-      const emoji = node.type === "scene" ? "📂" : node.type === "tag" ? "🏷️" : "📝";
-      lines.push(`- ${emoji} **${node.label}** (度: ${node.degree})`);
-    }
-  }
-
-  return lines.join("\n");
-}
+// Re-exports for backward compatibility
+export * from "./types.ts";
+export { formatGraph } from "./formatter.ts";

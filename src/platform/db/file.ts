@@ -85,7 +85,7 @@ export class FileDB implements UnifiedDB {
             if (orderDesc || lower.includes("order by")) {
               return this._listAll(orderDesc ? limit : limit);
             }
-            return this._search(args[0] as string || "", limit);
+            return searchFiles(this.baseDir, args[0] as string || "", limit);
           } catch { return []; }
         },
         get: (...args: unknown[]) => {
@@ -99,7 +99,7 @@ export class FileDB implements UnifiedDB {
               const filePath = path.join(this.baseDir, `${date}.md`);
               return fs.existsSync(filePath) ? { id: 1, date, user_text: filePath, asst_text: "" } : undefined;
             }
-            const rows = this._search(args[0] as string || "", 1);
+            const rows = searchFiles(this.baseDir, args[0] as string || "", 1);
             return rows[0];
           } catch { return undefined; }
         },
@@ -154,60 +154,14 @@ export class FileDB implements UnifiedDB {
 
   close() { /* no-op */ }
 
-  // ── FileDB search implementation ──
-  private _search(query: string, limit: number): SQLiteRow[] {
-    const results: SQLiteRow[] = [];
-    let files: string[];
-    try {
-      files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
-    } catch { return []; }
-    const q = query.toLowerCase();
-
-    for (const file of files) {
-      const filePath = path.join(this.baseDir, file);
-      let content: string;
-      try {
-        const stat = fs.statSync(filePath);
-        if (stat.size > MAX_FILE_BYTES) continue; // skip massive files
-        content = fs.readFileSync(filePath, "utf-8");
-      } catch { continue; }
-      if (content.toLowerCase().includes(q)) {
-        const lines = content.split("\n");
-        const idx = lines.findIndex(l => l.toLowerCase().includes(q));
-        const snippet = idx >= 0 ? lines[idx].slice(0, 200) : "";
-        results.push({
-          id: results.length + 1,
-          rowid: results.length + 1,
-          date: file.replace(".md", ""),
-          snippet: snippet,
-          rank: -results.length, // pseudo-rank
-        });
-      }
-    }
-
-    return results.slice(0, limit);
-  }
-
   private _listAll(limit: number): SQLiteRow[] {
-    let files: string[];
-    try {
-      files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
-    } catch { return []; }
-    return files.slice(0, limit).map(f => ({
-      rowid: f,
-      date: f.replace(".md", ""),
-      snippet: "",
-      user_text: "",
-      asst_text: "",
-    }));
-  }
-
-  private _countAll(): number {
-    try {
-      return fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md")).length;
-    } catch { return 0; }
+    return listFiles(this.baseDir, limit);
   }
 }
+
+import { searchFiles, listFiles, countFiles } from "./file-search.ts";
+
+export { searchFiles, listFiles, countFiles };
 
 export function createFileDB(dbPath: string): FileDB {
   const baseDir = path.dirname(dbPath);

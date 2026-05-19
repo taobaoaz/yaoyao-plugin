@@ -4,14 +4,14 @@
  * Thin layer: param validation → search orchestration → formatter output.
  * Fusion algorithms live in core/search/, formatting in formatter.ts.
  */
-import type { DBBridge, SearchResult } from "../../utils/db-bridge.ts";
+import type { DBBridge, SearchResult, EmbeddedSearchResult } from "../../utils/db-bridge.ts";
 import type { EmbeddingService } from "../../utils/embedding.ts";
 import { clampNum } from "../../utils/clamp.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
 import { multiSignalFusion } from "../../core/search/multi-signal.ts";
 import { additiveScoreAndRank } from "../../core/search/additive-scorer.ts";
-import { mergeAndDedupResults, formatJsonResults, formatTextResults } from "./formatter.ts";
+import { mergeAndDedupResults, formatJsonResults, formatTextResults, type FormattedResult } from "./formatter.ts";
 
 type FusionMode = "rrf" | "additive";
 
@@ -52,7 +52,7 @@ export function createMultiSignalSearchTool(
       const ftsResults = db.search(query, limit * 2);
 
       // 2. Vector search (if available)
-      let vecResults: any[] = [];
+      let vecResults: EmbeddedSearchResult[] = [];
       if (embedding) {
         try {
           const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
@@ -70,7 +70,7 @@ export function createMultiSignalSearchTool(
       }
 
       // 4. Fusion
-      let topResults: any[];
+      let topResults: FormattedResult[];
 
       if (fusionMode === "additive") {
         const candidates = allResults.map(r => ({
@@ -105,7 +105,7 @@ export function createMultiSignalSearchTool(
         const fused = multiSignalFusion(
           query,
           ftsResults,
-          vecResults.map((r: any) => ({ ...r, asst_text: "", timestamp: undefined, importance: undefined, scope: undefined })),
+          vecResults,
           allResults,
           signalConfig,
         );

@@ -24,8 +24,7 @@ import {
   stepManifest, stepScopeManager, stepCrossSessionRecovery,
   stepMigration, stepCleanupScheduler,
 } from "./boot/steps.ts";
-import { runHealthcheck, formatHealthcheck } from "../utils/healthcheck.ts";
-import { runInstallCheck, formatInstallCheck } from "../utils/install-check.ts";
+import { runHealthcheck, runInstallCheck, formatInstallCheck, detectScheduledResetRisks, formatResetRiskReport } from "../utils/check-barrel.ts";
 import { showBanner } from "../entry/banner.ts";
 
 export function bootstrapYaoyao(
@@ -38,8 +37,17 @@ export function bootstrapYaoyao(
 
   // ── 1. Platform detection & config ──
   api.logger.info?.(`[yaoyao-memory] ${formatInstallCheck(cap)}`);
+
+  // ── 1.5. Detect scheduled reset risks ──
+  const resetRisks = detectScheduledResetRisks(config.memoryDir || ".", config);
+  if (resetRisks.length > 0) {
+    api.logger.warn?.(`[yaoyao-memory] Detected ${resetRisks.length} scheduled reset risk(s):`);
+    for (const risk of resetRisks) {
+      const level = risk.severity === "critical" ? "error" : risk.severity === "warning" ? "warn" : "info";
+      api.logger[level]?.(`[yaoyao-memory:reset-risk] ${risk.source}: ${risk.description}`);
+    }
+  }
   for (const w of cap.warnings) api.logger.warn?.(`[yaoyao-memory:install] ${w}`);
-  stepConfigValidation(api, config);
   stepConfigValidation(api, config);
 
   // ── 2. Core init ──

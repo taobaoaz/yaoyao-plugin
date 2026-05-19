@@ -3,46 +3,17 @@
  *
  * Requires `hnswlib-node` to be installed manually (C++ addon).
  * Falls back to sqlite-vec if hnswlib-node is unavailable or crashes.
- *
- * Design:
- *   - HNSW index lives in memory; persisted to disk as `memoryDir/.hnsw/index.bin`
- *   - Metadata (date, text) stays in SQLite (memory_meta) — JOIN at search time
- *   - Vectors are normalized by caller (storeVector assumes unit length)
- *   - Cosine space: distance = 1 - similarity, so similarity = 1 - distance
  */
 import path from "node:path";
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import { clampNum } from "../clamp.ts";
 import type { UnifiedDB } from "../../platform/db/compat.ts";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../memory-store.ts";
 import type { VectorBackend, EmbeddedSearchResult } from "./types.ts";
-
-interface HnswlibModule {
-  HierarchicalNSW: new (space: string, dimensions: number) => HnswIndex;
-}
-
-interface HnswIndex {
-  initIndex(opts: { maxElements: number; allowReplaceDeleted?: boolean }): void;
-  addPoint(vector: number[], label: number): void;
-  markDelete(label: number): void;
-  searchKnn(query: number[], k: number): { distances: number[]; neighbors: number[] };
-  writeIndexSync(filepath: string): void;
-  readIndexSync(filepath: string): void;
-  getCurrentCount(): number;
-}
-
-interface HnswMeta {
-  dimensions: number;
-  model?: string;
-  count: number;
-  space: string;
-  dim?: number;
-  ef_construction?: number;
-  max_elements?: number;
-  indexType?: string;
-}
+import type { HnswlibModule, HnswIndex } from "./hnswlib-types.ts";
+import { requireHnswlib } from "./hnswlib-loader.ts";
+import { createPersistManager } from "./hnswlib-persist.ts";
 
 export class HnswlibBackend implements VectorBackend {
   name = "hnswlib";
@@ -63,8 +34,14 @@ export class HnswlibBackend implements VectorBackend {
   private snippetMaxLen = 500;
   private searchMaxLimit = 100;
   private maxElements = 50000;
-  private flushTimer: ReturnType<typeof setTimeout> | null = null;
-  private dirty = false;
+  private persist = createPersistManager({
+    index: null,
+    indexPath: "",
+    metaPath: "",
+    dimensions: 1024,
+    config: {},
+    logger: undefined,
+  });
 
   init(db: UnifiedDB, config: YaoyaoMemoryConfig, logger?: PluginLogger): boolean {
     this.db = db;
@@ -75,11 +52,19 @@ export class HnswlibBackend implements VectorBackend {
     this.searchMaxLimit = Math.min(Math.max(config.searchMaxLimit ?? 100, 10), 1000);
     this.maxElements = clampNum(config.embedding?.hnswMaxElements, 50000, 1000, 500000);
 
-    // Resolve hnsw index directory
     const memoryDir = config.memoryDir || path.join(process.env.HOME || ".", ".openclaw", "workspace", "memory");
     this.indexDir = path.join(memoryDir, ".hnsw");
     this.indexPath = path.join(this.indexDir, "index.bin");
     this.metaPath = path.join(this.indexDir, "meta.json");
+
+    this.persist = createPersistManager({
+      index: this.index,
+      indexPath: this.indexPath,
+      metaPath: this.metaPath,
+      dimensions: this.dimensions,
+      config,
+      logger,
+    });
 
     try {
       this.hnswlib = requireHnswlib();
@@ -90,14 +75,12 @@ export class HnswlibBackend implements VectorBackend {
 
       this.index = new this.hnswlib.HierarchicalNSW("cosine", this.dimensions);
 
-      // Ensure directory exists
       if (!fs.existsSync(this.indexDir)) {
         fs.mkdirSync(this.indexDir, { recursive: true, mode: 0o700 });
       }
 
-      // Try load existing index
       if (fs.existsSync(this.indexPath) && fs.existsSync(this.metaPath)) {
-        let meta: HnswMeta;
+        let meta: import("./hnswlib-types.ts").HnswMeta;
         try {
           meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
         } catch {
@@ -112,7 +95,6 @@ export class HnswlibBackend implements VectorBackend {
         logger?.warn?.(`[yaoyao-memory:vec] HNSW dimensions changed (${meta.dimensions} → ${this.dimensions}), rebuilding...`);
       }
 
-      // Fresh index
       this.index.initIndex({ maxElements: this.maxElements, allowReplaceDeleted: true });
       this.isAvailable = true;
       logger?.info?.(`[yaoyao-memory:vec] hnswlib backend initialized (maxElements=${this.maxElements}, dim=${this.dimensions})`);
@@ -127,11 +109,9 @@ export class HnswlibBackend implements VectorBackend {
   storeVector(metaId: number, embedding: Float32Array): boolean {
     if (metaId <= 0 || !this.isAvailable || !this.index) return false;
     try {
-      // Ensure float array (hnswlib expects number[])
       const vec = Array.from(embedding);
       this.index.addPoint(vec, metaId);
-      this.dirty = true;
-      this.scheduleFlush();
+      this.persist.markDirty();
       return true;
     } catch (err: unknown) {
       this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${(err as Error).message}`);
@@ -148,7 +128,6 @@ export class HnswlibBackend implements VectorBackend {
 
       if (!result.neighbors.length) return [];
 
-      // Build parameterized query for memory_meta JOIN
       const placeholders = result.neighbors.map(() => "?").join(",");
       const stmt = this.db.prepare(
         `SELECT id, date, user_text, asst_text FROM memory_meta WHERE id IN (${placeholders})`
@@ -162,9 +141,9 @@ export class HnswlibBackend implements VectorBackend {
         const id = result.neighbors[i];
         const distance = result.distances[i];
         const row = rowMap.get(id);
-        if (!row) continue; // skip deleted / orphan
+        if (!row) continue;
 
-        const similarity = 1 - distance; // cosine space: distance = 1 - sim
+        const similarity = 1 - distance;
         const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
         results.push({
           id,
@@ -186,21 +165,19 @@ export class HnswlibBackend implements VectorBackend {
   }
 
   close(): void {
-    this.flush(true);
+    this.persist.flush(true);
+    this.persist.cleanup();
     this.index = null;
     this.hnswlib = null;
     this.isAvailable = false;
   }
 
-  /** Mark-deleted vectors whose meta_id no longer exists in memory_meta */
   deleteOrphans(): void {
     if (!this.isAvailable || !this.index || !this.db) return;
     try {
       const rows = this.db.prepare("SELECT id FROM memory_meta").all() as Array<{ id: number }>;
       const validIds = new Set(rows.map(r => r.id));
       const count = this.index.getCurrentCount?.() ?? 0;
-      // hnswlib doesn't have a list-all-labels API. Best effort: nothing for now.
-      // Orphans are filtered at search time via rowMap.get(id) check.
       this.logger?.debug?.("[yaoyao-memory:vec] HNSW deleteOrphans: no-op (filtered at search time)");
     } catch { /* best effort */ }
   }
@@ -212,47 +189,4 @@ export class HnswlibBackend implements VectorBackend {
   getDimensions(): number {
     return this.dimensions;
   }
-
-  // ──────────────────────────── Internal ────────────────────────────
-
-  private scheduleFlush(): void {
-    if (this.flushTimer) clearTimeout(this.flushTimer);
-    this.flushTimer = setTimeout(() => this.flush(), 2000);
-  }
-
-  private flush(sync = false): void {
-    if (!this.dirty || !this.index) return;
-    this.dirty = false;
-    try {
-      if (sync) {
-        this.index.writeIndexSync(this.indexPath);
-      }
-      const meta: HnswMeta = {
-        dimensions: this.dimensions,
-        model: this.config.embedding?.model,
-        count: this.index.getCurrentCount?.() ?? 0,
-        space: "cosine",
-      };
-      fs.writeFileSync(this.metaPath, JSON.stringify(meta, null, 2), "utf-8");
-      this.logger?.debug?.("[yaoyao-memory:vec] HNSW index flushed to disk");
-    } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] flush failed: ${(err as Error).message}`);
-    }
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
-  }
 }
-
-/** Dynamically require hnswlib-node. Returns null if not installed or incompatible. */
-function requireHnswlib(): HnswlibModule | null {
-  try {
-    const req = createRequire(import.meta.url);
-    const mod = req("hnswlib-node") as { HierarchicalNSW: new (space: string, dimensions: number) => HnswIndex };
-    if (mod && mod.HierarchicalNSW) return mod;
-  } catch { /* not installed or platform incompatible */ }
-  return null;
-}
-
-

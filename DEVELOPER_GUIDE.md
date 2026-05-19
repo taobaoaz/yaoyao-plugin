@@ -931,38 +931,6 @@ try { ... } catch (err) {
 
 ---
 
-## 第四部分：友商经验对照表
-
-### 已落地的 14 项优化
-
-| # | 来源 | 优化项 | 文件 | 状态 |
-|:-:|:----|:-------|:----|:----:|
-| 1 | mem0 v3 | ADD-only 提取 | 自然行为 | ✅ |
-| 2 | mem0 v3 | 多信号融合（BM25+FTS+向量+实体） | `core/search/multi-signal.ts` | ✅ |
-| 3 | mem0 v3 | Additive Scoring（分数叠加） | `core/search/additive-scorer.ts` | ✅ |
-| 4 | mem0 v3 | BM25 Sigmoid 标准化 | `utils/bm25.ts` | ✅ |
-| 5 | mem0 v3 | 实体提取（250+ 实体库） | `utils/entity-extractor.ts` | ✅ |
-| 6 | mem0 v3 | 英文词干还原（Lemmatization） | `utils/bm25.ts` | ✅ |
-| 7 | engram | 冲突检测（similarity+time+entity） | `core/conflict/detect.ts` | ✅ |
-| 8 | engram | 自动裁决（canAutoResolve） | `core/conflict/detect.ts` | ✅ |
-| 9 | engram | 冲突工具 | `features/conflict/tool.ts` | ✅ |
-| 10 | LangMem | 统一搜索入口 | `core/search/pipeline.ts` | ✅ |
-| 11 | Tencent | 暖启动 / 间隔捕获 / 正则排除 | `hooks/capture-filter.ts` | ✅ |
-| 12 | Tencent | 三级上下文水印 | `hooks/capture-watermark.ts` | ✅ |
-| 13 | Brain | Session 隔离 | `hooks/capture-filter.ts` | ✅ |
-| 14 | - | FeatureRegistry（拓扑排序） | `optional/registry.ts` | ✅ |
-
-### 已研究但未落地的优化（候选）
-
-| # | 来源 | 优化项 | 原因 |
-|:-:|:----|:-------|:----|
-| 1 | mem0 v3 | 向量维度自动选择 | 需要 embedding API 返回维度信息 |
-| 2 | LangMem | 记忆状态机（create/summarize/archive） | 需要多级 tier 实现完善 |
-| 3 | engram | 记忆图推理（MemoryGraph） | 已有简单图结构，可加强 |
-| 4 | engram | 实体共现频率跟踪 | 需要额外存储，收益待评估 |
-
----
-
 ## 第五部分：版本规划
 
 ```

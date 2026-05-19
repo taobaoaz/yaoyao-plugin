@@ -1,8 +1,8 @@
-# Yaoyao Memory Plugin v1.7.0
+# Yaoyao Memory Plugin v1.7.1
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**25+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 526 单元测试**
+**26+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 526 单元测试**
 
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
@@ -131,6 +131,7 @@ L4 — 记忆质量评估        (memory_quality / trends)   ← 纯统计，无
 | **同步** | `memory_cloud_sync` (WebDAV/S3/SFTP/Samba) |
 | **提醒** | `memory_remind` (cron 配置) |
 | **推荐** | `memory_recommend` (上下文 + 衰减 + 多样性) |
+| **定时任务** | `memory_cron` (列出/检测/禁用冲突的 OpenClaw 定时任务) |
 
 ---
 

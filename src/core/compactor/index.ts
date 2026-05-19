@@ -25,19 +25,10 @@ export interface TextCluster {
   };
 }
 
-/**
- * Compute Jaccard similarity between two texts (word-level).
- * Pure text fallback when vectors are unavailable.
- */
-export function jaccardSimilarity(a: string, b: string): number {
-  const setA = new Set(a.toLowerCase().split(/\s+/).filter(w => w.length > 2));
-  const setB = new Set(b.toLowerCase().split(/\s+/).filter(w => w.length > 2));
-  if (setA.size === 0 || setB.size === 0) return 0;
+import { jaccardSimilarity } from "./similarity.ts";
+import { buildMergedEntry } from "./merge.ts";
 
-  const intersection = new Set([...setA].filter(x => setB.has(x)));
-  const union = new Set([...setA, ...setB]);
-  return intersection.size / union.size;
-}
+export { jaccardSimilarity, buildMergedEntry };
 
 /**
  * Build clusters using greedy Jaccard expansion.
@@ -50,7 +41,6 @@ export function buildTextClusters(
 ): TextCluster[] {
   if (entries.length < minClusterSize) return [];
 
-  // Sort indices by importance desc (highest importance seeds first)
   const order = entries
     .map((_, i) => i)
     .sort((a, b) => entries[b].importance - entries[a].importance);
@@ -81,61 +71,6 @@ export function buildTextClusters(
   }
 
   return clusters;
-}
-
-/**
- * Merge a cluster of entries into a single proposed entry.
- *
- * Text strategy: deduplicate lines across all member texts, join with newline.
- * Importance: max across cluster (never downgrade).
- * Category: plurality vote; ties broken by member with highest importance.
- * Scope: use the first (all should match).
- */
-export function buildMergedEntry(
-  members: CompactableEntry[],
-): TextCluster["merged"] {
-  // --- text: deduplicate lines ---
-  const seen = new Set<string>();
-  const lines: string[] = [];
-  for (const m of members) {
-    for (const line of m.text.split("\n")) {
-      const trimmed = line.trim();
-      if (trimmed && !seen.has(trimmed.toLowerCase())) {
-        seen.add(trimmed.toLowerCase());
-        lines.push(trimmed);
-      }
-    }
-  }
-  const text = lines.join("\n");
-
-  // --- importance: max ---
-  const importance = Math.min(1.0, Math.max(...members.map(m => m.importance)));
-
-  // --- category: plurality vote ---
-  const counts = new Map<string, number>();
-  for (const m of members) {
-    counts.set(m.category, (counts.get(m.category) ?? 0) + 1);
-  }
-  let category = "other";
-  let best = 0;
-  for (const [cat, count] of counts) {
-    if (count > best) {
-      best = count;
-      category = cat;
-    }
-  }
-
-  // --- scope: use the first (all should match) ---
-  const scope = members[0]?.scope ?? "default";
-
-  // --- metadata ---
-  const metadata = JSON.stringify({
-    compacted: true,
-    sourceCount: members.length,
-    compactedAt: Date.now(),
-  });
-
-  return { text, importance, category, scope, metadata };
 }
 
 export interface CompactionConfig {
@@ -192,7 +127,6 @@ export function runTextCompaction(
     };
   }
 
-  // Return compaction plan (caller decides actual delete/store)
   let entriesDeleted = 0;
   let entriesCreated = 0;
   for (const cluster of clusters) {

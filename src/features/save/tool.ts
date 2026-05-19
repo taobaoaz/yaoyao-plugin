@@ -10,9 +10,6 @@ import type { MemoryStore } from "../../utils/memory-store.ts";
 import type { DBBridge } from "../../utils/db-bridge.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
-
-// ── Local type for raw DB access ──
-type RawDB = ReturnType<ReturnType<typeof import("../../utils/db-bridge.ts").createDB>["getRawDb"]>;
 import {
   detectConflicts,
   formatConflictCandidates,
@@ -77,17 +74,15 @@ export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetecti
               if (canAutoResolve(c, rel)) {
                 // For compatible/related/not_conflict, auto-record the judgment
                 try {
-                  const rawDb = db.getRawDb();
-                  const existing = rawDb.prepare("SELECT meta FROM memory_meta WHERE id = ?").get(c.memoryId) as
-                    { meta: string | null } | undefined;
-                  const meta = existing?.meta ? tryParseJSON(existing.meta) : {};
+                  const metaRaw = db.getMemoryMeta(c.memoryId);
+                  const meta = metaRaw ? tryParseJSON(metaRaw) : {};
                   if (!Array.isArray(meta.relations)) meta.relations = [] as Array<Record<string, unknown>>;
                   (meta.relations as Array<Record<string, unknown>>).push({
                     relation: rel,
                     reason: `自动裁决: ${c.reason}（置信度 ${(c.confidence * 100).toFixed(0)}%）`,
                     judgedAt: new Date().toISOString(),
                   });
-                  rawDb.prepare("UPDATE memory_meta SET meta = ? WHERE id = ?").run(JSON.stringify(meta), c.memoryId);
+                  db.updateMetadata(c.memoryId, JSON.stringify(meta));
                   autoResolved.push(c.memoryId);
                 } catch {
                   pending.push(c);

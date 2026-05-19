@@ -3,143 +3,7 @@
  * 腾讯方案：BM25 编码器增强搜索质量，支持中英文混合。
  * 纯正则/数学实现，零外部依赖。
  */
-
-// ── English suffix stripping rules (zero-dependency lemmatization) ──
-
-/**
- * Lightweight English suffix stripping for BM25 matching.
- * mem0 reference: mem0/utils/lemmatization.py
- *
- * Strips common suffixes to normalize verb forms, plurals, etc.
- * Preserves -ing forms alongside stripped forms to handle noun/verb ambiguity.
- * Preserves short words (≤3 chars) unchanged.
- */
-function stripEnglishSuffix(word: string): { stem: string; preserveOriginal: boolean } {
-  if (word.length <= 3) return { stem: word, preserveOriginal: false };
-
-  const original = word;
-  let stem = word;
-  let preserveOriginal = false;
-
-  // -ies → -y (e.g., memories → memory, carries → carry)
-  // Exception: ties, dies, lies → keep as-is
-  if (stem.endsWith("ies") && stem.length > 4 && !["ties", "dies", "lies"].includes(stem)) {
-    stem = stem.slice(0, -3) + "y";
-  }
-  // -ves → -f (e.g., shelves → shelf, wolves → wolf)
-  else if (stem.endsWith("ves") && stem.length > 4) {
-    stem = stem.slice(0, -3) + "f";
-  }
-  // -es after s/sh/ch/x/z/o → drop -es (e.g., watches → watch, boxes → box, goes → go)
-  else if (stem.endsWith("es") && stem.length > 4) {
-    const base = stem.slice(0, -2);
-    if (/[szx]$|[sc]h$|o$/.test(base)) {
-      stem = base;
-    } else if (stem.endsWith("ies")) {
-      // already handled above
-    } else {
-      stem = stem.slice(0, -1); // standard -s drop
-    }
-  }
-  // -ing → drop -ing (e.g., running → run, coding → code)
-  // Preserve -ing forms for noun/verb ambiguity (meeting, building)
-  else if (stem.endsWith("ing") && stem.length > 5) {
-    const base = stem.slice(0, -3);
-    // Double consonant → single (running → run, stopping → stop)
-    if (/(.)\1$/.test(base)) {
-      stem = base.slice(0, -1);
-    } else if (base.endsWith("ck") || base.endsWith("sh") || base.endsWith("ch")) {
-      stem = base;
-    } else if (base.endsWith("e")) {
-      stem = base; // keeping → keep
-    } else {
-      stem = base;
-    }
-    preserveOriginal = true; // keep -ing form too
-  }
-  // -ed → drop -ed (e.g., walked → walk, used → use, stopped → stop)
-  else if (stem.endsWith("ed") && stem.length > 4 && !stem.endsWith("eed")) {
-    const base = stem.slice(0, -2);
-    // Double consonant (stopped → stop)
-    if (/(.)\1$/.test(base)) {
-      stem = base.slice(0, -1);
-    } else if (base.endsWith("i")) {
-      stem = base.slice(0, -1) + "y"; // carried → carry
-    } else {
-      stem = base;
-    }
-  }
-  // -ly → drop -ly (e.g., quickly → quick)
-  else if (stem.endsWith("ly") && stem.length > 5) {
-    stem = stem.slice(0, -2);
-  }
-  // -s (but not -ss) → drop -s for plural (e.g., cats → cat)
-  else if (stem.endsWith("s") && !stem.endsWith("ss") && stem.length > 4) {
-    stem = stem.slice(0, -1);
-  }
-
-  // -tion / -sion → -t (e.g., extraction → extract, decision → decide)
-  if (stem.endsWith("tion") && stem.length > 6) {
-    stem = stem.slice(0, -4) + "t";
-  } else if (stem.endsWith("sion") && stem.length > 5) {
-    stem = stem.slice(0, -4);
-  }
-  // -ment → drop (e.g., management → manage)
-  else if (stem.endsWith("ment") && stem.length > 6) {
-    stem = stem.slice(0, -4);
-  }
-
-  return { stem, preserveOriginal };
-}
-
-/** Check if text contains CJK characters */
-function hasCJK(text: string): boolean {
-  return /[\u4e00-\u9fff\u3400-\u4dbf]/.test(text);
-}
-
-// ── Chinese word segmentation: bigram for CJK (mem0-style CJK support) ──
-
-/**
- * Segment Chinese text into overlapping bigrams.
- * Monogram + bigram covers common 2-character compounds.
- */
-function segmentChinese(text: string): string[] {
-  const chars = text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || [];
-  if (chars.length === 0) return [];
-  const terms: string[] = [...chars]; // unigrams
-  // overlapping bigrams
-  for (let i = 0; i < chars.length - 1; i++) {
-    terms.push(chars[i] + chars[i + 1]);
-  }
-  return terms;
-}
-
-/** Tokenize text into terms with lemmatization and CJK bigram support. */
-export function tokenize(text: string): string[] {
-  const terms: string[] = [];
-
-  // English words with lemmatization
-  const enWords = text.match(/[a-zA-Z]+/g) || [];
-  for (const w of enWords) {
-    const lower = w.toLowerCase();
-    terms.push(lower); // always include raw form
-    const { stem, preserveOriginal } = stripEnglishSuffix(lower);
-    if (stem !== lower) {
-      terms.push(stem);
-    }
-    if (preserveOriginal && lower.endsWith("ing")) {
-      // Keep -ing form (handles noun/verb ambiguity like "meeting", "building")
-      // Already added as raw form above
-    }
-  }
-
-  // Chinese bigram (better than single-char for BM25 matching)
-  if (hasCJK(text)) {
-    terms.push(...segmentChinese(text));
-  }
-
-  return terms;
-}
+import { tokenize } from "./bm25-tokenize.ts";
 
 /** Compute term frequency map */
 function computeTF(terms: string[]): Map<string, number> {
@@ -192,7 +56,6 @@ export function buildBM25Index(texts: string[], ids?: string[]): BM25Index {
     totalLen += len;
     docs.push({ id: ids?.[i] || String(i), text, tf, length: len });
 
-    // Update document frequency
     for (const term of new Set(terms)) {
       docFreq.set(term, (docFreq.get(term) || 0) + 1);
     }
@@ -239,11 +102,7 @@ export function bm25Search(docs: string[], query: string, config?: BM25Config): 
 
 // ── BM25 Score Normalization (mem0 v3 inspired) ──
 
-/**
- * Get sigmoid normalization parameters based on query length.
- * Longer queries tend to have higher raw BM25 scores.
- * mem0 reference: mem0/utils/scoring.py → get_bm25_params()
- */
+/** Get sigmoid normalization parameters based on query length. */
 export function getBM25SigmoidParams(query: string): { midpoint: number; steepness: number } {
   const numTerms = tokenize(query).length;
   if (numTerms <= 3) return { midpoint: 5.0, steepness: 0.7 };
@@ -253,14 +112,7 @@ export function getBM25SigmoidParams(query: string): { midpoint: number; steepne
   return { midpoint: 12.0, steepness: 0.5 };
 }
 
-/**
- * Normalize a raw BM25 score to [0, 1] using logistic sigmoid.
- * mem0 reference: mem0/utils/scoring.py → normalize_bm25()
- *
- * @param rawScore Raw BM25 score (unbounded, typically 0-20+)
- * @param params Sigmoid params from getBM25SigmoidParams()
- * @returns Normalized score in [0, 1]
- */
+/** Normalize a raw BM25 score to [0, 1] using logistic sigmoid. */
 export function normalizeBM25Score(rawScore: number, params: { midpoint: number; steepness: number }): number {
   return 1 / (1 + Math.exp(-params.steepness * (rawScore - params.midpoint)));
 }

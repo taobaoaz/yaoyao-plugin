@@ -5,6 +5,8 @@
 
 import type { YaoyaoMemoryConfig } from "./memory-store.ts";
 
+import { pushError, pushWarn, pushInfo, isValidUrl, isPositiveInt, inRange } from "./config-validator-helpers.ts";
+
 export interface ConfigValidation {
   level: "error" | "warn" | "info";
   field: string;
@@ -19,267 +21,114 @@ export function validateConfig(config: YaoyaoMemoryConfig): ConfigValidation[] {
   // ── embedding ──
   const embed = config.embedding;
   if (embed?.enabled === true) {
-    // Explicitly enabled — must have full config
     if (!embed?.apiKey || embed.apiKey.length === 0) {
-      results.push({
-        level: "error",
-        field: "embedding.apiKey",
-        message: "API key is missing",
-        suggestion: "Set embedding.apiKey to a valid API key",
-      });
+      pushError(results, "embedding.apiKey", "API key is missing", "Set embedding.apiKey to a valid API key");
     }
     if (!embed?.baseUrl) {
-      results.push({
-        level: "error",
-        field: "embedding.baseUrl",
-        message: "Base URL is missing",
-        suggestion: "Set embedding.baseUrl (e.g. https://api.openai.com/v1)",
-      });
-    } else {
-      try {
-        const url = new URL(embed.baseUrl);
-        if (!url.protocol.startsWith("http")) {
-          results.push({
-            level: "error",
-            field: "embedding.baseUrl",
-            message: `Invalid protocol: ${url.protocol}`,
-            suggestion: "Use http:// or https://",
-          });
-        }
-      } catch {
-        results.push({
-          level: "error",
-          field: "embedding.baseUrl",
-          message: `Not a valid URL: ${embed.baseUrl}`,
-          suggestion: "Check for typos (e.g. https://api.openai.com/v1)",
-        });
-      }
+      pushError(results, "embedding.baseUrl", "Base URL is missing", "Set embedding.baseUrl (e.g. https://api.openai.com/v1)");
+    } else if (!isValidUrl(embed.baseUrl)) {
+      pushError(results, "embedding.baseUrl", `Not a valid URL: ${embed.baseUrl}`, "Check for typos (e.g. https://api.openai.com/v1)");
     }
     if (!embed?.model) {
-      results.push({
-        level: "warn",
-        field: "embedding.model",
-        message: "Model name not set",
-        suggestion: "Set embedding.model (e.g. text-embedding-3-small, bge-m3)",
-      });
+      pushWarn(results, "embedding.model", "Model name not set", "Set embedding.model (e.g. text-embedding-3-small, bge-m3)");
     }
-    if (embed?.dimensions !== undefined && embed.dimensions !== null) {
-      if (!Number.isInteger(embed.dimensions) || embed.dimensions <= 0) {
-        results.push({
-          level: "error",
-          field: "embedding.dimensions",
-          message: `Invalid dimensions: ${embed.dimensions}`,
-          suggestion: "Must be a positive integer (e.g. 128, 1024)",
-        });
-      }
+    if (embed?.dimensions !== undefined && embed.dimensions !== null && !isPositiveInt(embed.dimensions)) {
+      pushError(results, "embedding.dimensions", `Invalid dimensions: ${embed.dimensions}`, "Must be a positive integer (e.g. 128, 1024)");
     }
     if (embed?.authType && embed.authType !== "bearer" && embed.authType !== "custom") {
-      results.push({
-        level: "error",
-        field: "embedding.authType",
-        message: `Invalid authType: ${embed.authType}`,
-        suggestion: "Use 'bearer' or 'custom'",
-      });
+      pushError(results, "embedding.authType", `Invalid authType: ${embed.authType}`, "Use 'bearer' or 'custom'");
     }
-    if (embed?.authType === "custom") {
-      const hasCustomHeaders = embed?.customHeaders && Object.keys(embed.customHeaders).length > 0;
-      if (!hasCustomHeaders) {
-        results.push({
-          level: "warn",
-          field: "embedding.customHeaders",
-          message: "authType is 'custom' but no customHeaders configured",
-          suggestion: "Add embedding.customHeaders (e.g. { x-api-key: '...' })",
-        });
-      }
+    if (embed?.authType === "custom" && (!embed?.customHeaders || Object.keys(embed.customHeaders).length === 0)) {
+      pushWarn(results, "embedding.customHeaders", "authType is 'custom' but no customHeaders configured", "Add embedding.customHeaders (e.g. { x-api-key: '...' })");
     }
   } else if (embed?.enabled !== false && (embed?.apiKey || embed?.baseUrl || embed?.model)) {
-    // Partial config present (auto-enable implied) — validate fully
     if (!embed?.apiKey || embed.apiKey.length === 0) {
-      results.push({
-        level: "error",
-        field: "embedding.apiKey",
-        message: "API key is missing",
-        suggestion: "Set embedding.apiKey to a valid API key",
-      });
+      pushError(results, "embedding.apiKey", "API key is missing", "Set embedding.apiKey to a valid API key");
     }
     if (!embed?.baseUrl) {
-      results.push({
-        level: "error",
-        field: "embedding.baseUrl",
-        message: "Base URL is missing",
-        suggestion: "Set embedding.baseUrl (e.g. https://api.openai.com/v1)",
-      });
+      pushError(results, "embedding.baseUrl", "Base URL is missing", "Set embedding.baseUrl (e.g. https://api.openai.com/v1)");
     }
     if (!embed?.model) {
-      results.push({
-        level: "warn",
-        field: "embedding.model",
-        message: "Model name not set",
-        suggestion: "Set embedding.model (e.g. text-embedding-3-small, bge-m3)",
-      });
+      pushWarn(results, "embedding.model", "Model name not set", "Set embedding.model (e.g. text-embedding-3-small, bge-m3)");
     }
   }
 
   // ── capture ──
   const capture = config.capture;
-  if (capture) {
-    if (capture.batchSize !== undefined) {
-      const bs = Number(capture.batchSize);
-      if (!Number.isInteger(bs) || bs < 1 || bs > 100) {
-        results.push({
-          level: "warn",
-          field: "capture.batchSize",
-          message: `Unusual batchSize: ${bs}`,
-          suggestion: "Recommended range: 1-50",
-        });
-      }
+  if (capture?.batchSize !== undefined) {
+    const bs = Number(capture.batchSize);
+    if (!Number.isInteger(bs) || !inRange(bs, 1, 100)) {
+      pushWarn(results, "capture.batchSize", `Unusual batchSize: ${bs}`, "Recommended range: 1-50");
     }
-    if (capture.debounceMs !== undefined) {
-      const dm = Number(capture.debounceMs);
-      if (dm < 100) {
-        results.push({
-          level: "warn",
-          field: "capture.debounceMs",
-          message: `Very short debounce: ${dm}ms`,
-          suggestion: "Minimum 100ms to avoid excessive writes",
-        });
-      }
+  }
+  if (capture?.debounceMs !== undefined) {
+    const dm = Number(capture.debounceMs);
+    if (dm < 100) {
+      pushWarn(results, "capture.debounceMs", `Very short debounce: ${dm}ms`, "Minimum 100ms to avoid excessive writes");
     }
-    const mode = capture.mode;
-    if (mode && mode !== "sync" && mode !== "async") {
-      results.push({
-        level: "error",
-        field: "capture.mode",
-        message: `Invalid mode: ${mode}`,
-        suggestion: "Use 'sync' or 'async'",
-      });
-    }
+  }
+  if (capture?.mode && capture.mode !== "sync" && capture.mode !== "async") {
+    pushError(results, "capture.mode", `Invalid mode: ${capture.mode}`, "Use 'sync' or 'async'");
   }
 
   // ── recall ──
   const recall = config.recall;
-  if (recall) {
-    if (recall.topK !== undefined) {
-      const tk = Number(recall.topK);
-      if (!Number.isInteger(tk) || tk < 1 || tk > 50) {
-        results.push({
-          level: "warn",
-          field: "recall.topK",
-          message: `Unusual topK: ${tk}`,
-          suggestion: "Recommended range: 3-15",
-        });
-      }
+  if (recall?.topK !== undefined) {
+    const tk = Number(recall.topK);
+    if (!Number.isInteger(tk) || !inRange(tk, 1, 50)) {
+      pushWarn(results, "recall.topK", `Unusual topK: ${tk}`, "Recommended range: 3-15");
     }
-    if (recall.minScore !== undefined) {
-      const ms = Number(recall.minScore);
-      if (ms < 0 || ms > 1) {
-        results.push({
-          level: "error",
-          field: "recall.minScore",
-          message: `Invalid minScore: ${ms}`,
-          suggestion: "Must be between 0.0 and 1.0",
-        });
-      }
+  }
+  if (recall?.minScore !== undefined) {
+    const ms = Number(recall.minScore);
+    if (ms < 0 || ms > 1) {
+      pushError(results, "recall.minScore", `Invalid minScore: ${ms}`, "Must be between 0.0 and 1.0");
     }
-    const strategy = recall.strategy;
-    if (strategy && strategy !== "hybrid" && strategy !== "fts" && strategy !== "vector") {
-      results.push({
-        level: "error",
-        field: "recall.strategy",
-        message: `Invalid strategy: ${strategy}`,
-        suggestion: "Use 'hybrid', 'fts5', or 'vector'",
-      });
-    }
+  }
+  if (recall?.strategy && recall.strategy !== "hybrid" && recall.strategy !== "fts" && recall.strategy !== "vector") {
+    pushError(results, "recall.strategy", `Invalid strategy: ${recall.strategy}`, "Use 'hybrid', 'fts5', or 'vector'");
   }
 
   // ── cloudSync ──
   const cloud = config.cloudSync as { enabled?: boolean; provider?: string; endpoint?: string } | undefined;
   if (cloud?.enabled === true) {
     if (!cloud.provider || !["webdav", "s3", "sftp", "samba"].includes(cloud.provider)) {
-      results.push({
-        level: "error",
-        field: "cloudSync.provider",
-        message: `Invalid provider: ${cloud.provider}`,
-        suggestion: "Use 'webdav', 's3', 'sftp', or 'samba'",
-      });
+      pushError(results, "cloudSync.provider", `Invalid provider: ${cloud.provider}`, "Use 'webdav', 's3', 'sftp', or 'samba'");
     }
     if (!cloud.endpoint) {
-      results.push({
-        level: "warn",
-        field: "cloudSync.endpoint",
-        message: "Endpoint is missing",
-        suggestion: "Set cloudSync.endpoint URL",
-      });
+      pushWarn(results, "cloudSync.endpoint", "Endpoint is missing", "Set cloudSync.endpoint URL");
     }
   }
 
   // ── general sanity ──
   if (config.debug === true && config.verbose !== true) {
-    results.push({
-      level: "info",
-      field: "debug",
-      message: "Debug mode enabled without verbose — some debug logs may be suppressed",
-      suggestion: "Set verbose: true to see full debug output",
-    });
+    pushInfo(results, "debug", "Debug mode enabled without verbose — some debug logs may be suppressed", "Set verbose: true to see full debug output");
   }
 
   // ── hooks ──
-  const hooks = config.hooks;
-  if (hooks?.commandNew?.enabled !== undefined) {
-    if (typeof hooks.commandNew.enabled !== "boolean") {
-      results.push({
-        level: "warn",
-        field: "hooks.commandNew.enabled",
-        message: `Invalid value: ${hooks.commandNew.enabled}`,
-        suggestion: "Must be true or false",
-      });
-    }
+  if (config.hooks?.commandNew?.enabled !== undefined && typeof config.hooks.commandNew.enabled !== "boolean") {
+    pushWarn(results, "hooks.commandNew.enabled", `Invalid value: ${config.hooks.commandNew.enabled}`, "Must be true or false");
   }
 
   // ── memoryCall ──
   const mc = (config as Record<string, unknown>).memoryCall as { enabled?: unknown } | undefined;
   if (mc?.enabled !== undefined && typeof mc.enabled !== "boolean") {
-    results.push({
-      level: "warn",
-      field: "memoryCall.enabled",
-      message: `Invalid value: ${mc.enabled}`,
-      suggestion: "Must be true or false",
-    });
+    pushWarn(results, "memoryCall.enabled", `Invalid value: ${mc.enabled}`, "Must be true or false");
   }
 
   // ── heartbeat ──
   const hb = config.hooks?.heartbeat as { enabled?: unknown; maxResults?: unknown; minScore?: unknown; maxContextChars?: unknown } | undefined;
   if (hb?.enabled !== undefined && typeof hb.enabled !== "boolean") {
-    results.push({
-      level: "warn",
-      field: "hooks.heartbeat.enabled",
-      message: `Invalid value: ${hb.enabled}`,
-      suggestion: "Must be true or false",
-    });
+    pushWarn(results, "hooks.heartbeat.enabled", `Invalid value: ${hb.enabled}`, "Must be true or false");
   }
   if (hb?.maxResults !== undefined && typeof hb.maxResults !== "number") {
-    results.push({
-      level: "warn",
-      field: "hooks.heartbeat.maxResults",
-      message: `Invalid value: ${hb.maxResults}`,
-      suggestion: "Must be a number",
-    });
+    pushWarn(results, "hooks.heartbeat.maxResults", `Invalid value: ${hb.maxResults}`, "Must be a number");
   }
   if (hb?.minScore !== undefined && typeof hb.minScore !== "number") {
-    results.push({
-      level: "warn",
-      field: "hooks.heartbeat.minScore",
-      message: `Invalid value: ${hb.minScore}`,
-      suggestion: "Must be a number",
-    });
+    pushWarn(results, "hooks.heartbeat.minScore", `Invalid value: ${hb.minScore}`, "Must be a number");
   }
   if (hb?.maxContextChars !== undefined && typeof hb.maxContextChars !== "number") {
-    results.push({
-      level: "warn",
-      field: "hooks.heartbeat.maxContextChars",
-      message: `Invalid value: ${hb.maxContextChars}`,
-      suggestion: "Must be a number",
-    });
+    pushWarn(results, "hooks.heartbeat.maxContextChars", `Invalid value: ${hb.maxContextChars}`, "Must be a number");
   }
 
   return results;

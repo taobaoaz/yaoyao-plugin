@@ -5,49 +5,48 @@ import fs from "node:fs";
 import path from "node:path";
 import { clampNum } from "../../utils/clamp.ts";
 import type { DBBridge } from "../../utils/db-bridge.ts";
-import type { UnifiedDB } from "../../storage/bridge.ts";
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
 import { diversifiedSelect, formatRecommendations, type Candidate } from "../../core/recommend/recommend.ts";
 
-/** Scene cache — invalidated when scene_blocks mtime changes */
-let _sceneCache: Map<string, Set<string>> | null = null;
-let _sceneCacheMtime = 0;
+export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegistration {
+  // Scene cache — per-tool-instance, not module-global
+  let _sceneCache: Map<string, Set<string>> | null = null;
+  let _sceneCacheMtime = 0;
 
-function loadScenesCached(memoryDir: string): Map<string, Set<string>> {
-  const sceneDir = path.join(memoryDir, "scene_blocks");
-  let currentMtime = 0;
-  try {
-    if (fs.existsSync(sceneDir)) {
-      currentMtime = fs.statSync(sceneDir).mtimeMs;
+  function loadScenesCached(): Map<string, Set<string>> {
+    const sceneDir = path.join(memoryDir, "scene_blocks");
+    let currentMtime = 0;
+    try {
+      if (fs.existsSync(sceneDir)) {
+        currentMtime = fs.statSync(sceneDir).mtimeMs;
+      }
+    } catch { /* */ }
+    if (_sceneCache && currentMtime === _sceneCacheMtime) {
+      return _sceneCache;
     }
-  } catch { /* */ }
-  if (_sceneCache && currentMtime === _sceneCacheMtime) {
-    return _sceneCache;
-  }
 
-  const scenes = new Map<string, Set<string>>();
-  try {
-    if (fs.existsSync(sceneDir)) {
-      for (const sf of fs.readdirSync(sceneDir).filter(f => f.endsWith(".md"))) {
-        const content = fs.readFileSync(path.join(sceneDir, sf), "utf-8");
-        for (const line of content.split("\n")) {
-          const t = line.trim();
-          if (t.startsWith("- ") || t.startsWith("* ")) {
-            const mem = t.slice(2);
-            if (!scenes.has(mem)) scenes.set(mem, new Set());
-            scenes.get(mem)!.add(sf.replace(".md", ""));
+    const scenes = new Map<string, Set<string>>();
+    try {
+      if (fs.existsSync(sceneDir)) {
+        for (const sf of fs.readdirSync(sceneDir).filter(f => f.endsWith(".md"))) {
+          const content = fs.readFileSync(path.join(sceneDir, sf), "utf-8");
+          for (const line of content.split("\n")) {
+            const t = line.trim();
+            if (t.startsWith("- ") || t.startsWith("* ")) {
+              const mem = t.slice(2);
+              if (!scenes.has(mem)) scenes.set(mem, new Set());
+              scenes.get(mem)!.add(sf.replace(".md", ""));
+            }
           }
         }
       }
-    }
-  } catch { /* */ }
-  _sceneCache = scenes;
-  _sceneCacheMtime = currentMtime;
-  return scenes;
-}
+    } catch { /* */ }
+    _sceneCache = scenes;
+    _sceneCacheMtime = currentMtime;
+    return scenes;
+  }
 
-export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegistration {
   return {
     id: "memory_recommend",
     name: "memory_recommend",
@@ -96,11 +95,7 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
       const recallMax = clampNum(params.recallMax, 30, 10, 200);
 
       if (!context) {
-        const rawDb: UnifiedDB = db.getRawDb();
-        const stmt = rawDb.prepare(
-          "SELECT date, user_text, asst_text FROM memory_meta ORDER BY date DESC LIMIT ?"
-        );
-        const recent = stmt.all(limit) as Array<{ date: string; user_text: string; asst_text: string }>;
+        const recent = db.getRecentRawMemories(limit);
         if (recent.length === 0) {
           return { content: [{ type: "text", text: "暂无记忆可推荐。" }] };
         }
@@ -112,13 +107,7 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
 
       const rawResults = db.search(context, Math.min(limit * recallMultiplier, recallMax));
       if (rawResults.length === 0) {
-        const rawDb: UnifiedDB = db.getRawDb();
-        const likeStmt = rawDb.prepare(
-          "SELECT date, user_text, asst_text FROM memory_meta " +
-          "WHERE user_text LIKE ? OR asst_text LIKE ? ORDER BY date DESC LIMIT ?"
-        );
-        const safeCtx = context.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
-        const likeResults = likeStmt.all(`%${safeCtx}%`, `%${safeCtx}%`, limit) as Array<{ date: string; user_text: string; asst_text: string }>;
+        const likeResults = db.searchByLike(context, limit);
         if (likeResults.length === 0) {
           return { content: [{ type: "text", text: "没有找到相关的记忆。" }] };
         }
@@ -129,7 +118,7 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
       }
 
       // 加载场景数据（带缓存）
-      const scenes = loadScenesCached(memoryDir);
+      const scenes = loadScenesCached();
 
       // Core: diversified selection
       const candidates: Candidate[] = rawResults.map(r => ({

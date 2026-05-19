@@ -12,107 +12,9 @@ import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
 import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { YaoyaoMemoryConfig, MemoryEntry } from "./memory-store-types.ts";
 
-/**
- * Full configuration type that matches plugin's actual consumption.
- * Fields are consumed by: index.ts, auto-capture, auto-recall,
- * memory-cleaner, embedding, LLM client, cloud-adapter, db-bridge.
- */
-export interface YaoyaoMemoryConfig {
-  capture?: {
-    enabled?: boolean;
-    mode?: "sync" | "async";
-    maxContentLen?: number;
-    minContentLen?: number;
-    batchSize?: number;
-    debounceMs?: number;
-    excludeAgents?: string[];
-  };
-  recall?: {
-    enabled?: boolean;
-    strategy?: "hybrid" | "fts" | "vector";
-    maxResults?: number;
-    topK?: number;
-    minScore?: number;
-    cacheTTL?: number;
-    maxCacheSize?: number;
-    halfLife?: number;
-    jaccardBase?: number;
-    jaccardMin?: number;
-    maxSessions?: number;
-    maxContextKeywords?: number;
-    decayMode?: string;
-    position?: string;
-    timeoutMs?: number;
-    excludeRecentMS?: number;
-    minResults?: number;
-    maxChars?: number;
-    scoreThreshold?: number;
-    hintText?: string;
-    enableMmr?: boolean;
-    mmrLambda?: number;
-  };
-  memoryDir?: string;
-  embedding?: {
-    enabled?: boolean;
-    apiKey?: string;
-    baseUrl?: string;
-    model?: string;
-    dimensions?: number;
-    /** Vector backend: 'sqlite-vec' (default) or 'hnswlib' (optional, requires hnswlib-node) */
-    vectorBackend?: string;
-    /** HNSW max elements (only used when vectorBackend='hnswlib'). Range: 1000–500000 */
-    hnswMaxElements?: number;
-    provider?: string;
-    providerModels?: Record<string, string>;
-    timeoutMs?: number;
-    retries?: number;
-    maxInputChars?: number;
-    backoffBaseMs?: number;
-    authType?: string;
-    customHeaders?: Record<string, string>;
-  };
-  llm?: {
-    enabled?: boolean;
-    apiKey?: string;
-    baseUrl?: string;
-    model?: string;
-  };
-  cleanup?: {
-    enabled?: boolean;
-    l0l1RetentionDays?: number;
-    allowAggressiveCleanup?: boolean;
-  };
-  compaction?: {
-    enabled?: boolean;
-    minAgeDays?: number;
-    similarityThreshold?: number;
-    minClusterSize?: number;
-    maxEntriesToScan?: number;
-    dryRun?: boolean;
-  };
-  sessionRecovery?: {
-    maxMemories?: number;
-    maxAgeMs?: number;
-  };
-  hooks?: {
-    commandNew?: {
-      enabled?: boolean;
-    };
-    heartbeat?: {
-      enabled?: boolean;
-      maxResults?: number;
-      minScore?: number;
-      maxContextChars?: number;
-    };
-  };
-  snippetMaxLen?: number;
-  searchMaxLimit?: number;
-  likeFallbackScore?: number;
-  tz?: string; // timezone for date formatting (e.g., "Asia/Shanghai")
-  blockLabels?: string[];
-  [key: string]: unknown; // allow additional fields
-}
+export type { YaoyaoMemoryConfig, MemoryEntry } from "./memory-store-types.ts";
 
 /** Validate memoryDir config to prevent path traversal */
 function validateMemoryDir(rawDir: string | undefined): string {
@@ -125,16 +27,6 @@ function validateMemoryDir(rawDir: string | undefined): string {
     throw new Error(`Invalid memoryDir "${rawDir}": must be absolute and not contain parent references`);
   }
   return resolved;
-}
-
-export interface MemoryEntry {
-  type: "daily" | "memory" | "archive";
-  path: string;
-  filename: string;
-  date?: string;
-  size: number;
-  modified: number;
-  importance?: number;
 }
 
 export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) {

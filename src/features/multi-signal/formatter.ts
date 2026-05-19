@@ -6,8 +6,10 @@
 import type { SearchResult } from "../../storage/types.ts";
 import { formatMultiSignalResults } from "../../core/search/multi-signal.ts";
 import { formatAdditiveResults } from "../../core/search/additive-scorer.ts";
+import type { AdditiveScoreResult } from "../../core/search/additive-scorer.ts";
+import type { MultiSignalResult } from "../../core/search/signal-fusion.ts";
 
-export function mergeAndDedupResults(fts: SearchResult[], vec: any[]): SearchResult[] {
+export function mergeAndDedupResults(fts: SearchResult[], vec: SearchResult[]): SearchResult[] {
   const seen = new Set<number | string>();
   const merged: SearchResult[] = [];
 
@@ -37,7 +39,7 @@ export function mergeAndDedupResults(fts: SearchResult[], vec: any[]): SearchRes
 }
 
 export interface FormattedResult {
-  id?: number;
+  id: number | string;
   snippet: string;
   date: string;
   score: number;
@@ -57,7 +59,7 @@ export function formatJsonResults(
     count: topResults.length,
     totalCandidates: allResultsCount,
     fusionMode,
-    results: topResults.map((r: any) => ({
+    results: topResults.map((r: FormattedResult) => ({
       id: r.id,
       snippet: (String(r.snippet ?? "")).slice(0, 200),
       date: r.date,
@@ -69,14 +71,14 @@ export function formatJsonResults(
 }
 
 export function formatTextResults(
-  topResults: any[],
+  topResults: FormattedResult[],
   query: string,
   fusionMode: "rrf" | "additive",
   allResultsCount: number,
 ): string {
   const text: string = fusionMode === "additive"
-    ? formatAdditiveResults(topResults, query)
-    : formatMultiSignalResults(topResults, query);
+    ? formatAdditiveResults(topResults as unknown as AdditiveScoreResult[], query)
+    : formatMultiSignalResults(topResults as unknown as MultiSignalResult[], query);
 
   return text + `\nFusion mode: ${fusionMode === "additive" ? "Additive Scoring" : "RRF"} | ${allResultsCount} candidates merged to ${topResults.length} results.`;
 }

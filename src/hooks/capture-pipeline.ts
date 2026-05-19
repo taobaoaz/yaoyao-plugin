@@ -8,20 +8,13 @@
 import { clampNum } from "../utils/clamp.ts";
 import { getObj, getProp, getBool } from "../utils/config.ts";
 import { isNoise } from "../core/filter/noise.ts";
-import { classifyTemporal, inferExpiry } from "../utils/temporal-classifier.ts";
-import { detectSpeculative, detectCorrection } from "../core/verify/verify.ts";
-import { extractIdentityCandidates } from "../utils/identity-addressing.ts";
-import { compressTexts, estimateConversationValue } from "../utils/session-compressor.ts";
-import { enrichMetadata } from "../core/upgrader/index.ts";
 import { smartChunk } from "../utils/chunker.ts";
-import { isDuplicateOfRecent } from "../utils/batch-dedup.ts";
-import { extractFacts, type L1Logger } from "../utils/l1-extractor.ts";
-import { maybeOffload } from "../utils/mermaid-canvas.ts";
 import { isMMDBlock } from "../utils/mmd-filter.ts";
 import { isTrivial } from "../core/filter/trivial.ts";
 import { extractContent } from "./capture-content.ts";
-import { classifyMemoryType, type MemoryTag } from "../core/memory-types.ts";
-import type { YaoyaoMemoryConfig, MemoryStore } from "../utils/memory-store.ts";
+import { maybeOffload } from "../utils/mermaid-canvas.ts";
+import { estimateConversationValue } from "../utils/session-compressor.ts";
+import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import type { DBBridge } from "../utils/db-bridge.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
 
@@ -99,69 +92,6 @@ export function shouldSkipContent(userContent: string, asstContent: string): { s
   return { skip: false };
 }
 
-export function runAntiHallucination(userContent: string, asstContent: string, verifyActive: boolean) {
-  let riskTag = "";
-  let specCheck: ReturnType<typeof detectSpeculative> = { isSpeculative: false, markers: [], confidence: "high" };
-  let corrCheck: ReturnType<typeof detectCorrection> = { isCorrection: false, markers: [] };
-  if (verifyActive) {
-    try {
-      specCheck = detectSpeculative(asstContent);
-      corrCheck = detectCorrection(userContent);
-    } catch { /* best-effort */ }
-  }
-  if (specCheck.isSpeculative) riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(", ")}]`;
-  if (corrCheck.isCorrection) riskTag += ` [🚫 用户纠正]`;
-  return { riskTag, specCheck, corrCheck };
-}
-
-export async function buildMetaObj(
-  userContent: string,
-  asstContent: string,
-  scopeManager: any | undefined,
-  agentId: string | undefined,
-  specCheck: any,
-  corrCheck: any,
-  enableL1: boolean,
-  skipL1: boolean,
-  brainMode: "lite" | "full",
-  llmClient: any | null,
-  logger: any,
-  maxMemories: number,
-  config: YaoyaoMemoryConfig,
-): Promise<{ metaObj: Record<string, unknown>; meta: string | undefined; memoryTag?: MemoryTag }> {
-  const temporalType = classifyTemporal(userContent + " " + asstContent);
-  const expiryAt = temporalType === "dynamic" ? inferExpiry(userContent + " " + asstContent) : undefined;
-  const memoryTag = classifyMemoryType(userContent, asstContent);
-  const metaObj: Record<string, unknown> = { temporal: temporalType, memoryType: memoryTag.type };
-
-  if (scopeManager) metaObj.scope = scopeManager.getDefaultScope(agentId);
-  const identities = extractIdentityCandidates(userContent + " " + asstContent);
-  if (identities.length > 0) metaObj.identities = identities;
-  if (expiryAt) metaObj.expiryAt = expiryAt;
-  if (specCheck.isSpeculative) { metaObj.speculative = true; metaObj.confidence = specCheck.confidence; }
-  if (corrCheck.isCorrection) { metaObj.correction = true; }
-  if (memoryTag.tags.length > 0) { metaObj.tags = memoryTag.tags; }
-
-  if (enableL1 && !skipL1) {
-    try {
-      const facts = await extractFacts(userContent, asstContent, { brainMode, llmClient, logger: logger as L1Logger });
-      if (facts.length > 0) metaObj.l1Facts = facts.slice(0, maxMemories);
-    } catch { /* best effort */ }
-  }
-
-  enrichMetadata(metaObj, userContent + " " + asstContent);
-  const meta = Object.keys(metaObj).length > 1 ? JSON.stringify(metaObj) : undefined;
-  return { metaObj, meta, memoryTag };
-}
-
-export function checkDedup(db: DBBridge, texts: string, config: CaptureConfig): boolean {
-  if (!config.enableDedup) return false;
-  try {
-    const recent = db.getLatestMemory(config.dedupLookback);
-    return isDuplicateOfRecent(texts, recent, config.dedupThreshold);
-  } catch { return false; }
-}
-
 export function writeDailyFile(store: MemoryStore, date: string, timestamp: string, userContent: string, asstContent: string, riskTag: string, isCorrection: boolean): void {
   const entry = `\n### ${timestamp}\n**User:** ${userContent}${isCorrection ? " [纠正]" : ""}\n**AI:** ${asstContent}${riskTag}\n`;
   store.appendToDaily(date, entry);
@@ -174,8 +104,7 @@ export function indexToFTS5(
   date: string,
   meta: string | undefined,
   watermark: { skipFTS5?: boolean },
-  writeQueue: any,
-  api: any,
+  writeQueue: ReturnType<typeof import("../utils/write-queue.ts").createWriteQueue> | null,
 ): void {
   if (watermark.skipFTS5) return;
 
@@ -186,14 +115,14 @@ export function indexToFTS5(
       const chunkMeta = { ...JSON.parse(meta || "{}"), chunkIndex: i + 1, totalChunks: chunkResult.chunkCount };
       const chunkMetaStr = Object.keys(chunkMeta).length > 1 ? JSON.stringify(chunkMeta) : undefined;
       if (writeQueue) {
-        writeQueue.enqueue({ date, userContent, asstContent: chunkResult.chunks[i], meta: chunkMetaStr });
+        writeQueue.enqueue({ date, timestamp: date, userContent, asstContent: chunkResult.chunks[i], meta: chunkMetaStr });
       } else {
         db.indexTurn(userContent, chunkResult.chunks[i], date, chunkMetaStr);
       }
     }
   } else {
     if (writeQueue) {
-      writeQueue.enqueue({ date, userContent, asstContent: indexableAsst, meta });
+      writeQueue.enqueue({ date, timestamp: date, userContent, asstContent: indexableAsst, meta });
     } else {
       db.indexTurn(userContent, indexableAsst, date, meta);
     }

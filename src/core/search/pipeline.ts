@@ -16,108 +16,13 @@ import type { Storage, SearchResult, EmbeddedSearchResult } from "../../storage/
 import type { EmbeddingService } from "../../utils/embedding.ts";
 import { multiSignalFusion } from "./multi-signal.ts";
 import { classifyIntent, INTENT_WEIGHTS, type IntentWeights, type QueryIntent } from "./intent.ts";
+import type { SearchStrategy, SearchPipelineOptions } from "./pipeline-types.ts";
+import { applyIntentWeights, dedupSearchResults } from "./pipeline-scoring.ts";
 
-export type SearchStrategy =
-  | "fts"           // Pure FTS5 (fastest)
-  | "hybrid"        // FTS5 + vector weighted
-  | "rrf"           // FTS5 + vector RRF fusion
-  | "multi-signal"  // FTS5 + BM25 + vector + entity boost
-  | "additive"      // mem0 v3 style additive scoring
-  | "intent-driven";// Auto-classify query, use intent-aware weights
-
-export interface SearchPipelineOptions {
-  strategy?: SearchStrategy;
-  limit?: number;
-  rrfK?: number;
-  temporalDecayDays?: number;
-  entityBoost?: boolean;
-  /**
-   * Intent-aware weights override.
-   * When set, overrides the auto-classified intent weights.
-   * Only used with strategy="intent-driven" or strategy="rrf".
-   */
-  intentWeights?: Partial<IntentWeights>;
-}
-
-/** Context object returned alongside results to enable downstream analysis */
-export interface SearchContext {
-  /** Classified query intent */
-  intent: QueryIntent;
-  /** Actual weights applied in this search */
-  weights: IntentWeights;
-  /** Strategy that was actually executed */
-  effectiveStrategy: SearchStrategy;
-}
-
-/** Extended search result with per-signal breakdown */
-export interface ScoredSearchResult {
-  result: SearchResult | EmbeddedSearchResult;
-  /** Intent-weighted composite score (normalized 0-1) */
-  compositeScore: number;
-  /** Individual signal scores */
-  signals: {
-    fts: number;
-    vector: number;
-    temporal: number;
-  };
-  /** Which memory type this likely belongs to (if tagged) */
-  memoryType?: string;
-}
-
-/**
- * Apply intent-aware weights to produce a composite score.
- * Normalizes all scores into a single 0-1 value.
- */
-function applyIntentWeights(
-  result: SearchResult | EmbeddedSearchResult,
-  weights: IntentWeights,
-): { compositeScore: number; signals: { fts: number; vector: number; temporal: number } } {
-  // FTS score: higher = better, typically 0-1 range
-  const ftsScore = typeof (result as SearchResult).score === "number"
-    ? (result as SearchResult).score
-    : 0.3;
-
-  // Vector score: if EmbeddedSearchResult, use vectorScore or hybridScore
-  const vecResult = result as EmbeddedSearchResult;
-  const vectorScore = typeof vecResult.vectorScore === "number"
-    ? vecResult.vectorScore
-    : typeof vecResult.hybridScore === "number"
-      ? vecResult.hybridScore
-      : ftsScore; // fallback when vector unavailable
-
-  // Temporal recency: check if EmbeddedSearchResult has timestamp
-  const timestamp = "timestamp" in result ? (result as unknown as { timestamp?: number }).timestamp : undefined;
-  const temporalScore = typeof timestamp === "number" && Number.isFinite(timestamp)
-    ? temporalDecay(timestamp, 30) // 30-day half-life
-    : 0.5; // neutral if no timestamp
-
-  // Composite: weighted sum
-  const compositeScore = (
-    weights.fts * ftsScore +
-    weights.vector * vectorScore +
-    weights.temporal * temporalScore
-  );
-
-  return {
-    compositeScore: Math.min(1, Math.max(0, compositeScore)),
-    signals: { fts: ftsScore, vector: vectorScore, temporal: temporalScore },
-  };
-}
-
-/** Exponential temporal decay: max score for today, half after `halfLifeDays` */
-function temporalDecay(timestampMs: number, halfLifeDays: number): number {
-  const ageMs = Date.now() - timestampMs;
-  const ageDays = ageMs / (24 * 60 * 60 * 1000);
-  if (ageDays <= 0) return 1.0;
-  return Math.pow(0.5, ageDays / halfLifeDays);
-}
+export type { SearchStrategy, SearchPipelineOptions } from "./pipeline-types.ts";
 
 /**
  * Unified search pipeline with intent-aware scoring.
- *
- * Inspired by Cortex Memory's layered retrieval:
- *   score = w_fts × FTS_score + w_vec × vector_score + w_temp × temporal_score
- * where weights are determined by classified query intent.
  */
 export function createSearchPipeline(
   storage: Storage,
@@ -151,13 +56,11 @@ export function createSearchPipeline(
         }
 
         case "intent-driven": {
-          // Classify intent & pick weights
           const intent = classifyIntent(query);
           const weights: IntentWeights = options.intentWeights
             ? { ...INTENT_WEIGHTS[intent], ...options.intentWeights }
             : INTENT_WEIGHTS[intent];
 
-          // Fetch raw results (overfetch)
           let results: (SearchResult | EmbeddedSearchResult)[];
           if (hasEmbedding && embedding) {
             const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
@@ -166,7 +69,6 @@ export function createSearchPipeline(
             results = storage.search(query, overfetchLimit);
           }
 
-          // Re-rank by intent-weighted composite score
           const scored = results.map(r => ({
             result: r,
             ...applyIntentWeights(r, weights),
@@ -221,10 +123,6 @@ export function createSearchPipeline(
       return storage.search(query, limit);
     },
 
-    /**
-     * Get intent classification + weights without executing the search.
-     * Useful for downstream components that want to log or display intent analysis.
-     */
     analyzeQuery(query: string): { intent: QueryIntent; weights: IntentWeights } {
       const intent = classifyIntent(query);
       return { intent, weights: INTENT_WEIGHTS[intent] };
@@ -234,24 +132,5 @@ export function createSearchPipeline(
 
 export type SearchPipeline = ReturnType<typeof createSearchPipeline>;
 
-/** Re-export INTENT_WEIGHTS for direct use by downstream code */
 export { INTENT_WEIGHTS } from "./intent.ts";
 export { classifyIntent } from "./intent.ts";
-
-function dedupSearchResults(fts: SearchResult[], vec: EmbeddedSearchResult[]): SearchResult[] {
-  const seen = new Set<string>();
-  const merged: SearchResult[] = [];
-  for (const r of fts) {
-    const key = `${r.id ?? ""}|${r.snippet}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(r);
-  }
-  for (const r of vec) {
-    const key = `${r.id ?? ""}|${r.snippet}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(r);
-  }
-  return merged;
-}

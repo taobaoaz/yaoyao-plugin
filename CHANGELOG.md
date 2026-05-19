@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.7.1 (2026-05-19)
+
+### 🔍 定时重置风险检测与 Cron 管理
+- **reset-detector 模块** — 自动检测环境中可能定时重置记忆的机制：
+  - OpenClaw `slots.memory` 冲突检测（内置 memory-core vs yaoyao）
+  - OpenClaw `session.reset` 配置扫描（daily/idle 模式、重置时间）
+  - 系统 crontab / systemd timer 扫描
+  - 其他插件配置中的 retention/cleanup/reset/prune 字段检测
+  - yaoyao 自身 `cleanup.l0l1RetentionDays` 激进策略检测
+- **memory_cron 工具** — 统一接管定时任务管理：
+  - `list` — 列出 OpenClaw cron、系统 crontab、systemd timers
+  - `detect` — 检测与记忆系统冲突的定时任务
+  - `suggest` — 给出优化建议（整点偏移、冲突移除）
+  - `disable` — 生成禁用冲突任务的配置（用户确认后手动应用）
+- **启动时自动检测** — `core/app.ts` 启动时自动运行 `detectScheduledResetRisks()`，风险输出到日志
+
+### 🧱 架构规约持续执行
+- **大文件拆分** (12 files):
+  - `utils/backup.ts` 223→82 + backup-create.ts + backup-restore.ts
+  - `utils/session-compressor.ts` 223→102 + compressor-core.ts + compressor-helpers.ts
+  - `core/trends/trends.ts` 223→97 + trends-formatter.ts + trends-stopwords.ts
+  - `core/quality/quality.ts` 223→101 + quality-dedup.ts + quality-report.ts
+  - `utils/healthcheck.ts` 211→189 + healthcheck-formatter.ts + healthcheck-stats.ts
+  - `utils/chunker.ts` 212→76 + chunker-core.ts + chunker-split.ts
+  - `utils/session-recovery.ts` 216→147 + session-recovery-paths.ts + session-recovery-read.ts
+  - `platform/db/file.ts` 219→173 + file-search.ts
+- **全部文件 <200 行** ✅
+- **友商经验对照表** 从 `DEVELOPER_GUIDE.md` 删除
+
 ## v1.7.0 (2026-05-18)
 
 ### 📖 Memory-System Enhancements

@@ -162,16 +162,9 @@ export function runHealthcheck(baseDir?: string): HealthResult {
     checks.push({ name: "Git 可用性", status: "warn", message: "不可用 ⚠️", detail: "git 命令未找到。自动迁移（yaoyao-soul 安装）将不可用，需手动安装。" });
   }
 
-  // Brain-style health stats: query DB for memory distribution
-  try {
-    const { createCompatDB } = require("../platform/db/compat.ts");
-    const { db: statsDb } = createCompatDB(baseDir ? path.join(baseDir, "memory.db") : path.join(memDir, "memory.db"));
-    const total = statsDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as { c: number };
-    const tierDist = statsDb.prepare("SELECT tier, COUNT(*) as c FROM memory_meta GROUP BY tier").all() as { tier: string; c: number }[];
-    const avgAge = statsDb.prepare("SELECT AVG(julianday('now') - julianday(created_at)) as d FROM memory_meta").get() as { d: number };
-    statsDb.close();
-    checks.push({ name: "记忆统计", status: "pass", message: `共 ${total?.c ?? 0} 条记忆`, detail: `层级分布: ${tierDist?.map(t => `${t.tier}=${t.c}`).join(", ") || "active=0"} | 平均天数: ${(avgAge?.d ?? 0).toFixed(1)}` });
-  } catch { /* skip if no DB yet */ }
+  // 11. Memory stats
+  const statsCheck = runMemoryStatsCheck(baseDir, memDir, createCompatDB);
+  if (statsCheck) checks.push(statsCheck);
 
   const failures = checks.filter(c => c.status === "fail").length;
   const warns = checks.filter(c => c.status === "warn").length;
@@ -189,22 +182,7 @@ export function runHealthcheck(baseDir?: string): HealthResult {
 }
 
 /** Format health result as markdown for display */
-export function formatHealthcheck(result: HealthResult): string {
-  const lines = [
-    `## 🏥 环境诊断报告`,
-    ``,
-    `**总体状态**: ${result.ok ? "✅ 通过" : "❌ 未通过"}`,
-    ``,
-    `| 检查项 | 状态 | 说明 |`,
-    `|--------|------|------|`,
-  ];
-  for (const c of result.checks) {
-    const icon = c.status === "pass" ? "🟢" : c.status === "warn" ? "🟡" : "🔴";
-    lines.push(`| ${c.name} | ${icon} ${c.status.toUpperCase()} | ${c.message} |`);
-    if (c.detail) {
-      lines.push(`| | | *${c.detail}* |`);
-    }
-  }
-  lines.push(``, `**${result.summary}**`, ``);
-  return lines.join("\n");
-}
+import { formatHealthcheck } from "./healthcheck-formatter.ts";
+import { runMemoryStatsCheck } from "./healthcheck-stats.ts";
+
+export { formatHealthcheck };
