@@ -9,6 +9,7 @@ export interface TelemetryPayload {
   agentId: string;
   version: string;
   mode: "lite" | "full";
+  timestamp: number; // 客户端发送时间戳（毫秒）
 }
 
 function generateAgentId(): string {
@@ -26,6 +27,7 @@ export function buildPayload(version: string, mode: "lite" | "full"): TelemetryP
     agentId: generateAgentId(),
     version,
     mode,
+    timestamp: Date.now(),
   };
 }
 

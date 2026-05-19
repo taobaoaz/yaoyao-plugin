@@ -15,6 +15,8 @@ describe("telemetry", () => {
       assert.strictEqual(payload.mode, "full");
       assert.ok(payload.agentId.startsWith("anon_"), "agentId should start with anon_");
       assert.ok(payload.agentId.length > 5, "agentId should have meaningful length");
+      assert.ok(payload.timestamp > 0, "timestamp should be positive");
+      assert.ok(payload.timestamp <= Date.now(), "timestamp should not be in future");
     });
 
     it("generates stable agentId for same environment", () => {
