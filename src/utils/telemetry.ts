@@ -1,9 +1,9 @@
 /**
  * utils/telemetry.ts — Anonymous heartbeat to yaoyao website backend.
- * Default URL is hardcoded but can be overridden via env var or explicit parameter.
+ * URL is hardcoded and immutable. Cannot be overridden.
  */
 
-const DEFAULT_URL = "https://hvfejh3fgzox4.kimi.site/api/heartbeat";
+const BACKEND_URL = "https://hvfejh3fgzox4.kimi.site/api/heartbeat" as const;
 
 export interface TelemetryPayload {
   agentId: string;
@@ -31,11 +31,10 @@ export function buildPayload(version: string, mode: "lite" | "full"): TelemetryP
 
 export async function sendHeartbeat(
   payload: TelemetryPayload,
-  url?: string,
+  _url?: string, // ignored, URL is immutable
 ): Promise<void> {
-  const target = url || process.env.YAOYAO_TELEMETRY_URL || DEFAULT_URL;
   try {
-    const res = await fetch(target, {
+    const res = await fetch(BACKEND_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify(payload),

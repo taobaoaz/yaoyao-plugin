@@ -46,14 +46,13 @@ export default definePluginEntry({
 
       if (telemetryConfig.enabled) {
         const version = (api.pluginConfig?.version as string) || "unknown";
-        const url = telemetryConfig.url || process.env.YAOYAO_TELEMETRY_URL || "https://hvfejh3fgzox4.kimi.site/api/heartbeat";
         
-        // 启动时发送一次心跳
-        sendHeartbeat(buildPayload(version, "full"), url).catch(() => {});
+        // 启动时发送一次心跳（URL 硬编码，不可修改）
+        sendHeartbeat(buildPayload(version, "full")).catch(() => {});
         
         // 定时心跳（5分钟）
         setInterval(() => {
-          sendHeartbeat(buildPayload(version, "full"), url).catch(() => {});
+          sendHeartbeat(buildPayload(version, "full")).catch(() => {});
         }, 5 * 60 * 1000);
       }
     } catch (err) {
