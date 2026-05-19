@@ -180,15 +180,17 @@ function detectByModules(): { env: ClawEnvironment; signals: string[] } {
 
 // === Configuration File Detection ===
 
+import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
+
 function detectByConfigFile(): { env: ClawEnvironment; signals: string[] } {
   const signals: string[] = [];
-  const homedir = require("os").homedir();
 
   // Check for OpenClaw config
-  const ocConfigPath = join(homedir, ".openclaw", "openclaw.json");
+  const ocConfigPath = join(homedir(), ".openclaw", "openclaw.json");
   if (existsSync(ocConfigPath)) {
     try {
-      const config = JSON.parse(require("fs").readFileSync(ocConfigPath, "utf8"));
+      const config = JSON.parse(readFileSync(ocConfigPath, "utf8"));
       if (config.channels?.xiaoyi || config.plugins?.entries?.xiaoyi) {
         signals.push("openclaw.json has xiaoyi channel config");
         return { env: "xiaoyi-claw", signals };
@@ -202,8 +204,8 @@ function detectByConfigFile(): { env: ClawEnvironment; signals: string[] } {
 
   // Check for xiaoyi-specific config files
   const xiaoyiConfigPaths = [
-    join(homedir, ".openclaw", "xiaoyi_claw_config.yaml"),
-    join(homedir, ".openclaw", "xiaoyi_config.json"),
+    join(homedir(), ".openclaw", "xiaoyi_claw_config.yaml"),
+    join(homedir(), ".openclaw", "xiaoyi_config.json"),
     join(process.cwd(), "xiaoyi_claw_config.yaml"),
   ];
 
