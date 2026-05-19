@@ -59,6 +59,34 @@ function detectByFileSystem(): { env: ClawEnvironment; signals: string[] } {
     }
   }
 
+  // v4.3: Check for UDS socket files
+  const tmpDir = "/tmp";
+  if (existsSync(tmpDir)) {
+    try {
+      const entries = readdirSync(tmpDir);
+      if (entries.some(e => e.startsWith("xiaoyi_worker_") && e.endsWith(".sock"))) {
+        signals.push("found xiaoyi UDS socket files");
+        return { env: "xiaoyi-claw", signals };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // v4.3: Check for mmap shared memory directory
+  const shmDir = "/dev/shm";
+  if (existsSync(shmDir)) {
+    try {
+      const entries = readdirSync(shmDir);
+      if (entries.some(e => e.startsWith("xiaoyi_"))) {
+        signals.push("found xiaoyi shared memory segments");
+        return { env: "xiaoyi-claw", signals };
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return { env: "unknown", signals };
 }
 
@@ -74,6 +102,15 @@ function detectByEnvVars(): { env: ClawEnvironment; signals: string[] } {
   }
   if (process.env.XIAOYI_CLAW_VERSION) {
     signals.push("XIAOYI_CLAW_VERSION set");
+    return { env: "xiaoyi-claw", signals };
+  }
+  // v4.3: Worker environment
+  if (process.env.XIAOYI_WORKER_ID) {
+    signals.push("XIAOYI_WORKER_ID set");
+    return { env: "xiaoyi-claw", signals };
+  }
+  if (process.env.ZMQ_PUB_ENDPOINT) {
+    signals.push("ZMQ_PUB_ENDPOINT set");
     return { env: "xiaoyi-claw", signals };
   }
 
