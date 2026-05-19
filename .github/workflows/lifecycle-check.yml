@@ -31,4 +31,13 @@ jobs:
           ./scripts/lifecycle-check.sh
 
       - name: Run unit tests
-        run: npm run test:ci
+        run: |
+          npm run test:ci 2>&1 | tee test-output.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: test-output.log
