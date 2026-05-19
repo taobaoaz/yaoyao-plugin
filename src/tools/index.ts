@@ -66,6 +66,21 @@ import { createVerifyTool } from "../features/verify/tool.ts";
 /* ── Telemetry ─────────────────────────────────────── */
 import { createTelemetryTool } from "../features/telemetry/tool.ts";
 
+/* ── Graph relations (Phase 1) ─────────────────────── */
+import { createGraphRelationTool } from "../features/graph-relation/tool.ts";
+
+/* ── Atomic facts (Phase 2) ────────────────────────── */
+import { createAtomicFactTool } from "../features/atomic-fact/tool.ts";
+
+/* ── Adaptive search (Phase 3) ─────────────────────── */
+import { createAdaptiveSearchTool } from "../features/adaptive-search/tool.ts";
+
+/* ── Skill analytics (Phase 4) ────────────────────── */
+import { createSkillAnalyticsTool } from "../features/skill-analytics/tool.ts";
+
+/* ── Benchmark (Phase 5) ───────────────────────────── */
+import { createBenchmarkTool } from "../features/benchmark/tool.ts";
+
 export function registerMemoryTools(
   api: OpenClawPluginApi,
   store: MemoryStore,
@@ -111,7 +126,12 @@ export function registerMemoryTools(
       url: process.env.YAOYAO_TELEMETRY_URL,
     }),
 
-    /* ── Conflict detection (v1.6.0) ── */
+    /* ── Phase 1-5: Advanced memory features ── */
+    createGraphRelationTool(),
+    createAtomicFactTool(),
+    createAdaptiveSearchTool(),
+    createSkillAnalyticsTool(),
+    createBenchmarkTool(),
     createJudgeTool(db),
     createConflictsTool(db),
   );
