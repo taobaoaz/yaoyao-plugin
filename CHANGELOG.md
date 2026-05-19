@@ -1,6 +1,46 @@
 # Changelog
 
-## v1.7.1 (2026-05-19)
+## v1.7.3 (开发中)
+
+### 🔗 图结构记忆 (Phase 1)
+- **记忆关系图谱** — 支持 4 种关系类型：
+  - `supersedes` — 新记忆替代旧记忆
+  - `related` — 语义关联
+  - `causes` — 因果关系
+  - `part_of` — 部分-整体关系
+- **BFS 图遍历** — `memory_graph_relation` 工具支持 1-3 跳关联搜索
+- **Mermaid 图导出** — 可视化记忆关系网
+
+### 🧬 原子事实提取 (Phase 2)
+- **SPO 结构化提取** — subject-predicate-object 三元组
+- **3 种提取模式** — regex (Lite) / llm (Full) / hybrid (自适应)
+- **实体索引** — 按主语/宾语快速检索事实
+- **`memory_atomic_fact` 工具** — 提取/查询/总结原子事实
+
+### 🎯 查询自适应 (Phase 3)
+- **查询分类器** — 自动识别概念/时序/因果/实体查询
+- **动态权重调整** — 根据查询类型优化搜索策略：
+  - 概念查询 → 语义权重 50%
+  - 时序查询 → 时间权重 45%
+  - 因果查询 → 图遍历权重 45%
+  - 实体查询 → 实体匹配权重 45%
+- **`memory_adaptive_search` 工具** — 返回分类结果和调整后的权重
+
+### 💡 技能学习 (Phase 4)
+- **调用模式追踪** — 记录工具调用频率、耗时、参数签名
+- **4 类优化建议** — shortcut / optimization / automation / new_feature
+- **`memory_skill_analytics` 工具** — 分析使用模式并生成建议
+
+### 📊 基准测试 (Phase 5)
+- **8 个测试用例** — 覆盖 single-hop / multi-hop / temporal / open-domain
+- **3 种难度** — easy / medium / hard
+- **评分系统** — 精确匹配 + 部分匹配
+- **`memory_benchmark` 工具** — 运行回归测试并生成报告
+
+### 🛠️ 工具总数 26 → 31
+新增 5 个 AI 可调用的记忆工具
+
+## v1.7.2 (2026-05-19)
 
 ### 🔍 定时重置风险检测与 Cron 管理
 - **reset-detector 模块** — 自动检测环境中可能定时重置记忆的机制：

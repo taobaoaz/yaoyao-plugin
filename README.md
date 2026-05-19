@@ -2,7 +2,7 @@
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**26+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 531 单元测试**
+**31+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 531 单元测试**
 
 > 🌐 **官网**: [https://hvfejh3fgzox4.kimi.site](https://hvfejh3fgzox4.kimi.site)
 >
