@@ -46,6 +46,14 @@ function detectByFileSystem(): { env: ClawEnvironment; signals: string[] } {
           signals.push(`found xiaoyi-specific gateway in ${extDir}`);
           return { env: "xiaoyi-claw", signals };
         }
+        // v4.3: xiaoyi plugin directory
+        if (entries.includes("xiaoyi")) {
+          const xiaoyiDir = join(extDir, "xiaoyi");
+          if (existsSync(join(xiaoyiDir, "xiaoyi.js"))) {
+            signals.push(`found xiaoyi plugin at ${xiaoyiDir}`);
+            return { env: "xiaoyi-claw", signals };
+          }
+        }
       } catch {
         // ignore read errors
       }
@@ -170,6 +178,45 @@ function detectByModules(): { env: ClawEnvironment; signals: string[] } {
   return { env: "unknown", signals };
 }
 
+// === Configuration File Detection ===
+
+function detectByConfigFile(): { env: ClawEnvironment; signals: string[] } {
+  const signals: string[] = [];
+  const homedir = require("os").homedir();
+
+  // Check for OpenClaw config
+  const ocConfigPath = join(homedir, ".openclaw", "openclaw.json");
+  if (existsSync(ocConfigPath)) {
+    try {
+      const config = JSON.parse(require("fs").readFileSync(ocConfigPath, "utf8"));
+      if (config.channels?.xiaoyi || config.plugins?.entries?.xiaoyi) {
+        signals.push("openclaw.json has xiaoyi channel config");
+        return { env: "xiaoyi-claw", signals };
+      }
+      signals.push("found openclaw.json");
+      return { env: "openclaw", signals };
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  // Check for xiaoyi-specific config files
+  const xiaoyiConfigPaths = [
+    join(homedir, ".openclaw", "xiaoyi_claw_config.yaml"),
+    join(homedir, ".openclaw", "xiaoyi_config.json"),
+    join(process.cwd(), "xiaoyi_claw_config.yaml"),
+  ];
+
+  for (const path of xiaoyiConfigPaths) {
+    if (existsSync(path)) {
+      signals.push(`found xiaoyi config at ${path}`);
+      return { env: "xiaoyi-claw", signals };
+    }
+  }
+
+  return { env: "unknown", signals };
+}
+
 // === Main Detection ===
 
 export function detectEnvironment(): DetectionResult {
@@ -186,7 +233,18 @@ export function detectEnvironment(): DetectionResult {
     };
   }
 
-  // Priority 2: Environment variables
+  // Priority 2: Configuration files
+  const configResult = detectByConfigFile();
+  if (configResult.env !== "unknown") {
+    allSignals.push(...configResult.signals);
+    return {
+      env: configResult.env,
+      confidence: "high",
+      signals: allSignals,
+    };
+  }
+
+  // Priority 3: Environment variables
   const envResult = detectByEnvVars();
   if (envResult.env !== "unknown") {
     allSignals.push(...envResult.signals);
@@ -197,7 +255,7 @@ export function detectEnvironment(): DetectionResult {
     };
   }
 
-  // Priority 3: Global markers
+  // Priority 4: Global markers
   const globalResult = detectByGlobalMarkers();
   if (globalResult.env !== "unknown") {
     allSignals.push(...globalResult.signals);
@@ -208,7 +266,7 @@ export function detectEnvironment(): DetectionResult {
     };
   }
 
-  // Priority 4: Module presence (least reliable, can be mocked)
+  // Priority 5: Module presence (least reliable, can be mocked)
   const moduleResult = detectByModules();
   if (moduleResult.env !== "unknown") {
     allSignals.push(...moduleResult.signals);
