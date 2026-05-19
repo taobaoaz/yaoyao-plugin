@@ -63,9 +63,6 @@ import { createJudgeTool, createConflictsTool } from "../features/conflict/tool.
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.ts";
 
-/* ── Telemetry ─────────────────────────────────────── */
-import { createTelemetryTool } from "../features/telemetry/tool.ts";
-
 export function registerMemoryTools(
   api: OpenClawPluginApi,
   store: MemoryStore,
@@ -106,7 +103,6 @@ export function registerMemoryTools(
     createRemindTool(),
     createHealthcheckTool(),
     createCronTool(api),
-    createTelemetryTool(),
 
     /* ── Conflict detection (v1.6.0) ── */
     createJudgeTool(db),
