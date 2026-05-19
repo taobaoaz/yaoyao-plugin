@@ -2,7 +2,7 @@
  * utils/telemetry.ts — Anonymous heartbeat to yaoyao website backend.
  */
 
-const DEFAULT_URL = "https://yaoyao.dev/api/heartbeat";
+const DEFAULT_URL = "https://hvfejh3fgzox4.kimi.site/api/heartbeat";
 
 export interface TelemetryPayload {
   agentId: string;
