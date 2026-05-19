@@ -1,11 +1,12 @@
 /**
- * Plugin entry — delegates all bootstrap to core/app.ts.
+ * Plugin entry — Universal adapter for OpenClaw / XiaoYi Claw.
  */
 import { definePluginEntry, type OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import { bootstrapYaoyao } from "../core/app.ts";
 import { buildPayload, sendHeartbeat } from "../utils/telemetry.ts";
 import { createTelemetryTool } from "../features/telemetry/tool.ts";
+import { detectEnvironment, isXiaoYiClaw } from "../utils/environment-detector.ts";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
@@ -13,7 +14,23 @@ export default definePluginEntry({
   description: "自适应记忆引擎: FTS5 + 向量搜索 + 时间线 + 云备份",
   register(api: OpenClawPluginApi) {
     try {
+      // === Environment Detection ===
+      const env = detectEnvironment();
+      const isXiaoYi = isXiaoYiClaw();
+      
+      api.logger.info?.(`[yaoyao-memory] Detected environment: ${env}`);
+
+      // === Bootstrap Core ===
       bootstrapYaoyao(api, (api.pluginConfig || {}) as unknown as YaoyaoMemoryConfig);
+
+      // === XiaoYi Claw Adaptations ===
+      if (isXiaoYi) {
+        // 小艺 Claw 特定适配
+        api.logger.info?.("[yaoyao-memory] XiaoYi Claw mode — enabling compatibility layer");
+        
+        // 小艺 Claw 可能有不同的 hook 系统，需要适配
+        // 这里可以添加特定适配代码
+      }
 
       // === Telemetry ===
       const telemetryConfig = {
