@@ -47,12 +47,17 @@ export function createTelemetryTool(config: TelemetryConfig): ToolRegistration {
         return { content: [{ type: "text", text: "心跳已发送" }] };
       }
 
-      // stats
-      const res = await fetch(`${baseUrl}/api/stats`);
+      // stats — tRPC endpoint
+      const res = await fetch(`${baseUrl}/api/trpc/telemetry.stats`);
       if (!res.ok) {
         return { content: [{ type: "text", text: `查询失败: HTTP ${res.status}` }] };
       }
-      const stats = (await res.json()) as StatsResponse;
+      const json = await res.json() as { result?: { data?: { json?: StatsResponse } } };
+      const stats = json.result?.data?.json;
+
+      if (!stats) {
+        return { content: [{ type: "text", text: "暂无统计数据" }] };
+      }
 
       const lines = [
         "## 📊 Yaoyao 遥测统计",
