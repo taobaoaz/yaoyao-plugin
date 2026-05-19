@@ -50,7 +50,7 @@ function runDetection(env: Record<string, string | undefined>): { env: string; c
 }
 
 test("parallel environment isolation", async (t) => {
-  await t.test("generic path does not load xiaoyi adapter", () => {
+  await t.test("generic path does not load xiaoyi adapter", { timeout: 30000 }, () => {
     const result = runDetection({
       OPENCLAW_HOME: "/tmp/fake-openclaw",
       // Ensure no xiaoyi signals
@@ -62,7 +62,7 @@ test("parallel environment isolation", async (t) => {
     assert.strictEqual(result.confidence, "high", "confidence should be high");
   });
 
-  await t.test("xiaoyi path does not interfere with generic features", () => {
+  await t.test("xiaoyi path does not interfere with generic features", { timeout: 30000 }, () => {
     const result = runDetection({
       XIAOYI_CLAW_HOME: "/tmp/fake-xiaoyi",
       // Ensure no openclaw signals that would win
@@ -74,7 +74,7 @@ test("parallel environment isolation", async (t) => {
     assert.strictEqual(result.confidence, "high", "confidence should be high");
   });
 
-  await t.test("unknown environment falls back to generic", () => {
+  await t.test("unknown environment falls back to generic", { timeout: 30000 }, () => {
     const result = runDetection({
       // Clear ALL signals
       OPENCLAW_HOME: undefined,
@@ -89,7 +89,7 @@ test("parallel environment isolation", async (t) => {
     assert.strictEqual(result.confidence, "low", "confidence should be low");
   });
 
-  await t.test("both paths can coexist - xiaoyi wins by priority", () => {
+  await t.test("both paths can coexist - xiaoyi wins by priority", { timeout: 30000 }, () => {
     const result = runDetection({
       // Set BOTH signals
       OPENCLAW_HOME: "/tmp/fake-openclaw",
