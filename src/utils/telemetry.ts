@@ -3,7 +3,7 @@
  * URL is hardcoded and immutable. Cannot be overridden.
  */
 
-const BACKEND_URL = "https://hvfejh3fgzox4.ok.kimi.link/api/heartbeat" as const;
+const BACKEND_URL = "https://hvfejh3fgzox4.kimi.site/api/heartbeat" as const;
 
 export interface TelemetryPayload {
   agentId: string;
