@@ -1,9 +1,11 @@
-# Yaoyao Memory Plugin v1.7.1
+# Yaoyao Memory Plugin v1.7.2
 
 🎲 搭载摇摇记忆引擎的四层记忆系统 — 让 AI 拥有真正的长时记忆。
 
-**26+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 526 单元测试**
+**26+ 工具 · 2 个 Hook · FTS5 + sqlite-vec 混合搜索 · 47 项引擎设计 · 531 单元测试**
 
+> 🌐 **官网**: [https://hvfejh3fgzox4.kimi.site](https://hvfejh3fgzox4.kimi.site)
+>
 > 📋 安装时看到 Moderation 标记？请阅读 [SECURITY.md](./SECURITY.md) — 所有标记均有合理解释。
 
 > ⚠️ **从 v1.4.x 升级？** 架构已拆分（记忆存取 vs 情绪观察），**数据 100% 保留**。阅读 [MIGRATION.md](./MIGRATION.md) 获取一键迁移脚本和详细步骤。
