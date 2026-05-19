@@ -1,0 +1,20 @@
+/**
+ * core/verify/verify-markers.ts — Speculative and correction markers.
+ */
+
+export const SPECULATIVE_MARKERS = [
+  "我认为", "我觉得", "我猜", "我推测", "我假设",
+  "可能", "也许", "大概", "或许", "说不定",
+  "应该", "似乎", "好像", "看起来", "据我了解",
+  "不确定", "不太确定", "我不确定",
+  "I think", "I guess", "I suppose", "maybe", "perhaps",
+  "probably", "likely", "seems", "appears", "I assume",
+  "not sure", "uncertain", "I believe",
+];
+
+export const CORRECTION_MARKERS = [
+  "不对", "错了", "不是", "没有", "不准确", "不完全",
+  "你记错了", "你说错了", "并非如此", "不完全是",
+  "no", "wrong", "incorrect", "not exactly", "that's not",
+  "you're wrong", "not true", "false",
+];

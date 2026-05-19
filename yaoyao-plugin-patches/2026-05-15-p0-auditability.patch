@@ -1,0 +1,772 @@
+diff --git a/index.ts b/index.ts
+index d33cf16..6377c22 100644
+--- a/index.ts
++++ b/index.ts
+@@ -35,6 +35,8 @@ import { registerCaptureHook } from "./src/hooks/auto-capture.js";
+ import { registerRecallHook } from "./src/hooks/auto-recall.js";
+ import { createMemoryCleaner } from "./src/utils/memory-cleaner.js";
+ 
++import { createAuditLog } from "./src/utils/audit-log.js";
++
+ export default definePluginEntry({
+   id: "yaoyao-memory",
+   name: "Yaoyao Memory",
+@@ -215,8 +217,23 @@ export default definePluginEntry({
+       api.logger.error?.("[yaoyao-memory] DB init failed, operating without persistent index");
+     }
+ 
++    // Initialize audit log
++    const audit = createAuditLog(store.baseDir, api.logger);
++    audit.write({
++      component: "index",
++      event: "plugin-start",
++      summary: "摇摇记忆引擎启动",
++      details: {
++        captureMode: config.capture?.mode ?? "async",
++        recallEnabled: config.recall?.enabled !== false,
++        embeddingEnabled: !!embedding,
++        maxTokens: config.recall?.maxTokens ?? 500,
++        embedTimeoutMs: config.recall?.embedTimeoutMs ?? 200,
++      },
++    });
++
+     // Register tools and capture count for banner
+-    const toolCount = registerMemoryTools(api, store, db, null, embedding);
++    const toolCount = registerMemoryTools(api, store, db, embedding);
+ 
+     // 🎲 Yaoyao Memory 醒目启动横幅（注册完成后输出，动态工具数）
+     const dirInfo = store.baseDir;
+@@ -225,7 +242,7 @@ export default definePluginEntry({
+     const banner = [
+       "🎲 ══════════════════════════════════════════",
+       "🎲    摇摇 · 记忆引擎已启动",
+-      `🎲    ${verStr}  ·  ${toolStr}  ·  3 Hooks`,
++      `🎲    ${verStr}  ·  ${toolStr}  ·  2 Hooks`,
+       "🎲    FTS5 + sqlite-vec + 时间线 + 云备份",
+       `🎲    记忆目录: ${dirInfo}`,
+       "🎲 ══════════════════════════════════════════",
+@@ -235,14 +252,15 @@ export default definePluginEntry({
+     }
+     console.log("  " + banner.join("\n  "));
+ 
+-    // Auto-capture: after each agent turn, write to daily log + FTS5 index
++    // Auto-capture: after each agent turn, write to daily log + FTS5 index + optional vector
+     if (config.capture?.enabled !== false) {
+-      registerCaptureHook(api, store, db, config);
++      registerCaptureHook(api, store, db, config, embedding, audit);
+     }
++    api.logger.info(`[yaoyao-memory] Capture mode: ${config.capture?.mode ?? "async"} (L0 always sync, L1/L2 ${config.capture?.mode === "sync" ? "sync" : "async queue"})`);
+ 
+     // Auto-recall: before building prompt, search FTS5 + optional vectors
+     if (config.recall?.enabled !== false) {
+-      registerRecallHook(api, db, config, embedding);
++      registerRecallHook(api, db, config, embedding, audit);
+     }
+ 
+     // L1→L2→L3 pipeline (LLM extraction, scene grouping, persona)
+diff --git a/openclaw.plugin.json b/openclaw.plugin.json
+index a895f1d..698a9ce 100644
+--- a/openclaw.plugin.json
++++ b/openclaw.plugin.json
+@@ -14,6 +14,12 @@
+             "type": "boolean",
+             "default": true,
+             "description": "是否启用自动对话捕获"
++          },
++          "mode": {
++            "type": "string",
++            "enum": ["sync", "async"],
++            "default": "async",
++            "description": "写入模式：sync=同步阻塞（安全但慢），async=异步队列（快速但可能丢失FTS5/向量索引）"
+           }
+         }
+       },
+@@ -30,6 +36,16 @@
+             "type": "number",
+             "default": 3,
+             "description": "召回最大结果数"
++          },
++          "maxTokens": {
++            "type": "number",
++            "default": 500,
++            "description": "召回记忆注入上下文的最大 token 预算"
++          },
++          "embedTimeoutMs": {
++            "type": "number",
++            "default": 200,
++            "description": "向量召回 embedding API 超时(ms)，超时降级到纯 FTS5"
+           }
+         }
+       },
+diff --git a/src/hooks/auto-capture.ts b/src/hooks/auto-capture.ts
+index 009e72b..9ef944f 100644
+--- a/src/hooks/auto-capture.ts
++++ b/src/hooks/auto-capture.ts
+@@ -13,6 +13,10 @@ import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.js";
+ import type { DBBridge } from "../utils/db-bridge.js";
+ import { createSessionFilter } from "../utils/session-filter.js";
+ 
++import { createWriteQueue } from "../utils/write-queue.js";
++import type { EmbeddingService } from "../utils/embedding.js";
++import type { AuditLog } from "../utils/audit-log.js";
++
+ /** Safely extract text content from a message, handling string/array/object formats */
+ function extractContent(msg: unknown, maxLen: number): string {
+   if (!msg) return "";
+@@ -43,8 +47,35 @@ export function registerCaptureHook(
+   store: MemoryStore,
+   db: DBBridge,
+   config: YaoyaoMemoryConfig,
++  embedding?: EmbeddingService | null,
++  audit?: AuditLog,
+ ) {
+-  api.logger.info("[yaoyao-memory] Registering agent_end hook (auto-capture + FTS5 index)");
++  // Determine capture mode: sync = blocking I/O, async = deferred queue (default)
++  const captureMode = config.capture?.mode || "async";
++
++  api.logger.info(`[yaoyao-memory] Registering agent_end hook (auto-capture mode=${captureMode}${embedding ? " + vector" : ""})`);
++
++  // ── Async write queue: only used in async mode ──
++  const writeQueue = captureMode === "async"
++    ? createWriteQueue(
++        async (tasks) => {
++          for (const task of tasks) {
++            const rowId = db.indexTurn(task.userContent, task.asstContent, task.date);
++            if (rowId > 0 && embedding) {
++              try {
++                const text = `${task.userContent}\n${task.asstContent}`;
++                const vec = await embedding.embed(text);
++                db.storeVector(rowId, vec);
++              } catch (err: any) {
++                api.logger.debug?.(`[yaoyao-memory:capture] Vector store failed for row ${rowId}: ${err.message}`);
++              }
++            }
++          }
++        },
++        api.logger,
++        audit,
++      )
++    : null;
+ 
+   // Create session filter with configured blockLabels
+   const sessionFilter = createSessionFilter({
+@@ -61,6 +92,15 @@ export function registerCaptureHook(
+       // Session filter: skip internal/system sessions
+       const sessionKey = (ctx as Record<string, unknown>).sessionKey as string || "default";
+       if (!sessionFilter.shouldProcess(sessionKey)) {
++        audit?.write({
++          component: "auto-capture",
++          event: "session-filtered",
++          summary: "会话被 sessionFilter 过滤，未写入记忆",
++          details: {
++            sessionKey,
++            reason: "匹配 blockLabels 或 minMessages 条件",
++          },
++        });
+         return;
+       }
+ 
+@@ -79,14 +119,69 @@ export function registerCaptureHook(
+       const asstContent = lastAsstMsg ? extractContent(lastAsstMsg, 500) : "(no response)";
+ 
+       // Skip trivial entries (e.g., heartbeat, empty responses)
+-      if (userContent.length < 3) return;
++      if (userContent.length < 3) {
++        audit?.write({
++          component: "auto-capture",
++          event: "skipped-trivial",
++          summary: "消息过短（<3字符），未写入记忆",
++          details: {
++            length: userContent.length,
++            sessionKey,
++          },
++        });
++        return;
++      }
+ 
+-      // Write to daily Markdown log (L0)
++      // Write to daily Markdown log (L0) — synchronous as safety net
+       const entry = `\n### ${timestamp}\n**User:** ${userContent}\n**AI:** ${asstContent}\n`;
+       store.appendToDaily(date, entry);
+ 
+-      // Index in FTS5 for search (L1 index)
+-      db.indexTurn(userContent, asstContent, date);
++      // Index in FTS5 for search (L1) and optional vector (L2)
++      if (captureMode === "sync") {
++        const rowId = db.indexTurn(userContent, asstContent, date);
++        if (rowId > 0 && embedding) {
++          try {
++            const text = `${userContent}\n${asstContent}`;
++            embedding.embed(text).then((vec) => db.storeVector(rowId, vec)).catch((err: any) => {
++              api.logger.debug?.(`[yaoyao-memory:capture] Vector store failed: ${err.message}`);
++              audit?.write({
++                component: "auto-capture",
++                event: "vector-store-failed",
++                summary: "同步模式下向量写入失败",
++                details: {
++                  rowId,
++                  error: err.message?.slice(0, 200),
++                },
++              });
++            });
++          } catch { /* best effort */ }
++        }
++        audit?.write({
++          component: "auto-capture",
++          event: "captured-sync",
++          summary: "同步模式：L0 + L1 + 可选向量已写入",
++          details: {
++            sessionKey,
++            date,
++            mode: "sync",
++            vector: embedding ? "attempted" : "skipped (no embedding)",
++          },
++        });
++      } else {
++        // async mode: defer L1/L2 to write queue
++        writeQueue!.enqueue({ date, timestamp, userContent, asstContent });
++        audit?.write({
++          component: "auto-capture",
++          event: "captured-async",
++          summary: "异步模式：L0 已写入，L1/L2 进入队列",
++          details: {
++            sessionKey,
++            date,
++            mode: "async",
++            queueSize: writeQueue!.pendingCount,
++          },
++        });
++      }
+ 
+       // NOTE: Implicit observation tagging removed in v1.5.0.
+       // If you want silent pattern extraction, install yaoyao-soul alongside this plugin.
+diff --git a/src/hooks/auto-recall.ts b/src/hooks/auto-recall.ts
+index 3e6274b..e643399 100644
+--- a/src/hooks/auto-recall.ts
++++ b/src/hooks/auto-recall.ts
+@@ -16,50 +16,40 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+ import type { YaoyaoMemoryConfig } from "../utils/memory-store.js";
+ import type { DBBridge, SearchResult } from "../utils/db-bridge.js";
+ import type { EmbeddingService } from "../utils/embedding.js";
++import type { AuditLog } from "../utils/audit-log.js";
+ import { detectSentiment } from "../utils/sentiment.js";
+ import { createSessionFilter } from "../utils/session-filter.js";
+ 
+-// ── Search result cache (30s TTL, prevents duplicate DB hits on repeated queries) ──
+-const resultCache = new Map<string, { results: SearchResult[]; expires: number }>();
+-const CACHE_TTL_MS = 30 * 1000;
+-const MAX_CACHE_SIZE = 50;
++import { SimpleLRU } from "../utils/simple-lru.js";
++
++// ── Search result cache (30s TTL, max 50 entries) ──
++const resultCache = new SimpleLRU<string, SearchResult[]>({ maxSize: 50, ttlMs: 30 * 1000 });
+ 
+ function getCachedResults(key: string): SearchResult[] | null {
+   const cached = resultCache.get(key);
+-  if (cached && cached.expires > Date.now()) return cached.results;
+-  resultCache.delete(key);
+-  return null;
++  return cached ?? null;
+ }
+ 
+ function setCachedResults(key: string, results: SearchResult[]): void {
+-  if (resultCache.size >= MAX_CACHE_SIZE) {
+-    const now = Date.now();
+-    for (const [k, v] of resultCache) {
+-      if (v.expires < now || resultCache.size > MAX_CACHE_SIZE * 1.5) resultCache.delete(k);
+-    }
+-  }
+-  resultCache.set(key, { results, expires: Date.now() + CACHE_TTL_MS });
++  resultCache.set(key, results);
+ }
+ 
+-// ── Enhancement 3: Session context accumulation ──
+-// Maintains cross-turn keyword context per session to improve recall relevance.
+-const sessionContext = new Map<string, Set<string>>();
++// ── Session context accumulation (cross-turn keyword carry-over, LRU 100 sessions, 1h TTL) ──
++const sessionContext = new SimpleLRU<string, Set<string>>({ maxSize: 100, ttlMs: 60 * 60 * 1000 });
+ const MAX_CONTEXT_KEYWORDS = 20;
+ 
+ function updateSessionContext(sessionKey: string, keywords: string[]): void {
+-  if (!sessionContext.has(sessionKey)) {
+-    sessionContext.set(sessionKey, new Set<string>());
+-  }
+-  const ctx = sessionContext.get(sessionKey)!;
++  const existing = sessionContext.get(sessionKey) || new Set<string>();
+   for (const kw of keywords) {
+-    ctx.add(kw);
++    existing.add(kw);
+   }
+   // Evict oldest when over limit
+-  if (ctx.size > MAX_CONTEXT_KEYWORDS) {
+-    const arr = Array.from(ctx);
+-    const toRemove = arr.slice(0, ctx.size - MAX_CONTEXT_KEYWORDS);
+-    for (const kw of toRemove) ctx.delete(kw);
++  if (existing.size > MAX_CONTEXT_KEYWORDS) {
++    const arr = Array.from(existing);
++    const toRemove = arr.slice(0, existing.size - MAX_CONTEXT_KEYWORDS);
++    for (const kw of toRemove) existing.delete(kw);
+   }
++  sessionContext.set(sessionKey, existing);
+ }
+ 
+ function getSessionContextKeywords(sessionKey: string): string[] {
+@@ -118,7 +108,46 @@ function applyDiversitySampling(results: SearchResult[]): SearchResult[] {
+   return kept;
+ }
+ 
+-/** Format search results into recall text snippet with sentiment emoji */
++// ── Embedding fuse: hard timeout to prevent blocking prompt build ──
++const DEFAULT_RECALL_EMBED_TIMEOUT_MS = 200;
++
++async function embedWithFuse(embedding: EmbeddingService, text: string, timeoutMs?: number): Promise<Float32Array | null> {
++  const fuseMs = timeoutMs ?? DEFAULT_RECALL_EMBED_TIMEOUT_MS;
++  return Promise.race([
++    embedding.embed(text),
++    new Promise<never>((_, reject) =>
++      setTimeout(() => reject(new Error("EMBEDDING_FUSE")), fuseMs),
++    ),
++  ]).catch((err) => {
++    if (err instanceof Error && err.message === "EMBEDDING_FUSE") {
++      return null;
++    }
++    throw err;
++  });
++}
++
++// ── Token budget: rough estimator for Chinese / mixed text ──
++function estimateTokens(text: string): number {
++  const cnChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
++  const enWords = text.split(/\s+/).filter((w) => /[a-zA-Z]/.test(w)).length;
++  const others = text.length - cnChars - enWords;
++  return Math.ceil(cnChars * 1.5 + enWords * 1.3 + others * 0.5);
++}
++
++function truncateByTokens(results: SearchResult[], maxTokens: number): SearchResult[] {
++  let used = estimateTokens("## 相关记忆\n\n以下内容来自你的对话历史记录，可能与当前对话相关：\n\n");
++  const kept: SearchResult[] = [];
++  for (const r of results) {
++    const snippetTokens = estimateTokens(r.snippet);
++    const separatorTokens = estimateTokens("\n---\n");
++    if (used + snippetTokens + separatorTokens > maxTokens) {
++      break;
++    }
++    used += snippetTokens + separatorTokens;
++    kept.push(r);
++  }
++  return kept;
++}
+ function formatRecallText(results: SearchResult[]): string {
+   return results
+     .map((r) => {
+@@ -174,6 +203,7 @@ export function registerRecallHook(
+   db: DBBridge,
+   config: YaoyaoMemoryConfig,
+   embedding?: EmbeddingService | null,
++  audit?: AuditLog,
+ ) {
+   api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})`);
+ 
+@@ -197,6 +227,11 @@ export function registerRecallHook(
+       const e = event as Record<string, unknown>;
+       const userMessage = e?.message || e?.prompt;
+       if (!userMessage || typeof userMessage !== "string" || userMessage.trim().length < 3) {
++        audit?.write({
++          component: "auto-recall",
++          event: "skipped-trivial",
++          summary: "用户消息过短（<3字符），未执行召回",
++        });
+         return;
+       }
+ 
+@@ -224,28 +259,80 @@ export function registerRecallHook(
+         // Apply enhancements to cached results
+         const decayed = applyTimeDecay(cached);
+         const deduped = applyDiversitySampling(decayed);
++        const budgeted = truncateByTokens(deduped, config.recall?.maxTokens ?? 500);
+         updateSessionContext(sessionKey, keywords);
+-        return buildHookResult(buildRecallContext(deduped), config);
++        const result = buildHookResult(buildRecallContext(budgeted), config);
++        audit?.write({
++          component: "auto-recall",
++          event: "recall-completed",
++          summary: "召回完成（缓存命中）",
++          details: {
++            strategy: "cache",
++            resultsBeforeDecay: cached.length,
++            resultsAfterDedup: deduped.length,
++            resultsAfterBudget: budgeted.length,
++            injectedTokens: estimateTokens(result?.appendSystemContext || ""),
++            durationMs: Date.now() - startMs,
++          },
++        });
++        return result;
+       }
+ 
+-      // Hybrid search: FTS5 + optional vector
++      // Hybrid search: FTS5 + optional vector (with fuse)
+       if (embedding) {
+         try {
+-          const vec = await embedding.embed(userMessage);
+-          const results = db.hybridSearch(ftsQuery, vec, maxResults);
+-          if (results.length > 0) {
+-            setCachedResults(cacheKey, results);
+-            api.logger.info(
+-              `[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms`,
+-            );
+-            // Apply enhancements
+-            const decayed = applyTimeDecay(results);
+-            const deduped = applyDiversitySampling(decayed);
+-            updateSessionContext(sessionKey, keywords);
+-            return buildHookResult(buildRecallContext(deduped), config);
++          const vec = await embedWithFuse(embedding, userMessage, config.recall?.embedTimeoutMs);
++          if (vec) {
++            const results = db.hybridSearch(ftsQuery, vec, maxResults);
++            if (results.length > 0) {
++              setCachedResults(cacheKey, results);
++              api.logger.info(
++                `[yaoyao-memory:recall] Found ${results.length} snippets (hybrid) in ${Date.now() - startMs}ms`,
++              );
++              // Apply enhancements
++              const decayed = applyTimeDecay(results);
++              const deduped = applyDiversitySampling(decayed);
++              const budgeted = truncateByTokens(deduped, config.recall?.maxTokens ?? 500);
++              updateSessionContext(sessionKey, keywords);
++              const result = buildHookResult(buildRecallContext(budgeted), config);
++              audit?.write({
++                component: "auto-recall",
++                event: "recall-completed",
++                summary: "召回完成（混合搜索）",
++                details: {
++                  strategy: "hybrid",
++                  resultsBeforeDecay: results.length,
++                  resultsAfterDedup: deduped.length,
++                  resultsAfterBudget: budgeted.length,
++                  injectedTokens: estimateTokens(result?.appendSystemContext || ""),
++                  durationMs: Date.now() - startMs,
++                },
++              });
++              return result;
++            }
++          } else {
++            api.logger.debug?.(`[yaoyao-memory:recall] Embedding fuse tripped, falling back to FTS5`);
++            audit?.write({
++              component: "auto-recall",
++              event: "fuse-tripped",
++              summary: `embedding 超时熔断（>${config.recall?.embedTimeoutMs ?? 200}ms），降级到纯 FTS5`,
++              details: {
++                timeoutMs: config.recall?.embedTimeoutMs ?? 200,
++                fallback: "FTS5",
++              },
++            });
+           }
+         } catch (vecErr: any) {
+           api.logger.debug?.(`[yaoyao-memory:recall] Vector search failed: ${vecErr.message}, falling back to FTS5`);
++          audit?.write({
++            component: "auto-recall",
++            event: "vector-failed",
++            summary: "向量搜索异常，降级到纯 FTS5",
++            details: {
++              error: vecErr.message?.slice(0, 200),
++              fallback: "FTS5",
++            },
++          });
+         }
+       }
+ 
+@@ -259,11 +346,26 @@ export function registerRecallHook(
+       setCachedResults(cacheKey, results);
+       api.logger.info(`[yaoyao-memory:recall] Found ${results.length} snippets in ${Date.now() - startMs}ms`);
+ 
+-      // Apply enhancements
++      // Apply enhancements + token budget
+       const decayed = applyTimeDecay(results);
+       const deduped = applyDiversitySampling(decayed);
++      const budgeted = truncateByTokens(deduped, config.recall?.maxTokens ?? 500);
+       updateSessionContext(sessionKey, keywords);
+-      return buildHookResult(buildRecallContext(deduped), config);
++      const result = buildHookResult(buildRecallContext(budgeted), config);
++      audit?.write({
++        component: "auto-recall",
++        event: "recall-completed",
++        summary: "召回完成（纯 FTS5）",
++        details: {
++          strategy: "FTS5",
++          resultsBeforeDecay: results.length,
++          resultsAfterDedup: deduped.length,
++          resultsAfterBudget: budgeted.length,
++          injectedTokens: estimateTokens(result?.appendSystemContext || ""),
++          durationMs: Date.now() - startMs,
++        },
++      });
++      return result;
+     } catch (err) {
+       api.logger.error(`[yaoyao-memory:recall] Error: ${err instanceof Error ? err.message : String(err)}`);
+     }
+diff --git a/src/tools/memory-retain.ts b/src/tools/memory-retain.ts
+index a248e71..e74877e 100644
+--- a/src/tools/memory-retain.ts
++++ b/src/tools/memory-retain.ts
+@@ -357,7 +357,7 @@ async function handleImportant(
+     `**标记时间**: ${tag.taggedAt}`,
+     "",
+     "该记忆在 check 中将获得特别标注。",
+-    "建议随后使用 memory_retain(action:boost, keyword: "...") 强化。",
++    "建议随后使用 memory_retain(action:boost, keyword: \"...\") 强化。",
+   ].filter(Boolean) as string[];
+ 
+   return { content: [{ type: "text", text: lines.join("\n") }] };
+diff --git a/src/utils/audit-log.ts b/src/utils/audit-log.ts
+new file mode 100644
+index 0000000..a3ef23b
+--- /dev/null
++++ b/src/utils/audit-log.ts
+@@ -0,0 +1,73 @@
++/**
++ * AuditLog — lightweight human-readable audit trail for yaoyao-memory.
++ *
++ * Writes structured entries to `memory/audit-YYYY-MM-DD.md`.
++ * Each entry is self-contained, timestamped, and human-readable.
++ *
++ * Goals:
++ * 1. User can open the file and understand what happened without reading code.
++ * 2. Every significant decision (fallback, truncation, discard) is recorded.
++ * 3. No sensitive data (API keys, full message content) — only summaries.
++ */
++
++import fs from "node:fs";
++import path from "node:path";
++import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
++
++export interface AuditEntry {
++  component: string;        // e.g. "auto-capture", "auto-recall", "write-queue"
++  event: string;            // e.g. "flush-failed", "fuse-tripped", "recall-completed"
++  summary: string;          // human-readable one-liner
++  details?: Record<string, string | number | boolean | undefined>;
++}
++
++export function createAuditLog(baseDir: string, logger?: PluginLogger) {
++  const auditDir = baseDir;
++
++  function ensureDir() {
++    if (!fs.existsSync(auditDir)) {
++      fs.mkdirSync(auditDir, { recursive: true });
++    }
++  }
++
++  function dailyAuditPath(): string {
++    const date = new Date().toISOString().slice(0, 10);
++    return path.join(auditDir, `audit-${date}.md`);
++  }
++
++  function ensureHeader(filePath: string): void {
++    if (!fs.existsSync(filePath)) {
++      const header = `# ${new Date().toISOString().slice(0, 10)} 审计日志\n\n> 由 yaoyao-memory 自动生成，记录关键操作与降级决策\n\n---\n\n`;
++      fs.writeFileSync(filePath, header, "utf-8");
++    }
++  }
++
++  function write(entry: AuditEntry): void {
++    try {
++      ensureDir();
++      const fp = dailyAuditPath();
++      ensureHeader(fp);
++
++      const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
++      let lines = `\n## ${ts} [${entry.component}] ${entry.event}\n\n`;
++      lines += `- **摘要**: ${entry.summary}\n`;
++
++      if (entry.details && Object.keys(entry.details).length > 0) {
++        for (const [k, v] of Object.entries(entry.details)) {
++          if (v !== undefined) {
++            lines += `- **${k}**: ${v}\n`;
++          }
++        }
++      }
++
++      lines += "\n";
++      fs.appendFileSync(fp, lines, "utf-8");
++    } catch (err) {
++      logger?.debug?.(`[yaoyao-memory:audit] Write failed: ${err instanceof Error ? err.message : String(err)}`);
++    }
++  }
++
++  return { write };
++}
++
++export type AuditLog = ReturnType<typeof createAuditLog>;
+diff --git a/src/utils/memory-store.ts b/src/utils/memory-store.ts
+index 7785dfb..adf7990 100644
+--- a/src/utils/memory-store.ts
++++ b/src/utils/memory-store.ts
+@@ -16,10 +16,15 @@ import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+ export interface YaoyaoMemoryConfig {
+   capture?: {
+     enabled?: boolean;
++    /** Write mode: sync = blocking I/O (safe, slow), async = off-thread queue (fast, best-effort) */
++    mode?: "sync" | "async";
+   };
+   recall?: {
+     enabled?: boolean;
+     maxResults?: number;
++    maxTokens?: number;
++    /** Embedding API timeout in ms before falling back to FTS5. Default: 200 */
++    embedTimeoutMs?: number;
+   };
+   memoryDir?: string;
+   embedding?: {
+diff --git a/src/utils/simple-lru.ts b/src/utils/simple-lru.ts
+new file mode 100644
+index 0000000..b22827a
+--- /dev/null
++++ b/src/utils/simple-lru.ts
+@@ -0,0 +1,57 @@
++/**
++ * SimpleLRU — lightweight fixed-size LRU cache with optional TTL.
++ *
++ * Used to replace leaky global Maps in auto-recall (sessionContext / resultCache).
++ */
++
++export interface LRURangeOptions<K, V> {
++  maxSize: number;
++  ttlMs?: number;
++}
++
++export class SimpleLRU<K, V> {
++  private cache = new Map<K, { value: V; timestamp: number }>();
++  private maxSize: number;
++  private ttlMs: number;
++
++  constructor(options: LRURangeOptions<K, V>) {
++    this.maxSize = options.maxSize;
++    this.ttlMs = options.ttlMs ?? Infinity;
++  }
++
++  get(key: K): V | undefined {
++    const entry = this.cache.get(key);
++    if (!entry) return undefined;
++    if (this.ttlMs < Infinity && Date.now() - entry.timestamp > this.ttlMs) {
++      this.cache.delete(key);
++      return undefined;
++    }
++    // Move to end (MRU)
++    this.cache.delete(key);
++    this.cache.set(key, { value: entry.value, timestamp: Date.now() });
++    return entry.value;
++  }
++
++  set(key: K, value: V): void {
++    if (this.cache.has(key)) {
++      this.cache.delete(key);
++    } else if (this.cache.size >= this.maxSize) {
++      // Evict LRU (first entry)
++      const firstKey = this.cache.keys().next().value as K;
++      this.cache.delete(firstKey);
++    }
++    this.cache.set(key, { value, timestamp: Date.now() });
++  }
++
++  has(key: K): boolean {
++    return this.get(key) !== undefined;
++  }
++
++  clear(): void {
++    this.cache.clear();
++  }
++
++  get size(): number {
++    return this.cache.size;
++  }
++}
+diff --git a/src/utils/write-queue.ts b/src/utils/write-queue.ts
+new file mode 100644
+index 0000000..e02eb1a
+--- /dev/null
++++ b/src/utils/write-queue.ts
+@@ -0,0 +1,86 @@
++/**
++ * WriteQueue — lightweight async batch flush for memory captures.
++ *
++ * Buffers L0 (markdown) + L1 (FTS5) + L2 (vector) writes off the main event loop
++ * to avoid blocking agent_end hooks and the OpenClaw gateway thread.
++ */
++
++import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
++import type { AuditLog } from "./audit-log.js";
++
++export interface WriteTask {
++  date: string;
++  timestamp: string;
++  userContent: string;
++  asstContent: string;
++}
++
++export type FlushHandler = (tasks: WriteTask[]) => Promise<void>;
++
++export function createWriteQueue(flushHandler: FlushHandler, logger?: PluginLogger, audit?: AuditLog) {
++  const pending: WriteTask[] = [];
++  let scheduled = false;
++  let flushing = false;
++
++  function enqueue(task: WriteTask): void {
++    pending.push(task);
++    if (!scheduled && !flushing) {
++      scheduled = true;
++      // Defer to next tick of the event loop; Node setImmediate is fastest.
++      if (typeof setImmediate !== "undefined") {
++        setImmediate(runFlush);
++      } else {
++        setTimeout(runFlush, 0);
++      }
++    }
++  }
++
++  async function runFlush() {
++    scheduled = false;
++    if (flushing || pending.length === 0) return;
++    flushing = true;
++
++    // Snapshot and clear pending in one go
++    const batch = pending.splice(0);
++
++    try {
++      await flushHandler(batch);
++      logger?.debug?.(`[yaoyao-memory:write-queue] Flushed ${batch.length} tasks`);
++    } catch (err) {
++      const errMsg = err instanceof Error ? err.message : String(err);
++      logger?.error?.(
++        `[yaoyao-memory:write-queue] Flush failed: ${errMsg}`,
++      );
++      // Audit: record dropped tasks
++      if (audit) {
++        audit.write({
++          component: "write-queue",
++          event: "flush-failed",
++          summary: `L1/L2 异步写入失败，${batch.length} 条任务被丢弃（L0 .md 已同步落盘）`,
++          details: {
++            "丢弃任务数": batch.length,
++            "影响日期": batch.map(t => t.date).join(", "),
++            "错误类型": errMsg.slice(0, 200),
++            "建议": "检查磁盘空间、权限、或切换 capture.mode 为 sync",
++          },
++        });
++      }
++      // Best-effort: re-enqueue tasks that failed?  For now we drop them
++      // to avoid infinite retry loops.  L0 markdown already written synchronously
++      // as safety net, so data loss is minimal.
++    } finally {
++      flushing = false;
++      // If new tasks arrived while we were flushing, schedule again
++      if (pending.length > 0 && !scheduled) {
++        scheduled = true;
++        if (typeof setImmediate !== "undefined") {
++          setImmediate(runFlush);
++        } else {
++          setTimeout(runFlush, 0);
++        }
++      }
++    }
++  }
++
++  return { enqueue, get pendingCount() { return pending.length; } };
++}

@@ -1,0 +1,61 @@
+/**
+ * platform/db/file-search.ts — FileDB search and listing operations.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import type { SQLiteRow } from "./types.ts";
+
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+export function searchFiles(baseDir: string, query: string, limit: number): SQLiteRow[] {
+  const results: SQLiteRow[] = [];
+  let files: string[];
+  try {
+    files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+  } catch { return []; }
+  const q = query.toLowerCase();
+
+  for (const file of files) {
+    const filePath = path.join(baseDir, file);
+    let content: string;
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size > MAX_FILE_BYTES) continue;
+      content = fs.readFileSync(filePath, "utf-8");
+    } catch { continue; }
+    if (content.toLowerCase().includes(q)) {
+      const lines = content.split("\n");
+      const idx = lines.findIndex(l => l.toLowerCase().includes(q));
+      const snippet = idx >= 0 ? lines[idx].slice(0, 200) : "";
+      results.push({
+        id: results.length + 1,
+        rowid: results.length + 1,
+        date: file.replace(".md", ""),
+        snippet: snippet,
+        rank: -results.length,
+      });
+    }
+  }
+
+  return results.slice(0, limit);
+}
+
+export function listFiles(baseDir: string, limit: number): SQLiteRow[] {
+  let files: string[];
+  try {
+    files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+  } catch { return []; }
+  return files.slice(0, limit).map(f => ({
+    rowid: f,
+    date: f.replace(".md", ""),
+    snippet: "",
+    user_text: "",
+    asst_text: "",
+  }));
+}
+
+export function countFiles(baseDir: string): number {
+  try {
+    return fs.readdirSync(baseDir).filter(f => f.endsWith(".md")).length;
+  } catch { return 0; }
+}

@@ -1,0 +1,291 @@
+Yaoyao 官网遥测 API 文档
+
+> Base URL: 部署后由平台提供（如 `https://your-app.kimi.ai`）
+
+---
+
+1. 心跳上报（REST）
+
+yaoyao 插件调用此接口上报心跳。
+
+```
+POST /api/heartbeat
+Content-Type: application/json
+```
+
+Request Body
+
+字段	类型	必填	说明	
+`agentId`	string	是	匿名 Agent ID（最长 64 字符，建议用哈希值）	
+`version`	string	是	插件版本号（如 `1.7.1`）	
+`mode`	string	是	运行模式：`lite` 或 `full`	
+
+Request 示例
+
+```bash
+curl -X POST https://<your-domain>/api/heartbeat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "anon_7a3f9e2b1d4c",
+    "version": "1.7.1",
+    "mode": "full"
+  }'
+```
+
+Response 201 Created
+
+```json
+{
+  "status": "ok",
+  "agentId": "anon_7a3f9e2b1d4c",
+  "version": "1.7.1",
+  "mode": "full"
+}
+```
+
+Response 400 Bad Request
+
+```json
+{
+  "error": "agentId and version are required"
+}
+```
+
+重要规则
+- 静默失败：上报失败不能阻塞插件主流程，必须 try/catch 静默处理
+- 匿名：`agentId` 不能包含任何个人身份信息（用户名、IP、主机名等），必须是哈希值
+- 可关闭：用户设置 `YAOYAO_TELEMETRY=0` 时完全跳过
+
+---
+
+2. 获取统计（tRPC）
+
+前端内部使用，展示遥测面板数据。
+
+```
+tRPC: telemetry.stats
+```
+
+调用方式
+
+```typescript
+const stats = trpc.telemetry.stats.useQuery();
+// 或
+const result = await trpc.telemetry.stats.fetchQuery();
+```
+
+Response
+
+```typescript
+{
+  totalHeartbeats: number;    // 总心跳记录数
+  activeAgents: number;       // 最近 5 分钟有心跳的 agent 数
+  todayHeartbeats: number;    // 今日心跳数（0 点开始）
+  versionBreakdown: {         // 版本分布
+    [version: string]: number;
+  };
+  modeBreakdown: {            // 模式分布
+    lite: number;
+    full: number;
+  };
+}
+```
+
+Response 示例
+
+```json
+{
+  "totalHeartbeats": 12847,
+  "activeAgents": 60,
+  "todayHeartbeats": 8932,
+  "versionBreakdown": {
+    "1.7.1": 5200,
+    "1.7.0": 4100,
+    "1.6.0": 2100,
+    "1.5.1": 1447
+  },
+  "modeBreakdown": {
+    "lite": 3800,
+    "full": 9047
+  }
+}
+```
+
+---
+
+3. 活跃 Agent 列表（tRPC）
+
+前端内部使用，展示最近活跃的 agent 明细。
+
+```
+tRPC: telemetry.agents
+Input: { limit?: number }  // 默认 50，最大 100
+```
+
+调用方式
+
+```typescript
+const agents = trpc.telemetry.agents.useQuery({ limit: 10 });
+// 或
+const result = await trpc.telemetry.agents.fetchQuery({ limit: 10 });
+```
+
+Response
+
+```typescript
+Array<{
+  id: string;        // agentId
+  version: string;   // 版本号
+  mode: string;      // lite 或 full
+  lastSeen: string;  // 最后心跳时间（ISO 8601）
+}>
+```
+
+Response 示例
+
+```json
+[
+  {
+    "id": "anon_7a3f9e2b1d4c",
+    "version": "1.7.1",
+    "mode": "full",
+    "lastSeen": "2026-05-20T08:30:00.000Z"
+  },
+  {
+    "id": "anon_e5b2c8d1f3a0",
+    "version": "1.7.0",
+    "mode": "lite",
+    "lastSeen": "2026-05-20T08:29:45.000Z"
+  }
+]
+```
+
+---
+
+4. 调试接口
+
+```
+tRPC: ping
+```
+
+返回服务器当前时间戳，用于检查 API 连通性。
+
+Response
+
+```json
+{ "ok": true, "ts": 1716192000000 }
+```
+
+---
+
+5. yaoyao 插件集成示例
+
+```typescript
+// src/utils/telemetry.ts
+
+const TELEMETRY_URL = "https://<your-domain>/api/heartbeat";
+const VERSION = "1.7.1";
+
+/**
+ * 生成稳定的匿名 agentId
+ * 基于 machineId + username 哈希，同一台机器始终生成相同 ID
+ */
+function generateAgentId(): string {
+  const raw = `${process.env.MACHINE_ID || "unknown"}:${process.env.USER || "unknown"}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw.charCodeAt(i);
+    hash = ((hash << 5) - hash + char) | 0;
+  }
+  return "anon_" + Math.abs(hash).toString(16).slice(0, 12);
+}
+
+/**
+ * 发送心跳到遥测服务器
+ */
+export async function sendHeartbeat(mode: "lite" | "full"): Promise<void> {
+  // 用户关闭了遥测
+  if (process.env.YAOYAO_TELEMETRY === "0") return;
+
+  try {
+    const resp = await fetch(TELEMETRY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        agentId: generateAgentId(),
+        version: VERSION,
+        mode,
+      }),
+    });
+
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
+    }
+  } catch {
+    // 遥测绝不能阻塞主流程，静默失败
+  }
+}
+
+/**
+ * 启动定时心跳
+ */
+export function startTelemetry(mode: "lite" | "full"): void {
+  // 立即发送一次
+  sendHeartbeat(mode);
+  // 每 5 分钟发送一次
+  setInterval(() => sendHeartbeat(mode), 5 * 60 * 1000);
+}
+```
+
+在入口文件中调用：
+
+```typescript
+// src/entry/index.ts
+import { startTelemetry } from "../utils/telemetry";
+
+export default definePluginEntry({
+  id: "yaoyao-memory",
+  register(api) {
+    bootstrapYaoyao(api, config);
+
+    // 启动遥测
+    const mode = api.pluginConfig?.brainMode === "lite" ? "lite" : "full";
+    startTelemetry(mode);
+  },
+});
+```
+
+---
+
+数据模型
+
+```sql
+CREATE TABLE heartbeats (
+  id          BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  agent_id    VARCHAR(64)   NOT NULL,
+  version     VARCHAR(32)   NOT NULL,
+  mode        VARCHAR(16)   NOT NULL,   -- 'lite' or 'full'
+  created_at  TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 统计查询
+-- 活跃 agents（最近 5 分钟）
+SELECT COUNT(DISTINCT agent_id) FROM heartbeats WHERE created_at > NOW() - INTERVAL 5 MINUTE;
+
+-- 今日心跳
+SELECT COUNT(*) FROM heartbeats WHERE created_at >= CURDATE();
+
+-- 版本分布
+SELECT version, COUNT(*) FROM heartbeats GROUP BY version;
+
+-- 模式分布
+SELECT mode, COUNT(*) FROM heartbeats GROUP BY mode;
+```
+
+---
+
+环境变量
+
+变量	默认值	说明	
+`YAOYAO_TELEMETRY`	`1`	`0` 关闭遥测，`1` 开启	
+`YAOYAO_TELEMETRY_URL`	官网地址	遥测上报 URL，可自定义

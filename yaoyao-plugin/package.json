@@ -1,0 +1,99 @@
+{
+  "name": "yaoyao-memory-plugin",
+  "version": "1.7.2",
+  "description": "Yaoyao Memory — 4-layer AI memory system with FTS5 + sqlite-vec hybrid search, sentiment analysis, timeline, cloud backup, and topic trends. Minimal external deps (sqlite-vec).",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "memory",
+    "yaoyao",
+    "memory-system",
+    "fts5",
+    "vector-search",
+    "semantic-search"
+  ],
+  "homepage": "https://github.com/taobaoaz/yaoyao-plugin#readme",
+  "author": "Yaoyao",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taobaoaz/yaoyao-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/taobaoaz/yaoyao-plugin/issues"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "private": false,
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-strip-types --test src/__tests__/*.test.ts",
+    "test:db": "node --experimental-strip-types --test src/__tests__/db-bridge.test.ts",
+    "test:sentiment": "node --experimental-strip-types --test src/__tests__/sentiment.test.ts",
+    "test:store": "node --experimental-strip-types --test src/__tests__/memory-store.test.ts",
+    "test:core": "node --test src/__tests__/remind-cron.test.ts src/__tests__/trends-core.test.ts src/__tests__/quality-core.test.ts src/__tests__/recommend-core.test.ts src/__tests__/retain-core.test.ts",
+    "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.ts"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js",
+      "./dist/src/hooks/auto-capture.js",
+      "./dist/src/hooks/auto-recall.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.4.2"
+    },
+    "build": {
+      "openclawVersion": "2026.5.6"
+    }
+  },
+  "dependencies": {
+    "sqlite-vec": "^0.1.9"
+  },
+  "optionalDependencies": {
+    "hnswlib-node": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "typescript": "^6.0.3"
+  },
+  "openclawSecurity": {
+    "disclosure": "SECURITY.md",
+    "flags": {
+      "dynamic_code_execution": {
+        "reason": "Cloud backup adapters use child_process for SFTP/Samba file transfer only. All commands are hardcoded, no arbitrary code execution. Passwords passed via environment variables.",
+        "files": [
+          "src/utils/cloud-adapter.ts"
+        ],
+        "optIn": true,
+        "mitigation": "Cloud tools require explicit credential configuration in ~/.openclaw/credentials/secrets.env"
+      },
+      "llm_suspicious": {
+        "reason": "Optional LLM API calls for memory extraction pipeline (L1→L2→L3). Only active when user configures llm.apiKey. No telemetry or data transmission without explicit configuration.",
+        "files": [
+          "src/utils/llm-client.ts"
+        ],
+        "optIn": true,
+        "mitigation": "Set llm.enabled=false to disable all LLM functionality"
+      },
+      "vt_suspicious": {
+        "reason": "VirusTotal heuristic triggered by child_process imports. All code is open source and auditable at https://github.com/taobaoaz/yaoyao-plugin. Minimal external deps: sqlite-vec (optional vector search).",
+        "mitigation": "Full source available for manual review"
+      }
+    },
+    "dataStorage": "100% local (SQLite FTS5 + filesystem). No telemetry. No analytics.",
+    "dependencies": "Minimal: sqlite-vec for optional vector search; typescript (dev). Zero runtime npm deps beyond sqlite-vec."
+  }
+}
