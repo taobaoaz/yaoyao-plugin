@@ -63,6 +63,9 @@ import { createJudgeTool, createConflictsTool } from "../features/conflict/tool.
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.ts";
 
+/* ── Telemetry ─────────────────────────────────────── */
+import { createTelemetryTool } from "../features/telemetry/tool.ts";
+
 export function registerMemoryTools(
   api: OpenClawPluginApi,
   store: MemoryStore,
@@ -103,6 +106,13 @@ export function registerMemoryTools(
     createRemindTool(),
     createHealthcheckTool(),
     createCronTool(api),
+    createTelemetryTool({
+      enabled: process.env.YAOYAO_TELEMETRY !== "0",
+      owner: "taobaoaz",
+      repo: "yaoyao-plugin",
+      issueNumber: 1,
+      githubToken: process.env.GITHUB_TOKEN,
+    }),
 
     /* ── Conflict detection (v1.6.0) ── */
     createJudgeTool(db),

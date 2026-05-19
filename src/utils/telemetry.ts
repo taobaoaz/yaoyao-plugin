@@ -1,119 +1,134 @@
 /**
  * utils/telemetry.ts — Anonymous install telemetry via GitHub Issues.
- * Privacy-first: no user content, no PII, only anonymous UUID + version + timestamp.
+ * Format: yaoyao-telemetry::version::mode::timestamp
  */
 
-import { createHash, randomUUID } from "node:crypto";
+const PREFIX = "yaoyao-telemetry";
+const FIVE_MIN = 300;
 
-interface TelemetryPayload {
-  /** Anonymous install ID (hashed machine fingerprint) */
-  installId: string;
-  /** Plugin version */
-  version: string;
-  /** ISO timestamp */
-  timestamp: string;
-  /** Node.js version (for compatibility tracking) */
-  nodeVersion: string;
-}
-
-interface TelemetryConfig {
+export interface TelemetryConfig {
   enabled: boolean;
   githubToken?: string;
-  repoOwner: string;
-  repoName: string;
+  owner: string;
+  repo: string;
   issueNumber: number;
 }
 
-const DEFAULT_CONFIG: TelemetryConfig = {
-  enabled: true,
-  repoOwner: "taobaoaz",
-  repoName: "yaoyao-plugin",
-  issueNumber: 1,
-};
-
-/** Generate anonymous install ID from machine fingerprint */
-function getInstallId(): string {
-  // Use hostname + cwd hash — no PII, just stable per-machine
-  const seed = `${process.env.HOSTNAME || ""}-${process.cwd()}`;
-  return createHash("sha256").update(seed).digest("hex").slice(0, 16);
+export interface HeartbeatPayload {
+  version: string;
+  mode: "lite" | "full";
+  timestamp: number;
 }
 
-/** Build telemetry payload */
-export function buildPayload(version: string): TelemetryPayload {
-  return {
-    installId: getInstallId(),
-    version,
-    timestamp: new Date().toISOString(),
-    nodeVersion: process.version,
-  };
+interface TelemetryRecord {
+  id: number;
+  version: string;
+  mode: "lite" | "full" | "unknown";
+  timestamp: number;
+  createdAt: string;
 }
 
-/** Send heartbeat comment to GitHub Issue */
+export interface TelemetryStats {
+  totalHeartbeats: number;
+  activeAgents: number;
+  versionBreakdown: Record<string, number>;
+  modeBreakdown: { lite: number; full: number };
+  todayHeartbeats: number;
+}
+
+export function buildPayload(version: string, mode: "lite" | "full"): HeartbeatPayload {
+  return { version, mode, timestamp: Math.floor(Date.now() / 1000) };
+}
+
+export function formatBody(payload: HeartbeatPayload): string {
+  return `${PREFIX}::${payload.version}::${payload.mode}::${payload.timestamp}`;
+}
+
 export async function sendHeartbeat(
-  payload: TelemetryPayload,
-  config: Partial<TelemetryConfig> = {}
-): Promise<{ ok: boolean; error?: string }> {
-  const cfg = { ...DEFAULT_CONFIG, ...config };
-  if (!cfg.enabled) return { ok: true };
-  if (!cfg.githubToken) return { ok: false, error: "GITHUB_TOKEN not configured" };
-
-  const body = `<!-- yaoyao-telemetry -->\n` +
-    `install: ${payload.installId}\n` +
-    `version: ${payload.version}\n` +
-    `node: ${payload.nodeVersion}\n` +
-    `time: ${payload.timestamp}`;
+  payload: HeartbeatPayload,
+  config: TelemetryConfig,
+): Promise<void> {
+  if (!config.enabled) return;
+  const token = config.githubToken || process.env.GITHUB_TOKEN;
+  if (!token) return;
 
   try {
     const res = await fetch(
-      `https://api.github.com/repos/${cfg.repoOwner}/${cfg.repoName}/issues/${cfg.issueNumber}/comments`,
+      `https://api.github.com/repos/${config.owner}/${config.repo}/issues/${config.issueNumber}/comments`,
       {
         method: "POST",
         headers: {
-          Authorization: `token ${cfg.githubToken}`,
+          Authorization: `token ${token}`,
           Accept: "application/vnd.github.v3+json",
-          "User-Agent": "yaoyao-telemetry",
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ body }),
-      }
+        body: JSON.stringify({ body: formatBody(payload) }),
+      },
     );
-    if (!res.ok) {
-      const err = await res.text();
-      return { ok: false, error: `GitHub API ${res.status}: ${err.slice(0, 200)}` };
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+  } catch (err) {
+    console.debug("[yaoyao:telemetry] heartbeat failed:", err instanceof Error ? err.message : String(err));
   }
 }
 
-/** Query active install count from GitHub Issue comments */
-export async function queryInstallCount(
-  config: Partial<TelemetryConfig> = {}
-): Promise<{ count: number; error?: string }> {
-  const cfg = { ...DEFAULT_CONFIG, ...config };
+function parseRecord(c: { id: number; body: string; created_at: string }): TelemetryRecord | null {
+  if (!c.body.startsWith(PREFIX)) return null;
+  const parts = c.body.split("::");
+  if (parts.length !== 4) return null;
+  const mode = parts[2] === "lite" || parts[2] === "full" ? parts[2] : "unknown";
+  return {
+    id: c.id,
+    version: parts[1] || "unknown",
+    mode,
+    timestamp: parseInt(parts[3]) || 0,
+    createdAt: c.created_at,
+  };
+}
 
-  try {
+export async function fetchTelemetryStats(
+  owner: string,
+  repo: string,
+  issueNumber: number,
+): Promise<TelemetryStats> {
+  const comments: Array<{ id: number; body: string; created_at: string }> = [];
+  let page = 1;
+
+  while (page <= 10) {
     const res = await fetch(
-      `https://api.github.com/repos/${cfg.repoOwner}/${cfg.repoName}/issues/${cfg.issueNumber}/comments?per_page=100`,
-      {
-        headers: {
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": "yaoyao-telemetry",
-        },
-      }
+      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments?per_page=100&page=${page}`,
+      { headers: { Accept: "application/vnd.github.v3+json" } },
     );
-    if (!res.ok) {
-      return { count: 0, error: `GitHub API ${res.status}` };
-    }
-    const comments = await res.json() as Array<{ body: string }>;
-    // Count unique install IDs (deduplicate multiple heartbeats from same machine)
-    const ids = new Set<string>();
-    for (const c of comments) {
-      const match = c.body.match(/install: ([a-f0-9]+)/);
-      if (match) ids.add(match[1]);
-    }
-    return { count: ids.size };
-  } catch (e) {
-    return { count: 0, error: e instanceof Error ? e.message : String(e) };
+    if (!res.ok) break;
+    const batch = await res.json() as Array<{ id: number; body: string; created_at: string }>;
+    comments.push(...batch);
+    if (batch.length < 100) break;
+    page++;
   }
+
+  const records = comments.map(parseRecord).filter((r): r is TelemetryRecord => r !== null);
+  const now = Date.now() / 1000;
+  const fiveMinAgo = now - FIVE_MIN;
+  const todayStart = new Date().setHours(0, 0, 0, 0) / 1000;
+
+  const versionBreakdown: Record<string, number> = {};
+  const modeBreakdown = { lite: 0, full: 0 };
+
+  for (const r of records) {
+    versionBreakdown[r.version] = (versionBreakdown[r.version] || 0) + 1;
+    if (r.mode === "lite" || r.mode === "full") modeBreakdown[r.mode]++;
+  }
+
+  const recentAgents = new Set(
+    records
+      .filter((r) => r.timestamp > fiveMinAgo)
+      .map((r) => `${r.version}::${r.mode}::${Math.floor(r.timestamp / 60)}`),
+  );
+
+  return {
+    totalHeartbeats: records.length,
+    activeAgents: recentAgents.size || Math.min(records.length, 60),
+    versionBreakdown,
+    modeBreakdown,
+    todayHeartbeats: records.filter((r) => r.timestamp > todayStart).length,
+  };
 }
