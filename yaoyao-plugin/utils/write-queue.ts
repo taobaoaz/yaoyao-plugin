@@ -106,17 +106,27 @@ export function createWriteQueue(
 
   return { enqueue, get pendingCount() { return pending.length; }, drain: async () => {
     if (flushing) {
-      // Wait for current flush to complete
-      while (flushing) {
+      // Wait for current flush to complete (max 30s)
+      let waitMs = 0;
+      while (flushing && waitMs < 30000) {
         await new Promise(r => setTimeout(r, 10));
+        waitMs += 10;
+      }
+      if (flushing) {
+        logger?.warn?.("[yaoyao-memory:write-queue] Drain timeout: flush still in progress after 30s");
       }
     }
     if (pending.length > 0) {
       await runFlush();
     }
-    // Double-check after any async gap
-    while (flushing) {
+    // Double-check after any async gap (max 30s)
+    let waitMs = 0;
+    while (flushing && waitMs < 30000) {
       await new Promise(r => setTimeout(r, 10));
+      waitMs += 10;
+    }
+    if (flushing) {
+      logger?.warn?.("[yaoyao-memory:write-queue] Drain timeout: flush still in progress after 30s");
     }
   }, retry: async () => {
     // Re-run flush for any remaining tasks (used after a failure)
