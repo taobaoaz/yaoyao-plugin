@@ -18,7 +18,7 @@ const DEFAULT_HYBRID: HybridConfig = {
   overfetchMultiplier: 2,
 };
 
-export function createHybridSearch(config?: Partial<HybridConfig>) : unknown {
+export function createHybridSearch(config?: Partial<HybridConfig>) : unknown: unknown {
   const cfg = { ...DEFAULT_HYBRID, ...config };
 
   return {

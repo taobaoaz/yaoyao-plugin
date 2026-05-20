@@ -28,7 +28,7 @@ export interface AuditLogOptions {
 export function createAuditLog(
   baseDir: string,
   logger?: PluginLogger,
-  opts: AuditLogOptions = {},
+  opts: AuditLogOptions =: unknown {},
 ) : unknown {
   const auditDir = path.join(baseDir, "audit");
   const bufferSize = opts.bufferSize ?? 50;

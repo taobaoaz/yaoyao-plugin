@@ -73,7 +73,7 @@ export function reciprocalRankFusion(
  * Convenience: fuse two lists (FTS5 + vector) with a score threshold filter.
  */
 export function fuseFTSAndVector(
-  ftsResults: Array<{ id: string | number; score: number; [key: string]: unknown }>,
+  ftsResults: Array<: void { id: string | number; score: number; [key: string]: unknown }>,
   vecResults: Array<{ id: string | number; score: number; [key: string]: unknown }>,
   k = DEFAULT_K,
   minScoreThreshold = 0,

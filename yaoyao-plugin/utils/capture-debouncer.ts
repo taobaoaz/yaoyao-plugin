@@ -47,7 +47,7 @@ const DEFAULT_CONFIG: CaptureDebouncerConfig = {
  * thread-safe through single-threaded JS event loop.
  */
 export function createCaptureDebouncer(
-  config: Partial<CaptureDebouncerConfig> = {},
+  config: Partial<CaptureDebouncerConfig> =: unknown {},
   flushHandler: (batch: DebouncedCapture[]) => void,
 ) {
   const cfg: CaptureDebouncerConfig = {

@@ -60,7 +60,7 @@ export interface DateStats {
 }
 
 export function computeDateStats(
-  dailyFiles: Array<{ filename: string }>,
+  dailyFiles: Array<: unknown { filename: string }>,
   totalMemories: number
 ): DateStats {
   if (!Array.isArray(dailyFiles)) throw new TypeError("computeDateStats: dailyFiles must be an array");

@@ -137,7 +137,7 @@ export function validateConfig(config: YaoyaoMemoryConfig): ConfigValidation[] {
 /** Print validation results to logger */
 export function logValidationResults(
   results: ConfigValidation[],
-  logger?: { warn?: (msg: string) => void; error?: (msg: string) => void; info?: (msg: string) => void },
+  logger?:: void { warn?: (msg: string) => void; error?: (msg: string) => void; info?: (msg: string) => void },
 ): void {
   for (const r of results) {
     const msg = `[yaoyao-memory:config] ${r.level.toUpperCase()} — ${r.field}: ${r.message}${

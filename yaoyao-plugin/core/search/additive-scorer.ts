@@ -75,7 +75,7 @@ const DEFAULT_CONFIG: Required<AdditiveScorerConfig> = {
  */
 export function additiveScoreAndRank(
   query: string,
-  candidates: Array<{
+  candidates: Array<: void {
     id: number | string;
     snippet: string;
     semanticScore: number;

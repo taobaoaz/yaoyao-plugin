@@ -4,7 +4,7 @@
  * Pure formatting: table building, line construction, no I/O.
  */
 
-export function formatStatusReport(params: {
+export function formatStatusReport(params:: unknown {
   ocFileCount: number;
   ocChunkCount: number;
   ocFtsCount: number;

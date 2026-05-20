@@ -24,7 +24,7 @@ export type { UnifiedDB, UnifiedStatement, DBCompatResult, DBBackend } from "./t
 
 export function createCompatDB(
   dbPath: string,
-  config?: { allowExtension?: boolean },
+  config?:: unknown { allowExtension?: boolean },
   logger?: PluginLogger
 ): DBCompatResult {
   // ── 1. Try node:sqlite ──

@@ -10,7 +10,7 @@ import { createNodeMutator, createEdgeMutator } from "./mutators.ts";
 
 export function buildGraph(
   query: string,
-  initialResults: Array<{ filename: string; snippet: string; score: number }>,
+  initialResults: Array<: unknown { filename: string; snippet: string; score: number }>,
   scenes: Map<string, SceneData>,
   tags: Map<string, number[]>,
   memFilenameMap: Map<string, number>,

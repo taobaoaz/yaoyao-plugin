@@ -11,7 +11,7 @@ import { createVectorBackend } from "../utils/vector/index.ts";
 import type { VectorBackend } from "../utils/vector/types.ts";
 import type { EmbeddedSearchResult } from "./types.ts";
 
-export function createVectorStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) : unknown {
+export function createVectorStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) : unknown: unknown {
   let backend: VectorBackend | null = null;
   let vecEnabled = false;
 

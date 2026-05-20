@@ -70,7 +70,7 @@ export function textSimilarity(a: string, b: string): number {
  */
 export function isDuplicateOfRecent(
   candidate: string,
-  recentMemories: { snippet: string }[],
+  recentMemories:: boolean { snippet: string }[],
   threshold = 0.85,
 ): boolean {
   for (const mem of recentMemories) {

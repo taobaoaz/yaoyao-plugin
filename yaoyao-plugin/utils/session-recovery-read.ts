@@ -19,7 +19,7 @@ export interface CrossSessionMemory {
 
 export function readCrossSessionMemories(
   searchDirs: string[],
-  options: { maxMemories?: number; maxAgeMs?: number } = {},
+  options:: unknown { maxMemories?: number; maxAgeMs?: number } = {},
 ): CrossSessionMemory[] {
   const { maxMemories = 20, maxAgeMs = 7 * 24 * 60 * 60 * 1000 } = options;
   const now = Date.now();

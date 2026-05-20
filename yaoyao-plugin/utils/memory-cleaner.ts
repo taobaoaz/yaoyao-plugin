@@ -47,7 +47,7 @@ export interface CleanerConfig {
 
 type Logger = { info?: (s: string) => void; error?: (s: string) => void };
 
-export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: CleanerConfig, logger?: Logger) : unknown {
+export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: CleanerConfig, logger?: Logger) : unknown: unknown {
   const cfg = {
     l0l1RetentionDays: config?.l0l1RetentionDays ?? 30,
     allowAggressiveCleanup: config?.allowAggressiveCleanup ?? false,

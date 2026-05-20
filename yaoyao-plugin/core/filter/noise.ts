@@ -75,7 +75,7 @@ const DEFAULT_OPTIONS: Required<NoiseFilterOptions> = {
 /** Check if a memory text is noise that should be filtered out */
 export function isNoise(
   text: string,
-  options: NoiseFilterOptions = {},
+  options: NoiseFilterOptions =: boolean {},
 ): boolean {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const trimmed = text.trim();
