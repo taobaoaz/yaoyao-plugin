@@ -18,7 +18,7 @@
  *   recall-filter.ts   — model-based secondary filter
  *   recall-query-cache.ts — repeat query detection
  */
-import { getCoexistMode } from "../utils/coexistence.ts";
+import { getCoexistState } from "../utils/coexistence.ts";
 import { createClawBridge, type ClawBridge } from "../utils/claw-bridge.ts";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
@@ -50,8 +50,9 @@ export function registerRecallHook(
   scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
   audit?: AuditLog,
 ): RecallHookHandle {
-  const coexistMode = getCoexistMode();
-  const clawBridge = coexistMode === "coexist" ? createClawBridge() : null;
+  const coexist = getCoexistState();
+  const useClawPrimary = coexist.flags.useClawPrimaryRecall;
+  const clawBridge = useClawPrimary ? createClawBridge() : null;
   
   api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})${clawBridge ? " [coexist: claw-core recall primary]" : ""}`);
 
@@ -106,41 +107,79 @@ export function registerRecallHook(
         // Intent classification for logging (no behavioral change for base search)
         const intent = cfg.enableIntentDriven ? classifyIntent(userText) : undefined;
 
-        // ── Search: intent-driven | vector hybrid | pure FTS ──
+        // ── Parallel search: claw-core + local (if bridge available) ──
         const searchCfg: RecallSearchConfig = {
           enableIntentDriven: cfg.enableIntentDriven,
           maxResults: cfg.maxResults,
         };
-        const { results, mode } = await doRecallSearch(db, primaryQuery, searchCfg, embedding, api.logger);
+        let localResults: SearchResult[] = [];
+        let searchMode = "fts";
+        let clawResults: SearchResult[] = [];
 
-        // ── Coexistence: supplement with claw-core recall ──
-        let mergedResults = results;
         if (clawBridge) {
-          try {
-            const clawRes = await Promise.race([
-              clawBridge.recall(userText, cfg.maxResults),
+          // Parallel: local + claw-core at the same time
+          const [localRes, clawRes] = await Promise.allSettled([
+            doRecallSearch(db, primaryQuery, searchCfg, embedding, api.logger),
+            Promise.race([
+              clawBridge.recall(userText, cfg.maxResults * 2),
               new Promise<null>((_, reject) => setTimeout(() => reject(new Error("claw timeout")), 5000)),
-            ]);
-            if (clawRes && (clawRes as { memories?: unknown[] }).memories) {
-              const clawResults = (clawRes as { memories: Array<{ content: string; confidence: number; source: string }> }).memories.map((m, i) => ({
+            ]),
+          ]);
+
+          // Parse local results
+          if (localRes.status === "fulfilled") {
+            localResults = localRes.value.results;
+            searchMode = localRes.value.mode;
+          }
+
+          // Parse claw-core results if successful
+          if (clawRes.status === "fulfilled" && clawRes.value) {
+            const raw = clawRes.value;
+            if (raw.memories) {
+              clawResults = raw.memories.map((m, i) => ({
                 id: `claw-${i}`,
                 content: m.content,
                 score: m.confidence,
-                metadata: { source: m.source, claw_verified: (clawRes as { verified?: boolean }).verified ?? false },
+                metadata: { source: m.source, claw_verified: raw.verified ?? false },
               })) as SearchResult[];
-              // Merge: claw-core results first (higher priority), then local results
-              mergedResults = [...clawResults, ...results].slice(0, cfg.maxResults);
-              api.logger.debug?.(`[yaoyao-memory:recall] claw-core returned ${clawResults.length} memories, merged total=${mergedResults.length}`);
             }
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            api.logger.debug?.(`[yaoyao-memory:recall] claw-core recall failed: ${msg}`);
+            api.logger.debug?.(`[yaoyao-memory:recall] claw-core returned ${clawResults.length} memories`);
+          } else {
+            const reason = clawRes.status === "rejected" ? String(clawRes.reason) : "empty";
+            api.logger.debug?.(`[yaoyao-memory:recall] claw-core recall failed: ${reason}`);
           }
+        } else {
+          // Standalone: local only
+          const localRes = await doRecallSearch(db, primaryQuery, searchCfg, embedding, api.logger);
+          localResults = localRes.results;
+          searchMode = localRes.mode;
+        }
+
+        // ── Smart merge: dedupe + re-rank ──
+        let mergedResults: SearchResult[];
+        if (clawResults.length > 0) {
+          // Merge and dedupe by content hash (first 200 chars)
+          const seen = new Set<string>();
+          const merged: SearchResult[] = [];
+          // Prefer claw-core results (higher base score boost)
+          for (const r of [...clawResults, ...localResults]) {
+            const key = r.content.slice(0, 200);
+            if (!seen.has(key)) {
+              seen.add(key);
+              merged.push(r);
+            }
+          }
+          // Sort by score descending
+          merged.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+          mergedResults = merged.slice(0, cfg.maxResults);
+          api.logger.debug?.(`[yaoyao-memory:recall] merged ${clawResults.length}+${localResults.length} → ${mergedResults.length}`);
+        } else {
+          mergedResults = localResults.slice(0, cfg.maxResults);
         }
 
         // ── Post-processing pipeline ──
         const ppResult = await doPostProcess(
-          mergedResults, mode, userText, cfg as PostProcessConfig,
+          mergedResults, searchMode, userText, cfg as PostProcessConfig,
           scopeManager, agentId, intent,
           resultCache, stats, startMs, audit, sessionKey, api.logger,
         );
