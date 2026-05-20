@@ -33,7 +33,11 @@ export function createNpmDB(dbPath: string): UnifiedDB | null {
       // better-sqlite3 extension loading differs; leave undefined
       _raw: rawDb,
     };
-  } catch { return null; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] better-sqlite3 init failed: ${msg}`);
+    return null;
+  }
 }
 
 export function isNpmAvailable(): boolean {
@@ -41,5 +45,9 @@ export function isNpmAvailable(): boolean {
     const _require = createRequire(import.meta.url);
     _require("better-sqlite3");
     return true;
-  } catch { return false; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] better-sqlite3 check failed: ${msg}`);
+    return false;
+  }
 }

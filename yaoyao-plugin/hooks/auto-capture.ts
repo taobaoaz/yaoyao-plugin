@@ -111,7 +111,11 @@ export function registerCaptureHook(
       let date: string;
       if (config.tz) {
         try { date = new Intl.DateTimeFormat("sv-SE", { timeZone: config.tz } as Intl.DateTimeFormatOptions).format(new Date()); }
-        catch { date = new Date().toISOString().slice(0, 10); }
+        catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:capture] Date parse failed: ${msg}`);
+          date = new Date().toISOString().slice(0, 10);
+        }
       } else { date = new Date().toISOString().slice(0, 10); }
       const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
 
@@ -183,7 +187,10 @@ export function registerCaptureHook(
           area: "capture",
           source: "yaoyao-memory/auto-capture",
         }).catch(() => {});
-      } catch { /* ignore */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:capture] Persist failed: ${msg}`);
+      }
     }
   });
 

@@ -39,7 +39,10 @@ export async function doRecallSearch(
         const exists = results.some(r => r.id === f.id);
         if (!exists) results.push({ ...f, score: f.score ?? 0.3 });
       }
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:recall] Search failed: ${msg}`);
+    }
       results = db.search(query, cfg.maxResults * 2).map(r => ({ ...r, score: r.score ?? 0.5 }));
       mode = "fts";
     }

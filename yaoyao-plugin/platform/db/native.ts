@@ -33,6 +33,8 @@ export function createNativeDB(dbPath: string, allowExtension: boolean = true): 
       _raw: rawDb,
     };
   } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] Native DB init failed: ${msg}`);
     return null;
   }
 }
@@ -42,5 +44,9 @@ export function isNativeAvailable(): boolean {
     const _require = createRequire(import.meta.url);
     _require("node:sqlite");
     return true;
-  } catch { return false; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] Native check failed: ${msg}`);
+    return false;
+  }
 }

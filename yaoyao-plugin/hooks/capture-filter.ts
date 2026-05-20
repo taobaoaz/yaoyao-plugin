@@ -78,7 +78,11 @@ export function shouldCaptureTurn(
 
   // Regex exclusion patterns
   const excludePatterns = (getProp(config, "capture.excludePatterns", []) as string[])
-    .map(p => { try { return new RegExp(p, "i"); } catch { return null; } })
+    .map(p => { try { return new RegExp(p, "i"); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:capture] Invalid pattern "${p}": ${msg}`);
+      return null;
+    } })
     .filter((r): r is RegExp => r !== null);
   if (excludePatterns.length > 0) {
     const fullText = messages.map((m: Record<string, unknown>) => (m.content || m.text || "")).join(" ");

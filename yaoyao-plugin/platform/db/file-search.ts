@@ -12,7 +12,11 @@ export function searchFiles(baseDir: string, query: string, limit: number): SQLi
   let files: string[];
   try {
     files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
-  } catch { return []; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] Search read baseDir failed: ${msg}`);
+    return [];
+  }
   const q = query.toLowerCase();
 
   for (const file of files) {
@@ -22,7 +26,11 @@ export function searchFiles(baseDir: string, query: string, limit: number): SQLi
       const stat = fs.statSync(filePath);
       if (stat.size > MAX_FILE_BYTES) continue;
       content = fs.readFileSync(filePath, "utf-8");
-    } catch { continue; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:db] Read file failed: ${msg}`);
+      continue;
+    }
     if (content.toLowerCase().includes(q)) {
       const lines = content.split("\n");
       const idx = lines.findIndex(l => l.toLowerCase().includes(q));
@@ -44,7 +52,11 @@ export function listFiles(baseDir: string, limit: number): SQLiteRow[] {
   let files: string[];
   try {
     files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
-  } catch { return []; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] List files failed: ${msg}`);
+    return [];
+  }
   return files.slice(0, limit).map(f => ({
     rowid: f,
     date: f.replace(".md", ""),
@@ -57,5 +69,9 @@ export function listFiles(baseDir: string, limit: number): SQLiteRow[] {
 export function countFiles(baseDir: string): number {
   try {
     return fs.readdirSync(baseDir).filter(f => f.endsWith(".md")).length;
-  } catch { return 0; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] Count files failed: ${msg}`);
+    return 0;
+  }
 }

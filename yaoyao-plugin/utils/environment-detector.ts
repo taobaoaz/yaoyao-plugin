@@ -46,7 +46,9 @@ function detectByFileSystem(): { env: ClawEnvironment; signals: string[] } {
           signals.push(`found xiaoyi-specific gateway in ${extDir}`);
           return { env: "xiaoyi-claw", signals };
         }
-      } catch {
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:env] Read directory failed: ${msg}`);
         // ignore read errors
       }
     }

@@ -31,7 +31,10 @@ export function extractContent(msg: unknown, maxLen?: number): string {
   } else {
     try {
       text = safeStringify(content, limit);
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:capture] Content parse failed: ${msg}`);
+    }
       text = "[unparseable content]";
     }
   }

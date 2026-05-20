@@ -32,7 +32,10 @@ export function runAntiHallucination(userContent: string, asstContent: string, v
     try {
       specCheck = detectSpeculative(asstContent);
       corrCheck = detectCorrection(userContent);
-    } catch { /* best-effort */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:capture] Meta parse failed: ${msg}`);
+    }
   }
   if (specCheck.isSpeculative) riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(", ")}]`;
   if (corrCheck.isCorrection) riskTag += ` [🚫 用户纠正]`;
@@ -71,7 +74,10 @@ export async function buildMetaObj(
     try {
       const facts = await extractFacts(userContent, asstContent, { brainMode, llmClient, logger });
       if (facts.length > 0) metaObj.l1Facts = facts.slice(0, maxMemories);
-    } catch { /* best effort */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:capture] Watermark eval failed: ${msg}`);
+    }
   }
 
   enrichMetadata(metaObj, userContent + " " + asstContent);
@@ -84,5 +90,9 @@ export function checkDedup(db: DBBridge, texts: string, config: CaptureConfig): 
   try {
     const recent = db.getLatestMemory(config.dedupLookback);
     return isDuplicateOfRecent(texts, recent, config.dedupThreshold);
-  } catch { return false; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:capture] Anti-hallucination failed: ${msg}`);
+    return false;
+  }
 }

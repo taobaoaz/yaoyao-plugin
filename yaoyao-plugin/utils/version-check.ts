@@ -96,10 +96,14 @@ export function readVersionRequirements(): {
     let pkg: Record<string, unknown>;
     try {
       pkg = _require("../package.json");
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:version] Read ../package.json failed: ${msg}`);
       try {
         pkg = _require("../../package.json");
-      } catch {
+      } catch (e2: unknown) {
+        const msg2 = e2 instanceof Error ? e2.message : String(e2);
+        console.warn(`[yaoyao-memory:version] Read ../../package.json failed: ${msg2}`);
         pkg = _require("./package.json");
       }
     }
@@ -110,7 +114,9 @@ export function readVersionRequirements(): {
       pluginVersion: (pkg.version as string) || defaults.pluginVersion,
       openclawVersion: ((pkg.openclaw as Record<string, unknown>)?.build as Record<string, unknown>)?.openclawVersion as string || defaults.openclawVersion,
     };
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:version] Read version requirements failed: ${msg}`);
     return defaults;
   }
 }

@@ -1,7 +1,3 @@
-/**
- * entry/version.ts — Read plugin version from package.json.
- */
-
 import fs from "node:fs";
 
 export function readPluginVersion(): string {
@@ -20,11 +16,15 @@ export function readPluginVersion(): string {
     let pkg: Record<string, unknown>;
     try {
       pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:version] Parse package.json failed: ${msg}`);
       return "0.0.0";
     }
     return (pkg.version as string | undefined) || "dev";
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:version] Read version failed: ${msg}`);
     return "dev";
   }
 }

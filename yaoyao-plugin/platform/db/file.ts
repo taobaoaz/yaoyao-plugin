@@ -1,17 +1,3 @@
-/**
- * platform/db/file.ts — Pure filesystem fallback (zero deps, works everywhere).
- *
- * Hardening:
- *   - All fs ops wrapped in try/catch (permission denied, missing dir, etc.)
- *   - readFileSync capped at 10 MB per file to prevent OOM on massive .md logs
- *   - _search gracefully returns empty on any error
- *
- * When no SQLite is available, FileDB provides minimum viable L0 memory:
- * - daily markdown files (already exist in memory/YYYY-MM-DD.md)
- * - simple text search over those files
- * - basic index tracking
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import type { UnifiedDB, UnifiedStatement, SQLiteRow } from "./types.ts";
@@ -35,20 +21,28 @@ export class FileDB implements UnifiedDB {
         let parsed: Record<string, string[]>;
         try {
           parsed = JSON.parse(raw) as Record<string, string[]>;
-        } catch {
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:db] Parse index failed: ${msg}`);
           parsed = {};
         }
         for (const [k, v] of Object.entries(parsed)) {
           if (Array.isArray(v)) this.index.set(k, v);
         }
       }
-    } catch { /* ignore corrupt index */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:db] Read index failed: ${msg}`);
+    }
 
     try {
       if (!fs.existsSync(baseDir)) {
         fs.mkdirSync(baseDir, { recursive: true });
       }
-    } catch { /* best effort */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:db] Create baseDir failed: ${msg}`);
+    }
   }
 
   exec(_sql: string) { /* no-op */ }
@@ -86,7 +80,11 @@ export class FileDB implements UnifiedDB {
               return this._listAll(orderDesc ? limit : limit);
             }
             return searchFiles(this.baseDir, args[0] as string || "", limit);
-          } catch { return []; }
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:db] Select all failed: ${msg}`);
+            return [];
+          }
         },
         get: (...args: unknown[]) => {
           try {
@@ -101,7 +99,11 @@ export class FileDB implements UnifiedDB {
             }
             const rows = searchFiles(this.baseDir, args[0] as string || "", 1);
             return rows[0];
-          } catch { return undefined; }
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:db] Select get failed: ${msg}`);
+            return undefined;
+          }
         },
       };
     }
@@ -120,7 +122,11 @@ export class FileDB implements UnifiedDB {
               }
             }
             return { lastInsertRowid: 0, changes: 0 };
-          } catch { return { lastInsertRowid: 0, changes: 0 }; }
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:db] Delete failed: ${msg}`);
+            return { lastInsertRowid: 0, changes: 0 };
+          }
         },
         all: () => [],
         get: () => undefined,
@@ -137,7 +143,11 @@ export class FileDB implements UnifiedDB {
             const filePath = path.join(this.baseDir, `${date}.md`);
             fs.appendFileSync(filePath, text + "\n");
             return { lastInsertRowid: 1, changes: 1 };
-          } catch { return { lastInsertRowid: 0, changes: 0 }; }
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:db] Insert failed: ${msg}`);
+            return { lastInsertRowid: 0, changes: 0 };
+          }
         },
         all: () => [],
         get: () => undefined,
@@ -167,6 +177,9 @@ export function createFileDB(dbPath: string): FileDB {
   const baseDir = path.dirname(dbPath);
   try {
     fs.mkdirSync(baseDir, { recursive: true });
-  } catch { /* best effort — caller may have read-only fs */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:db] Create baseDir failed: ${msg}`);
+  }
   return new FileDB(baseDir);
 }

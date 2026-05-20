@@ -7,22 +7,22 @@
     "last_chars": 7261
   },
   "diary": {
-    "count": 16,
-    "last_ts": "2026-05-19T03:58:54.280296",
+    "count": 18,
+    "last_ts": "2026-05-20T03:57:04.409184",
     "last_day": 11,
     "last_sessions": 5,
     "last_messages": 2103,
     "last_filename": "day11-2026-05-19-almost_broke_the_rules_today.md",
     "last_latency_s": 7.9,
-    "last_skip": "conversation_hash_unchanged"
+    "last_skip": "no_sessions_today"
   },
   "compact": {
-    "count": 16,
-    "last_ts": "2026-05-19T03:59:02.521721",
-    "last_invoke": 8,
-    "last_sessions": 13,
-    "last_messages": 582,
-    "last_latency_s": 7.6,
+    "count": 18,
+    "last_ts": "2026-05-20T03:57:05.594771",
+    "last_invoke": 10,
+    "last_sessions": 28,
+    "last_messages": 1524,
+    "last_latency_s": 7.1,
     "last_model": "k2p6",
     "last_skip": "stm_hash_unchanged",
     "last_error": "The read operation timed out"
