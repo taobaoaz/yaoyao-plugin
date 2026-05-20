@@ -40,7 +40,8 @@ export async function sendHeartbeat(
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  } catch {
-    // 静默失败，绝不阻塞主流程
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:telemetry] Heartbeat failed: ${msg}`);
   }
 }

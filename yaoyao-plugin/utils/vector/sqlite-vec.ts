@@ -97,7 +97,10 @@ export class SqliteVecBackend implements VectorBackend {
         this.db.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
         this.db.exec("COMMIT");
       } catch (txErr: unknown) {
-        try { this.db.exec("ROLLBACK"); } catch { /* ignore secondary failure */ }
+        try { this.db.exec("ROLLBACK"); } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.logger?.warn?.(`[yaoyao-memory:vec] ROLLBACK failed: ${msg}`);
+        }
         throw txErr;
       }
       return true;
@@ -147,7 +150,10 @@ export class SqliteVecBackend implements VectorBackend {
       this.db.exec(
         "DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)"
       );
-    } catch { /* best effort */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger?.warn?.(`[yaoyao-memory:vec] deleteOrphans failed: ${msg}`);
+    }
   }
 
   getVectorCount(): number {
@@ -155,7 +161,11 @@ export class SqliteVecBackend implements VectorBackend {
     try {
       const row = this.db.prepare("SELECT COUNT(*) as c FROM memory_vec").get() as { c: number } | undefined;
       return row?.c ?? 0;
-    } catch { return 0; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger?.warn?.(`[yaoyao-memory:vec] getVectorCount failed: ${msg}`);
+      return 0;
+    }
   }
 
   getDimensions(): number {
@@ -163,7 +173,11 @@ export class SqliteVecBackend implements VectorBackend {
     try {
       const row = this.db.prepare("SELECT dimensions FROM memory_vec_meta LIMIT 1").get() as { dimensions: number } | undefined;
       return row?.dimensions ?? this.dimensions;
-    } catch { return this.dimensions; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger?.warn?.(`[yaoyao-memory:vec] getDimensions failed: ${msg}`);
+      return this.dimensions;
+    }
   }
 
   close(): void {
