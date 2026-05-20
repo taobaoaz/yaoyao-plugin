@@ -7,7 +7,7 @@ import type { HealthCheck } from "./healthcheck.ts";
 export function runMemoryStatsCheck(
   baseDir: string | undefined,
   memDir: string,
-  createCompatDB: (path: string) =>: unknown { db: { prepare: (sql: string) => { get: () => unknown; all: () => unknown[] }; close: () => void } }
+  createCompatDB: (path: string) => { db: { prepare: (sql: string) => { get: () => unknown; all: () => unknown[] }; close: () => void } }
 ): HealthCheck | null {
   try {
     const dbPath = baseDir ? path.join(baseDir, "memory.db") : path.join(memDir, "memory.db");

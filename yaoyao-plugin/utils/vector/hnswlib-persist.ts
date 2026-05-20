@@ -13,7 +13,7 @@ export interface PersistContext {
   logger?: { debug?: (s: string) => void; warn?: (s: string) => void };
 }
 
-export function createPersistManager(ctx: PersistContext) : unknown: unknown {
+export function createPersistManager(ctx: PersistContext): PersistManager {
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   let dirty = false;
 

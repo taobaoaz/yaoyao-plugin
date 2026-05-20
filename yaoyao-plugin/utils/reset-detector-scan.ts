@@ -17,7 +17,7 @@ export interface ResetRisk {
 /** Main entry: detect all scheduled reset risks */
 export function detectScheduledResetRisks(
   memoryDir: string,
-  yaoyaoConfig?:: boolean { cleanup?: { enabled?: boolean; l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean } },
+  yaoyaoConfig?: { cleanup?: { enabled?: boolean; l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean } },
 ): ResetRisk[] {
   const homeDir = path.dirname(memoryDir);
   const risks: ResetRisk[] = [];

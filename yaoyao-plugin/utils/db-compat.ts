@@ -125,7 +125,7 @@ function wrapBetterSqlite3(rawDb: RawNodeDB): UnifiedDB {
 
 // ── Factory ──
 
-export function createCompatDB(dbPath: string, config?:: unknown { allowExtension?: boolean }, logger?: PluginLogger): DBCompatResult {
+export function createCompatDB(dbPath: string, config?: { allowExtension?: boolean }, logger?: PluginLogger): DBCompatResult {
   const backend = detectBackend(logger);
 
   switch (backend) {

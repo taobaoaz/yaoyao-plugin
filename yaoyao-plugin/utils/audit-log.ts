@@ -28,8 +28,8 @@ export interface AuditLogOptions {
 export function createAuditLog(
   baseDir: string,
   logger?: PluginLogger,
-  opts: AuditLogOptions =: unknown {},
-) : unknown {
+  opts: AuditLogOptions = {},
+): AuditLog {
   const auditDir = path.join(baseDir, "audit");
   const bufferSize = opts.bufferSize ?? 50;
   const flushIntervalMs = opts.flushIntervalMs ?? 5000;

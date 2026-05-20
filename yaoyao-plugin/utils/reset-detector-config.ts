@@ -119,7 +119,7 @@ export function scanMemorySlotConflict(homeDir: string): ResetRisk[] {
 }
 
 /** Check yaoyao's own cleanup config */
-export function scanYaoyaoConfig(config:: void { cleanup?: { enabled?: boolean; l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean } }): ResetRisk[] {
+export function scanYaoyaoConfig(config: { cleanup?: { enabled?: boolean; l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean } }): ResetRisk[] {
   const risks: ResetRisk[] = [];
   const cleanup = config.cleanup;
   if (!cleanup) return risks;

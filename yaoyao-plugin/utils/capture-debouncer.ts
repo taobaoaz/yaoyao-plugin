@@ -47,9 +47,9 @@ const DEFAULT_CONFIG: CaptureDebouncerConfig = {
  * thread-safe through single-threaded JS event loop.
  */
 export function createCaptureDebouncer(
-  config: Partial<CaptureDebouncerConfig> =: unknown {},
+  config: Partial<CaptureDebouncerConfig> = {},
   flushHandler: (batch: DebouncedCapture[]) => void,
-) {
+): CaptureDebouncer {
   const cfg: CaptureDebouncerConfig = {
     debounceMs: clampNum(config.debounceMs ?? DEFAULT_CONFIG.debounceMs, 3_000, 500, 30_000),
     maxDelayMs: clampNum(config.maxDelayMs ?? DEFAULT_CONFIG.maxDelayMs, 10_000, 2_000, 60_000),
