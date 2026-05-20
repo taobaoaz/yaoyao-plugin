@@ -96,7 +96,7 @@ export function runHealthcheck(baseDir?: string): HealthResult {
     fs.unlinkSync(testFile);
     checks.push({ name: "记忆目录可写", status: "pass", message: `${memDir} ✅` });
   } catch (err: unknown) {
-    checks.push({ name: "记忆目录可写", status: "fail", message: `${memDir} ❌`, detail: `无法写入: ${(err as Error).message}。检查磁盘空间和权限。` });
+    checks.push({ name: "记忆目录可写", status: "fail", message: `${memDir} ❌`, detail: `无法写入: ${err instanceof Error ? err.message : String(err)}。检查磁盘空间和权限。` });
   }
 
   // 7. File system supports WAL (critical for Docker/NFS)
@@ -119,7 +119,7 @@ export function runHealthcheck(baseDir?: string): HealthResult {
         checks.push({ name: "WAL 支持", status: "warn", message: "WAL 不可用 ⚠️", detail: "文件系统/环境不支持 WAL（常见于 NFS、某些 Docker 卷）。数据库仍可用，但并发性能降低。" });
       }
     } catch (err: unknown) {
-      checks.push({ name: "WAL 支持", status: "warn", message: "检测失败 ⚠️", detail: (err as Error).message });
+      checks.push({ name: "WAL 支持", status: "warn", message: "检测失败 ⚠️", detail: err instanceof Error ? err.message : String(err) });
     }
   }
 

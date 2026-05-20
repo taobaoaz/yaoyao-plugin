@@ -66,7 +66,7 @@ export function registerCaptureHook(
         try {
           persist.writeDailyEntry(item.date, item.entry);
         } catch (e) {
-          api.logger.error?.(`[yaoyao-memory:debouncer] L0 write failed: ${(e as Error).message}`);
+          api.logger.error?.(`[yaoyao-memory:debouncer] L0 write failed: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
       // Queue L1+L2 writes

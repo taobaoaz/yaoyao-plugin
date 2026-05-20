@@ -107,7 +107,7 @@ export function runInstallCheck(): CapabilityReport {
     fs.unlinkSync(testFile);
     info.push(`临时目录可写: ${tmpDir} ✅`);
   } catch (e: unknown) {
-    warnings.push(`临时目录不可写: ${(e as Error).message}。备份、导出功能可能受影响。`);
+    warnings.push(`临时目录不可写: ${e instanceof Error ? e.message : String(e)}。备份、导出功能可能受影响。`);
   }
 
   // 6. Git

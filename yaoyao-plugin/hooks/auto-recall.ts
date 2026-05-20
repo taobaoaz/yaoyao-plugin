@@ -116,7 +116,7 @@ export function registerRecallHook(
         );
         return ppResult;
       } catch (err) {
-        api.logger.error?.(`[yaoyao-memory:recall] Hook error: ${(err as Error).message}`);
+        api.logger.error?.(`[yaoyao-memory:recall] Hook error: ${err instanceof Error ? err.message : String(err)}`);
       }
     };
 

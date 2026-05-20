@@ -45,7 +45,7 @@ export function parseJSONL(jsonlData: string): ParseResult {
         asst_text: String(parsed.asst_text || ""),
       });
     } catch (e: unknown) {
-      errors.push(`第 ${i + 1} 行 JSON 解析失败: ${(e as Error).message}`);
+      errors.push(`第 ${i + 1} 行 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

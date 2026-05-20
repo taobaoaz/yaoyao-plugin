@@ -55,7 +55,7 @@ export async function doUpload(
         result.errors.push(file.filename);
       }
     } catch (err: unknown) {
-      result.errors.push(`${file.filename}: ${(err as Error).message}`);
+      result.errors.push(`${file.filename}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -76,7 +76,7 @@ export async function doUpload(
         }
       }
     } catch (err: unknown) {
-      result.errors.push(`MEMORY.md: ${(err as Error).message}`);
+      result.errors.push(`MEMORY.md: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -137,11 +137,11 @@ export async function doDownload(
           result.errors.push(remote.name);
         }
       } catch (err: unknown) {
-        result.errors.push(`${remote.name}: ${(err as Error).message}`);
+        result.errors.push(`${remote.name}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   } catch (err: unknown) {
-    result.errors.push(`list failed: ${(err as Error).message}`);
+    result.errors.push(`list failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return result;

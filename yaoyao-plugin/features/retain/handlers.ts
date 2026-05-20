@@ -53,7 +53,7 @@ export async function handleBoost(
   try {
     appendBoostRecord(baseDir, record);
   } catch (err: unknown) {
-    return { content: [{ type: "text", text: `❌ 写入强化记录失败: ${(err as Error).message || "未知错误"}` }] };
+    return { content: [{ type: "text", text: `❌ 写入强化记录失败: ${err instanceof Error ? err.message : String(err) || "未知错误"}` }] };
   }
 
   let matchedCount = 0;
@@ -86,7 +86,7 @@ export async function handleImportant(
   try {
     saveImportantTags(baseDir, tags);
   } catch (err: unknown) {
-    return { content: [{ type: "text", text: `❌ 写入重要标签失败: ${(err as Error).message || "未知错误"}` }] };
+    return { content: [{ type: "text", text: `❌ 写入重要标签失败: ${err instanceof Error ? err.message : String(err) || "未知错误"}` }] };
   }
 
   const text = formatImportantResult(keyword, filename, reason, tag.taggedAt);

@@ -124,40 +124,40 @@ export function registerMemoryTools(
   // Cloud sync
   if (registry?.isActive("cloud-sync")) {
     try { tools.push(createCloudSyncTool(store)); } catch (e: unknown) {
-      api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${(e as Error).message}`);
+      api.logger.warn?.(`[yaoyao-memory] Cloud sync tool skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   // Unify (cross-backend status)
   try { tools.push(createUnifyTool(store)); } catch (e: unknown) {
-    api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${(e as Error).message}`);
+    api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   // Quality analysis
   if (registry?.isActive("quality") ?? false) {
     try { tools.push(createQualityTool(store, db)); } catch (e: unknown) {
-      api.logger.warn?.(`[yaoyao-memory] Quality tool skipped: ${(e as Error).message}`);
+      api.logger.warn?.(`[yaoyao-memory] Quality tool skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   // Retain check
   if (registry?.isActive("retain") ?? false) {
     try { tools.push(createRetainTool(store, db)); } catch (e: unknown) {
-      api.logger.warn?.(`[yaoyao-memory] Retain tool skipped: ${(e as Error).message}`);
+      api.logger.warn?.(`[yaoyao-memory] Retain tool skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   // Knowledge graph — requires scenes directory
   if (registry?.isActive("graph") ?? false) {
     try { tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding)); } catch (e: unknown) {
-      api.logger.warn?.(`[yaoyao-memory] Graph tool skipped: ${(e as Error).message}`);
+      api.logger.warn?.(`[yaoyao-memory] Graph tool skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   // Anti-hallucination verify
   if (registry?.isActive("verify") ?? false) {
     try { tools.push(createVerifyTool(db)); } catch (e: unknown) {
-      api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${(e as Error).message}`);
+      api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

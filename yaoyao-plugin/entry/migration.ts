@@ -126,7 +126,7 @@ export function cleanupOldSkills(logger: PluginLogger): void {
         logger.info?.(`[yaoyao-memory] 已清理旧 skill: ${name}（无配置文件需迁移）`);
       }
     } catch (e: unknown) {
-      logger.warn?.(`[yaoyao-memory] 清理旧 skill ${name} 失败: ${e instanceof Error ? (e as Error).message : String(e)}（无影响，继续启动）`);
+      logger.warn?.(`[yaoyao-memory] 清理旧 skill ${name} 失败: ${e instanceof Error ? e instanceof Error ? e.message : String(e) : String(e)}（无影响，继续启动）`);
     }
   }
 }

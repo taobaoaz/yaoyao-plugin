@@ -72,7 +72,7 @@ export class SqliteVecBackend implements VectorBackend {
       logger?.info?.("[yaoyao-memory:vec] sqlite-vec backend initialized");
       return true;
     } catch (e: unknown) {
-      logger?.warn?.(`[yaoyao-memory:vec] sqlite-vec not available: ${(e as Error).message}`);
+      logger?.warn?.(`[yaoyao-memory:vec] sqlite-vec not available: ${e instanceof Error ? e.message : String(e)}`);
       this.isAvailable = false;
       return false;
     }
@@ -107,7 +107,7 @@ export class SqliteVecBackend implements VectorBackend {
       }
       return true;
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${(err as Error).message}`);
+      this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${err instanceof Error ? err.message : String(err)}`);
       return false;
     }
   }
@@ -140,7 +140,7 @@ export class SqliteVecBackend implements VectorBackend {
         };
       });
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] vectorSearch error: ${(err as Error).message}`);
+      this.logger?.warn?.(`[yaoyao-memory:vec] vectorSearch error: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
   }

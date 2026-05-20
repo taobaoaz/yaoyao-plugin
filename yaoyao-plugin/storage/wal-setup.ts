@@ -27,7 +27,7 @@ export function setupWAL(
       log("WAL mode not supported by filesystem, continuing with default journal mode");
     }
   } catch (e: unknown) {
-    if ((e as Error).message?.includes("disk I/O")) {
+    if (e instanceof Error ? e.message : String(e)?.includes("disk I/O")) {
       log("Stale WAL files detected, cleaning up");
       try { db.close(); } catch (e2: unknown) {
         const msg = e2 instanceof Error ? e2.message : String(e2);
@@ -47,7 +47,7 @@ export function setupWAL(
         log("WAL recovery failed");
       }
     } else {
-      log(`WAL setup failed: ${(e as Error).message}`);
+      log(`WAL setup failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   try { db.exec("PRAGMA busy_timeout = 5000"); } catch (e: unknown) {

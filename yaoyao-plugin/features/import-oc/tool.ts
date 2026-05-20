@@ -79,7 +79,7 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
     }
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? (err as Error).message : String(err);
+        const msg = err instanceof Error ? err instanceof Error ? err.message : String(err) : String(err);
         return { content: [{ type: "text", text: `❌ 读取 OpenClaw 记忆失败: ${msg}` }] };
       }
 
@@ -149,9 +149,9 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
         try {
           db.batchSetConfig(newHashes.map(h => ({ key: h.key, value: h.value })));
         } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] 批量写入失败不阻断主流程，下次导入时 hash 检查会重新处理: ${msg}`);
-    }
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:import-oc] Batch write failed (non-blocking): ${msg}`);
+        }
       }
 
       db.setConfig("oc_import_last_id", String(maxId));

@@ -59,7 +59,7 @@ export function restoreBackup(
     log(`Restored from ${backupName} (snapshot: ${preDir})`);
     return true;
   } catch (err: unknown) {
-    logger?.error?.(`[yaoyao-memory:backup] Restore failed: ${(err as Error).message}`);
+    logger?.error?.(`[yaoyao-memory:backup] Restore failed: ${err instanceof Error ? err.message : String(err)}`);
     return false;
   }
 }

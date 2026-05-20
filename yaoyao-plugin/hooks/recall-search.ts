@@ -58,7 +58,8 @@ export async function doRecallSearch(
         }));
       }
     } catch (vecErr) {
-      logger.warn?.(`[yaoyao-memory:recall] Vector search failed, falling back to FTS5: ${(vecErr as Error).message}`);
+      const msg = vecErr instanceof Error ? vecErr.message : String(vecErr);
+      logger.warn?.(`[yaoyao-memory:recall] Vector search failed, falling back to FTS5: ${msg}`);
     }
   }
 

@@ -136,9 +136,9 @@ export function createImportWorkspaceTool(store: MemoryStore, db: DBBridge): Too
           db.setConfig(checkpointKey, String(Math.floor(file.mtime)));
           imported++;
         } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Skip this file: ${msg}`);
-    }
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:import-ws] Skip file failed: ${msg}`);
+        }
       }
 
       return { content: [{ type: "text", text: [

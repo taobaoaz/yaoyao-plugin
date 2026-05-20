@@ -102,7 +102,7 @@ export class HnswlibBackend implements VectorBackend {
       logger?.info?.(`[yaoyao-memory:vec] hnswlib backend initialized (maxElements=${this.maxElements}, dim=${this.dimensions})`);
       return true;
     } catch (e: unknown) {
-      logger?.warn?.(`[yaoyao-memory:vec] hnswlib init failed: ${(e as Error).message}`);
+      logger?.warn?.(`[yaoyao-memory:vec] hnswlib init failed: ${e instanceof Error ? e.message : String(e)}`);
       this.isAvailable = false;
       return false;
     }
@@ -116,7 +116,7 @@ export class HnswlibBackend implements VectorBackend {
       this.persist.markDirty();
       return true;
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${(err as Error).message}`);
+      this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${err instanceof Error ? err.message : String(err)}`);
       return false;
     }
   }
@@ -161,7 +161,7 @@ export class HnswlibBackend implements VectorBackend {
 
       return results;
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] vectorSearch error: ${(err as Error).message}`);
+      this.logger?.warn?.(`[yaoyao-memory:vec] vectorSearch error: ${err instanceof Error ? err.message : String(err)}`);
       return [];
     }
   }

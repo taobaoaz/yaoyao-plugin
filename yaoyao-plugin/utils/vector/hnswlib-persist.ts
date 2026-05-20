@@ -38,7 +38,7 @@ export function createPersistManager(ctx: PersistContext) {
       fs.writeFileSync(ctx.metaPath, JSON.stringify(meta, null, 2), "utf-8");
       ctx.logger?.debug?.("[yaoyao-memory:vec] HNSW index flushed to disk");
     } catch (err: unknown) {
-      ctx.logger?.warn?.(`[yaoyao-memory:vec] flush failed: ${(err as Error).message}`);
+      ctx.logger?.warn?.(`[yaoyao-memory:vec] flush failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     if (flushTimer) {
       clearTimeout(flushTimer);

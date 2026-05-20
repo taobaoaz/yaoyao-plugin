@@ -32,7 +32,7 @@ export function createAdapters(secretsPath?: string, opts?: AdapterFactoryOpts):
   for (const { name, check, create } of PROVIDER_CHECKS) {
     if (check(secrets)) {
       try { adapters.set(name, create(secrets, opts)); statuses.push({ provider: name, configured: true, message: "✅ 已配置" }); }
-      catch (err) { statuses.push({ provider: name, configured: false, message: `⚠️ 配置错误: ${(err as Error).message}` }); }
+      catch (err) { statuses.push({ provider: name, configured: false, message: `⚠️ 配置错误: ${err instanceof Error ? err.message : String(err)}` }); }
     } else {
       statuses.push({ provider: name, configured: false, message: "— 未配置" });
     }

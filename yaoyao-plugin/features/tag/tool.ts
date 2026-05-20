@@ -155,9 +155,9 @@ export function createTagTool(store: MemoryStore, dbBridge?: DBBridge): ToolRegi
       } finally {
         if (isOwned) {
           try { db.close(); } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
-    }
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:tag] Close DB failed: ${msg}`);
+          }
         }
       }
     }),

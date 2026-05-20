@@ -78,9 +78,9 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       // WAL passive checkpoint timer
       walCheckTimer = setInterval(() => {
         try { db?.exec("PRAGMA wal_checkpoint(PASSIVE)"); } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
-    }
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:storage] WAL checkpoint failed: ${msg}`);
+        }
       }, 60 * 60 * 1000);
       walCheckTimer.unref();
 
@@ -98,7 +98,7 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       log(`Storage initialized: ${dbPath} (db=${dbType}, vec=${vecName})`);
       return true;
     } catch (err: unknown) {
-      logger?.error?.(`[yaoyao:storage] Init failed: ${(err as Error).message}`);
+      logger?.error?.(`[yaoyao:storage] Init failed: ${err instanceof Error ? err.message : String(err)}`);
       initFailed = true;
       return false;
     }
@@ -168,7 +168,7 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
         return new Date().toLocaleDateString("sv-SE", { timeZone: tz || "Asia/Shanghai" });
       } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:storage] Date locale failed: ${msg}`);
       return new Date().toISOString().slice(0, 10);
     }
     },
@@ -177,9 +177,9 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       if (walCheckTimer) { clearInterval(walCheckTimer); walCheckTimer = null; }
       vector?.close();
       if (db) { try { db.close(); } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
-    } db = null; }
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:storage] DB close failed: ${msg}`);
+        } db = null; }
       fts = null;
       hybrid = null;
       initFailed = false;

@@ -40,9 +40,9 @@ export async function fetchWithRetry(
       if (isLast) throw err;
       if (isNonRetryError(err)) throw err;
       if (
-        (err as Error).name === "AbortError" ||
+        err instanceof Error && err.name === "AbortError" ||
         isTransientUpstreamError(err) ||
-        (err as Error).message?.startsWith("HTTP 5")
+        err instanceof Error ? err.message : String(err)?.startsWith("HTTP 5")
       ) {
         await new Promise((r) => setTimeout(r, backoffBaseMs * (attempt + 1)));
         continue;

@@ -36,10 +36,10 @@ export function createBackup(
           try {
             meta = JSON.parse(fs.readFileSync(lastBackupFile, "utf-8"));
           } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
-      meta = { timestamp: new Date().toISOString() };
-    }
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:backup] Parse last backup failed: ${msg}`);
+            meta = { timestamp: new Date().toISOString() };
+          }
           lastBackupMs = new Date(meta.timestamp).getTime();
           log(`Incremental backup, last backup at ${meta.timestamp}`);
         }
@@ -112,7 +112,7 @@ export function createBackup(
     log(`Backup created: ${backupName} (${fileCount} files, ${mode})`);
     return backupName;
   } catch (err: unknown) {
-    logger?.error?.(`[yaoyao-memory:backup] Create failed: ${(err as Error).message}`);
+    logger?.error?.(`[yaoyao-memory:backup] Create failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
   }
 }

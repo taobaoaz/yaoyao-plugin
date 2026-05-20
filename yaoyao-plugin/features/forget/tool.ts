@@ -43,7 +43,7 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
             fs.unlinkSync(fp);
             msg += `✅ 已删除 ${date}.md 文件。`;
           } catch (unlinkErr) {
-            msg += `⚠️ 文件删除失败: ${(unlinkErr as Error).message}`;
+            msg += `⚠️ 文件删除失败: ${unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr)}`;
             return { content: [{ type: "text", text: msg }] };
           }
         } else {
@@ -90,13 +90,13 @@ export function createForgetTool(store: MemoryStore, db: DBBridge): ToolRegistra
             fs.writeFileSync(f.path, filtered.join("\n"), "utf-8");
             modifiedFiles.push(f.path);
           } catch (writeErr) {
-            console.error(`[yaoyao-memory:forget] Failed to write ${f.path}: ${(writeErr as Error).message}`);
+            console.error(`[yaoyao-memory:forget] Failed to write ${f.path}: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}`);
             // 回滚已修改的文件
             for (const modified of modifiedFiles.slice(0, -1)) {
               // 注意：这里没有原始内容备份，无法真正回滚
               // 但至少不继续删 DB
             }
-            return { content: [{ type: "text", text: `⚠️ 文件修改失败 ${f.path}: ${(writeErr as Error).message}，已中止，未删除索引。` }] };
+            return { content: [{ type: "text", text: `⚠️ 文件修改失败 ${f.path}: ${writeErr instanceof Error ? writeErr.message : String(writeErr)}，已中止，未删除索引。` }] };
           }
         }
       }

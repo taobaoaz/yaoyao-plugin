@@ -93,7 +93,7 @@ export function createCaptureDebouncer(
     try {
       flushHandler(batch);
     } catch (err) {
-      console.error?.(`[capture-debouncer] Flush error: ${(err as Error).message}`);
+      console.error?.(`[capture-debouncer] Flush error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

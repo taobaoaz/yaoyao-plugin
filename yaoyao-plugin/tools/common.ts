@@ -13,7 +13,7 @@ export function withErrorHandling(handler: ToolHandler): ToolHandler {
     try {
       return await handler(id, params);
     } catch (err: unknown) {
-      return { content: [{ type: "text", text: `❌ 记忆操作出错: ${(err as Error).message || "未知错误"}` }] };
+      return { content: [{ type: "text", text: `❌ 记忆操作出错: ${err instanceof Error ? err.message : String(err) || "未知错误"}` }] };
     }
   };
 }

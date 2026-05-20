@@ -143,7 +143,8 @@ export async function extractLLM(
     try {
       parsed = JSON.parse(raw) as typeof parsed;
     } catch (parseErr) {
-      logger?.debug?.(`[l1-debug] NO_JSON llm raw="${raw.slice(0, 200).replace(/\s+/g, " ")}" err=${(parseErr as Error).message}`);
+      const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      logger?.debug?.(`[l1-debug] NO_JSON llm raw="${raw.slice(0, 200).replace(/\s+/g, " ")}" err=${msg}`);
       return extractHeuristic(userText, asstText, logger);
     }
 
@@ -164,7 +165,7 @@ export async function extractLLM(
     }
     return facts;
   } catch (err) {
-    logger?.debug?.(`[l1-debug] RESULT llm failed: ${(err as Error).message}`);
+    logger?.debug?.(`[l1-debug] RESULT llm failed: ${err instanceof Error ? err.message : String(err)}`);
     // LLM failed → fallback to heuristic
     return extractHeuristic(userText, asstText, logger);
   }

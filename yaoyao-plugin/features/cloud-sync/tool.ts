@@ -138,7 +138,7 @@ export function createCloudSyncTool(store: MemoryStore): ToolRegistration {
           }
           results.push(formatSyncResult(syncResult));
         } catch (err: unknown) {
-          results.push(`❌ [${adapter.provider}] 同步失败: ${(err as Error).message}`);
+          results.push(`❌ [${adapter.provider}] 同步失败: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
 

@@ -86,7 +86,7 @@ export function validateConfig(config: YaoyaoMemoryConfig): ConfigValidation[] {
     }
   }
   if (recall?.strategy && recall.strategy !== "hybrid" && recall.strategy !== "fts" && recall.strategy !== "vector") {
-    pushError(results, "recall.strategy", `Invalid strategy: ${recall.strategy}`, "Use 'hybrid', 'fts5', or 'vector'");
+    pushError(results, "recall.strategy", `Invalid strategy: ${recall.strategy}`, "Use 'hybrid', 'fts', or 'vector'");
   }
 
   // ── cloudSync ──
