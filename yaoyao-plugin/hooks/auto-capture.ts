@@ -39,7 +39,7 @@ export function registerCaptureHook(
   llmClient?: import("../utils/llm-client.ts").LLMClient | null,
   audit?: AuditLog,
   embedding?: import("../utils/embedding.ts").EmbeddingService | null,
-) {
+): void {
   const captureMode = (config.capture?.mode as string) || "async";
   api.logger.info?.(`[yaoyao-memory] auto-capture mode=${captureMode}${embedding ? " + vector" : ""}`);
 

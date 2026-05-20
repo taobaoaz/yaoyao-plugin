@@ -31,7 +31,7 @@ export function detectEmbedModel(provider: string, customMap?: Record<string, st
   return DEFAULT_EMBED_MODELS[p] || "";
 }
 
-export function createEmbeddingService(config: EmbeddingConfig) {
+export function createEmbeddingService(config: EmbeddingConfig) : unknown {
   const baseUrl = config.baseUrl.replace(/\/$/, "");
 
   if (isForbiddenHost(baseUrl)) {

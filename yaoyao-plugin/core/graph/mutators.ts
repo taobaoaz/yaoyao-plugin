@@ -3,7 +3,7 @@
  */
 import type { GraphNode, GraphEdge } from "./types.ts";
 
-export function createNodeMutator(nodes: Map<string, GraphNode>, nodeOrder: string[]) {
+export function createNodeMutator(nodes: Map<string, GraphNode>, nodeOrder: string[]) : unknown {
   return function addNode(id: string, node: GraphNode) {
     if (!nodes.has(id)) {
       nodes.set(id, node);
@@ -12,7 +12,7 @@ export function createNodeMutator(nodes: Map<string, GraphNode>, nodeOrder: stri
   };
 }
 
-export function createEdgeMutator(edges: Map<string, GraphEdge>) {
+export function createEdgeMutator(edges: Map<string, GraphEdge>) : unknown {
   return function addEdge(src: string, tgt: string, relation: string, weight: number, detail?: string) {
     const key = [src, tgt].sort().join("|");
     const existing = edges.get(key);

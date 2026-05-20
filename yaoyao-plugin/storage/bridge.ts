@@ -30,7 +30,7 @@ export type { UnifiedDB, SQLiteRow } from "../platform/db/types.ts";
 export { createCompatDB } from "../platform/db/compat.ts";
 
 
-export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
+export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger) : unknown {
   const baseDir = path.resolve(
     config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory")
   );

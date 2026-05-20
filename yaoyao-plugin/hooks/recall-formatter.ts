@@ -15,8 +15,24 @@ export function buildRecallContext(results: SearchResult[], maxChars = 1200): st
   return used > 0 ? body : "";
 }
 
-export function buildHookResult(context: string, position: "append" | "prepend"): unknown {
+export function buildHookResult(context: string, position: "append" | "prepend"): { prepend?: string; append?: string } {
   return position === "prepend" ? { prepend: context } : { append: context };
+}
+
+export interface TraceResult {
+  query: string;
+  mode: "hybrid" | "fts" | "intent-driven";
+  startedAt: number;
+  stages: Array<{
+    name: string;
+    inputCount: number;
+    outputCount: number;
+    droppedIds: number[];
+    scoreRange: null;
+    durationMs: number;
+  }>;
+  finalCount: number;
+  totalMs: number;
 }
 
 export function makeSimpleTrace(
@@ -25,7 +41,7 @@ export function makeSimpleTrace(
   startMs: number,
   inputCount: number,
   outputCount: number,
-) {
+): TraceResult {
   const totalMs = Date.now() - startMs;
   return {
     query,

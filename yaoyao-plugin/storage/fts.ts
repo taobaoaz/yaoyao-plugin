@@ -22,7 +22,7 @@ const DEFAULT_FTS_CONFIG: FtsConfig = {
   likeFallbackScore: 0.5,
 };
 
-export function createFtsEngine(config?: Partial<FtsConfig>) {
+export function createFtsEngine(config?: Partial<FtsConfig>) : unknown {
   const cfg = { ...DEFAULT_FTS_CONFIG, ...config };
 
   return {

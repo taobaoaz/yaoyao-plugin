@@ -73,7 +73,7 @@ export function registerMemoryTools(
   storage?: Storage,
   embedding?: EmbeddingService | null,
   registry?: FeatureRegistry,
-) {
+) : void {
   const tools: Array<import("./common.ts").ToolRegistration> = [];
 
   // Create SearchPipeline once, share across all search tools
