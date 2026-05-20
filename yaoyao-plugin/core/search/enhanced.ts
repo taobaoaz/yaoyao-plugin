@@ -18,7 +18,10 @@ export function highlightKeywords(text: string, keywords: string[]): string {
     try {
       const regex = new RegExp(`(${safeKw})`, "gi");
       result = result.replace(regex, " **$1** ");
-    } catch { /* skip invalid regex */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:search] Invalid regex for keyword "${kw}": ${msg}`);
+    }
   }
   return result.replace(/\s{2,}/g, " ");
 }

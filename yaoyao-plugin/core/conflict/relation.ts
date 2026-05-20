@@ -45,5 +45,9 @@ export function parseRelationRecord(json: string): ConflictRelationRecord | null
       ["supersedes", "conflicts_with", "compatible", "related", "not_conflict"].includes(p.relation)
     ) return p as ConflictRelationRecord;
     return null;
-  } catch { return null; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:conflict] Parse relation record failed: ${msg}`);
+    return null;
+  }
 }

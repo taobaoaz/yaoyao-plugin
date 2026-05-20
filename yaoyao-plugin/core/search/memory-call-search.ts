@@ -46,7 +46,9 @@ export async function executeMemoryCall(
         ...r,
         score: r.hybridScore ?? r.score ?? 0.5,
       }));
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:memory-call] Vector search failed, falling back to FTS5: ${msg}`);
       results = storage.search(query, maxResults * 2);
     }
   } else {
