@@ -70,7 +70,9 @@ export function stepCrossSessionRecovery(api: OpenClawPluginApi, config: YaoyaoM
       api.logger.info?.(`[yaoyao-memory] Loaded ${memories.length} cross-session memories`);
       (api as unknown as Record<string, unknown>)._crossSessionContext = memories;
     }
-  } catch { /* best-effort */ }
+  } catch (err) {
+    api.logger.debug?.(`[yaoyao-memory] Cross-session recovery failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 export function stepMigration(api: OpenClawPluginApi, config: YaoyaoMemoryConfig): void {

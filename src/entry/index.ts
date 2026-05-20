@@ -71,7 +71,8 @@ export default definePluginEntry({
             });
           }
         }).catch((e) => {
-          api.logger.error?.(`[yaoyao-memory] Failed to load XiaoYi adapter: ${e}`);
+          api.logger.warn?.(`[yaoyao-memory] XiaoYi adapter load failed — falling back to OpenClaw mode: ${e instanceof Error ? e.message : String(e)}`);
+          api.logger.info?.("[yaoyao-memory] XiaoYi-specific features (ContextEngine, UDS, ZMQ) will be unavailable");
         });
       }
 
@@ -90,9 +91,17 @@ export default definePluginEntry({
         sendHeartbeat(buildPayload(version, "full")).catch(() => {});
         
         // 定时心跳（5分钟）
-        setInterval(() => {
+        let _telemetryInterval = setInterval(() => {
           sendHeartbeat(buildPayload(version, "full")).catch(() => {});
         }, 5 * 60 * 1000);
+        
+        api.on("gateway_stop", () => {
+          if (_telemetryInterval) {
+            clearInterval(_telemetryInterval);
+            (_telemetryInterval as unknown as null) = null;
+            api.logger.debug?.("[yaoyao-memory] Telemetry interval cleared");
+          }
+        });
       }
     } catch (err) {
       api.logger.error?.(`[yaoyao-memory] Registration failed: ${err instanceof Error ? err.message : String(err)}`);

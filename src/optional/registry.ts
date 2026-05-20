@@ -116,9 +116,17 @@ export class FeatureRegistry {
 
       if (!progressed && pending.size > 0) {
         // Deadlock: remaining features have unresolved dependencies
+        for (const id of pending) {
+          const feature = this.features.get(id)!;
+          const missing = feature.dependencies.filter(did => !this.resolved.has(did));
+          const depHint = missing.length > 0 ? ` (missing deps: ${missing.join(", ")})` : "";
+          api.logger.error?.(
+            `[yaoyao-memory:optional] Dependency deadlock: "${id}"${depHint}`
+          );
+        }
         const ids = [...pending].join(", ");
         api.logger.error?.(
-          `[yaoyao-memory:optional] Dependency deadlock: ${ids} — skipping`
+          `[yaoyao-memory:optional] Dependency deadlock for: ${ids} — skipping`
         );
         for (const id of pending) {
           const f = this.features.get(id)!;

@@ -72,8 +72,13 @@ export function bootstrapYaoyao(
   stepCrossSessionRecovery(api, config, agentId);
   stepMigration(api, config);
 
-  // ── 6. Deferred startup tasks ──
-  setTimeout(() => runStartupTasks(api, config, storage, store), 100);
+  // ── 6. Startup tasks (background, non-blocking) ──
+  // storage.init() already completed in stepCoreInit; run immediately
+  try {
+    runStartupTasks(api, config, storage, store);
+  } catch (e) {
+    api.logger.warn?.(`[yaoyao-memory] Background startup tasks failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   // ── 7. Register tools & hooks ──
   const toolCount = registerMemoryTools(api, store, storage, storage, embedding, registry);

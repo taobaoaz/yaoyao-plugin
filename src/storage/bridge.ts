@@ -45,9 +45,11 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
   const searchMaxLimit = clampNum(getProp(config, "searchMaxLimit", 100), 100, 10, 1000);
   const likeFallbackScore = clampNum(getProp(config, "likeFallbackScore", 0.5), 0.5, 0.1, 1);
 
-  // State
+  // Init state
   let db: UnifiedDB | null = null;
   let initFailed = false;
+  let initAttempts = 0;
+  const MAX_INIT_ATTEMPTS = 3;
   let dbBackend: DBCompatResult | null = null;
 
   // Engines (lazily initialized)
@@ -64,8 +66,15 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
     return db;
   }
 
-  /** Initialize database — create tables, engines */
+  /** Initialize database — create tables, engines. Retries up to 3×. */
   function init(): boolean {
+    if (db) return true;
+    if (initFailed && initAttempts >= MAX_INIT_ATTEMPTS) {
+      logger?.error?.(`[yaoyao:storage] Init exceeded ${MAX_INIT_ATTEMPTS} attempts — giving up`);
+      return false;
+    }
+    initAttempts++;
+    initFailed = false; // reset to allow this attempt
     try {
       fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
@@ -95,7 +104,7 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       log(`Storage initialized: ${dbPath} (db=${dbType}, vec=${vecName})`);
       return true;
     } catch (err: unknown) {
-      logger?.error?.(`[yaoyao:storage] Init failed: ${(err as Error).message}`);
+      logger?.error?.(`[yaoyao:storage] Init attempt ${initAttempts} failed: ${(err as Error).message}`);
       initFailed = true;
       return false;
     }
