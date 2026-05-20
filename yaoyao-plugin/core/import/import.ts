@@ -26,7 +26,9 @@ export function parseJSONL(jsonlData: string): ParseResult {
       let parsed: Record<string, unknown>;
       try {
         parsed = JSON.parse(lines[i]) as Record<string, unknown>;
-      } catch {
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`第 ${i + 1} 行 JSON 解析失败: ${msg}`);
         continue;
       }
       if (!parsed.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(parsed.date))) {
@@ -74,7 +76,10 @@ export function batchImport(db: UnifiedDB, entries: ImportEntry[]): number {
     }
     db.exec("COMMIT");
   } catch (txErr: unknown) {
-    try { db.exec("ROLLBACK"); } catch { /* ignore */ }
+    try { db.exec("ROLLBACK"); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:import] ROLLBACK failed: ${msg}`);
+    }
     throw txErr;
   }
   return successCount;

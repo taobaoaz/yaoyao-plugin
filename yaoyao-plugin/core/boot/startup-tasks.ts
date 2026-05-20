@@ -40,7 +40,10 @@ export function runStartupTasks(
         api.logger.info?.(`[yaoyao-memory:compactor] ${result.clustersFound} clusters found`);
       }
     }
-  } catch { /* best-effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    api.logger.warn?.(`[yaoyao-memory:startup] Compaction failed: ${msg}`);
+  }
 
   try {
     const rawDb = storage.getRawDb();
@@ -55,12 +58,18 @@ export function runStartupTasks(
         importance = typeof meta.importance === "number" ? meta.importance : 0.5;
         accessCount = typeof meta.accessCount === "number" ? meta.accessCount : (r.access_count ?? 0);
         decayScore = typeof meta.decayScore === "number" ? meta.decayScore : 0.5;
-      } catch { /* ignore */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        api.logger.debug?.(`[yaoyao-memory:startup] Parse metadata failed for id=${r.id}: ${msg}`);
+      }
       return { id: String(r.id), tier, importance, accessCount, createdAt, decayScore };
     });
     const transitions = evaluateAllTiers(tierable, DEFAULT_TIER_CONFIG);
     if (transitions.length > 0) {
       api.logger.info?.(`[yaoyao-memory:tier] ${transitions.length} tier transitions pending`);
     }
-  } catch { /* best-effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    api.logger.warn?.(`[yaoyao-memory:startup] Tier evaluation failed: ${msg}`);
+  }
 }

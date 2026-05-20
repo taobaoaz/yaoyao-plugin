@@ -109,7 +109,10 @@ export function bootstrapYaoyao(
 
   // ── 9. Shutdown ──
   api.on("gateway_stop", async () => {
-    if (captureDrain) { try { await captureDrain(); api.logger.info?.("[yaoyao-memory] Write queue drained"); } catch { /* ignore */ } }
+    if (captureDrain) { try { await captureDrain(); api.logger.info?.("[yaoyao-memory] Write queue drained"); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      api.logger.warn?.(`[yaoyao-memory] Drain failed: ${msg}`);
+    } }
     storage.close();
     cleanupStop();
     api.logger.debug?.("[yaoyao-memory] Plugin stopped");
