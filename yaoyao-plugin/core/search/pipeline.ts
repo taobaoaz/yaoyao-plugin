@@ -88,7 +88,10 @@ export function createSearchPipeline(
             try {
               const qv = await embedding.embed(query, embedding.recallTimeoutMs);
               vecResults = storage.vectorSearch(qv, overfetchLimit);
-            } catch { /* vector unavailable */ }
+            } catch (e: unknown) {
+              const msg = e instanceof Error ? e.message : String(e);
+              console.warn(`[yaoyao-memory:search] Vector search failed: ${msg}`);
+            }
           }
 
           const dummyVec = vecResults.map(r => ({

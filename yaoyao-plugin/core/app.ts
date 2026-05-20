@@ -90,8 +90,9 @@ export function bootstrapYaoyao(
   }
 
   // ── Session boundary cleanup for /new and /reset ──
+  let commandNewHandle: import("../hooks/command-new.ts").CommandNewHookHandle | undefined;
   if (config.hooks?.commandNew?.enabled !== false) {
-    registerCommandNewHook(api);
+    commandNewHandle = registerCommandNewHook(api);
   }
 
   // ── Heartbeat memory injection (OpenClaw 2026.5.12+) ──
@@ -113,6 +114,7 @@ export function bootstrapYaoyao(
       const msg = e instanceof Error ? e.message : String(e);
       api.logger.warn?.(`[yaoyao-memory] Drain failed: ${msg}`);
     } }
+    commandNewHandle?.unregister();
     storage.close();
     cleanupStop();
     api.logger.debug?.("[yaoyao-memory] Plugin stopped");
