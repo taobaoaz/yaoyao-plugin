@@ -21,7 +21,10 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
       if (fs.existsSync(sceneDir)) {
         currentMtime = fs.statSync(sceneDir).mtimeMs;
       }
-    } catch { /* */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:recommend] Stat scene dir failed: ${msg}`);
+    }
     if (_sceneCache && currentMtime === _sceneCacheMtime) {
       return _sceneCache;
     }
@@ -41,7 +44,10 @@ export function createRecommendTool(db: DBBridge, memoryDir: string): ToolRegist
           }
         }
       }
-    } catch { /* */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:recommend] Load scenes failed: ${msg}`);
+    }
     _sceneCache = scenes;
     _sceneCacheMtime = currentMtime;
     return scenes;

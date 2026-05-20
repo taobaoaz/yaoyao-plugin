@@ -17,7 +17,10 @@ export function getStats(db: UnifiedDB, vector: VectorStore | null): DBStats {
     ).all() as Array<{ date: string; c: number }>;
     let vecCount = 0;
     let dims = 0;
-    try { vecCount = vector?.count() ?? 0; dims = vector?.dimensions() ?? 0; } catch { /* ignore */ }
+    try { vecCount = vector?.count() ?? 0; dims = vector?.dimensions() ?? 0; } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:query] Vector stats failed: ${msg}`);
+    }
     return {
       totalMemories: total,
       datesSummary: datesRaw.map(r => ({ date: r.date, count: r.c })),
@@ -26,7 +29,9 @@ export function getStats(db: UnifiedDB, vector: VectorStore | null): DBStats {
       totalVectors: vecCount,
       dimensions: dims,
     };
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Get stats failed: ${msg}`);
     return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
   }
 }
@@ -35,33 +40,51 @@ export function getAllTags(db: UnifiedDB): Array<{ tag: string; memory_id: numbe
   try {
     const rows = db.prepare("SELECT tag, memory_id FROM memory_tags").all() as Array<{ tag: string; memory_id: number }>;
     return rows;
-  } catch { return []; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Get all tags failed: ${msg}`);
+    return [];
+  }
 }
 
 export function getAllMeta(db: UnifiedDB): Array<{ id: number; filename: string }> {
   try {
     const rows = db.prepare("SELECT id, date FROM memory_meta").all() as Array<{ id: number; date: string }>;
     return rows.map(r => ({ id: r.id, filename: r.date ? `${r.date}.md` : `${r.id}.md` }));
-  } catch { return []; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Get all meta failed: ${msg}`);
+    return [];
+  }
 }
 
 export function getConfig(db: UnifiedDB, key: string, defaultValue?: string | null): string | null {
   try {
     const row = db.prepare("SELECT value FROM memory_config WHERE key = ?").get(key) as { value: string } | undefined;
     return row ? row.value : (defaultValue ?? null);
-  } catch { return defaultValue ?? null; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Get config failed: ${msg}`);
+    return defaultValue ?? null;
+  }
 }
 
 export function setConfig(db: UnifiedDB, key: string, value: string): void {
   try {
     db.prepare("INSERT OR REPLACE INTO memory_config (key, value) VALUES (?, ?)").run(key, value);
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Set config failed: ${msg}`);
+  }
 }
 
 export function updateMetadata(db: UnifiedDB, id: number, metadata: string): void {
   try {
     db.prepare("UPDATE memory_meta SET meta = ? WHERE id = ?").run(metadata, id);
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Update metadata failed: ${msg}`);
+  }
 }
 
 export function incrementAccessCount(db: UnifiedDB, id: number): void {
@@ -75,14 +98,21 @@ export function incrementAccessCount(db: UnifiedDB, id: number): void {
     else if (newCount >= 3) newTier = "working";
     db.prepare("UPDATE memory_meta SET access_count = ?, tier = ? WHERE id = ?")
       .run(newCount, newTier, id);
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Increment access count failed: ${msg}`);
+  }
 }
 
 export function getMemoryMeta(db: UnifiedDB, id: number): string | null {
   try {
     const row = db.prepare("SELECT meta FROM memory_meta WHERE id = ?").get(id) as { meta: string | null } | undefined;
     return row?.meta ?? null;
-  } catch { return null; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Get memory meta failed: ${msg}`);
+    return null;
+  }
 }
 
 export function searchByMetaRelations(db: UnifiedDB, limit: number): Array<{ id: number; date: string; user_text: string | null; meta: string }> {
@@ -93,7 +123,11 @@ export function searchByMetaRelations(db: UnifiedDB, limit: number): Array<{ id:
       "ORDER BY id DESC LIMIT ?"
     ).all(limit) as Array<{ id: number; date: string; user_text: string | null; meta: string }>;
     return rows;
-  } catch { return []; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Search by meta relations failed: ${msg}`);
+    return [];
+  }
 }
 
 export function countTags(db: UnifiedDB): { total: number; unique: number } {
@@ -101,7 +135,11 @@ export function countTags(db: UnifiedDB): { total: number; unique: number } {
     const totalRow = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as { c: number } | undefined;
     const uniqueRow = db.prepare("SELECT COUNT(DISTINCT tag) as c FROM memory_tags").get() as { c: number } | undefined;
     return { total: totalRow?.c ?? 0, unique: uniqueRow?.c ?? 0 };
-  } catch { return { total: 0, unique: 0 }; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Count tags failed: ${msg}`);
+    return { total: 0, unique: 0 };
+  }
 }
 
 export function getRecentRawMemories(db: UnifiedDB, limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }> {
@@ -110,7 +148,11 @@ export function getRecentRawMemories(db: UnifiedDB, limit: number): Array<{ id: 
       "SELECT id, user_text, asst_text, date FROM memory_meta ORDER BY date DESC, id DESC LIMIT ?"
     ).all(limit) as Array<{ id: number; user_text: string; asst_text: string; date: string }>;
     return rows;
-  } catch { return []; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Get recent memories failed: ${msg}`);
+    return [];
+  }
 }
 
 export function searchByLike(db: UnifiedDB, query: string, limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }> {
@@ -121,7 +163,11 @@ export function searchByLike(db: UnifiedDB, query: string, limit: number): Array
       "WHERE user_text LIKE ? OR asst_text LIKE ? ORDER BY date DESC LIMIT ?"
     ).all(pattern, pattern, limit) as Array<{ id: number; user_text: string; asst_text: string; date: string }>;
     return rows;
-  } catch { return []; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Search by like failed: ${msg}`);
+    return [];
+  }
 }
 
 export function batchSetConfig(db: UnifiedDB, entries: Array<{ key: string; value: string }>): void {
@@ -131,5 +177,8 @@ export function batchSetConfig(db: UnifiedDB, entries: Array<{ key: string; valu
     const stmt = db.prepare("INSERT OR REPLACE INTO memory_config (key, value) VALUES (?, ?)");
     for (const e of entries) stmt.run(e.key, e.value);
     db.exec("COMMIT");
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:query] Batch set config failed: ${msg}`);
+  }
 }

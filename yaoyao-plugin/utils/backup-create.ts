@@ -37,16 +37,23 @@ export function createBackup(
             meta = JSON.parse(fs.readFileSync(lastBackupFile, "utf-8"));
           } catch {
             meta = { timestamp: new Date().toISOString() };
-          }
+        }
           lastBackupMs = new Date(meta.timestamp).getTime();
           log(`Incremental backup, last backup at ${meta.timestamp}`);
         }
-      } catch { /* no previous backup, fallback to full */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:backup] Read last backup failed: ${msg}`);
+      }
     }
 
     if (fs.existsSync(baseDir)) {
       let files: string[];
-      try { files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md")); } catch { files = []; }
+      try { files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md")); } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:backup] Read baseDir failed: ${msg}`);
+        files = [];
+      }
       for (const f of files) {
         const filePath = path.join(baseDir, f);
         if (lastBackupMs > 0 && fs.statSync(filePath).mtimeMs <= lastBackupMs) continue;
@@ -59,7 +66,11 @@ export function createBackup(
         const sceneBackupDir = path.join(backupPath, "scene_blocks");
         fs.mkdirSync(sceneBackupDir, { recursive: true });
         let files: string[];
-        try { files = fs.readdirSync(sceneDir).filter(f => f.endsWith(".md")); } catch { files = []; }
+        try { files = fs.readdirSync(sceneDir).filter(f => f.endsWith(".md")); } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:backup] Read sceneDir failed: ${msg}`);
+          files = [];
+        }
         for (const f of files) {
           const filePath = path.join(sceneDir, f);
           if (lastBackupMs > 0 && fs.statSync(filePath).mtimeMs <= lastBackupMs) continue;

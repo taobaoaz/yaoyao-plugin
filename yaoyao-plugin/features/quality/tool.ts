@@ -54,12 +54,18 @@ async function handleReport(store: MemoryStore, db: DBBridge) {
   try {
     const stats = db.getStats();
     totalMemories = (stats.totalMemories as number) || 0;
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:quality] Get stats failed: ${msg}`);
+  }
 
   let files: Array<{ type: string; filename: string; date?: string; size: number; modified: number }> = [];
   try {
     files = store.listFiles();
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:quality] List files failed: ${msg}`);
+  }
 
   const dailyFiles = files.filter((f) => f.type === "daily");
 
@@ -72,7 +78,10 @@ async function handleReport(store: MemoryStore, db: DBBridge) {
     if (fs.existsSync(dbPath)) {
       dbSizeKB = parseFloat((fs.statSync(dbPath).size / 1024).toFixed(1));
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:quality] Get DB size failed: ${msg}`);
+  }
 
   try {
     const allFiles = fs.readdirSync(store.baseDir, { withFileTypes: true });
@@ -81,11 +90,17 @@ async function handleReport(store: MemoryStore, db: DBBridge) {
       if (f.isFile()) {
         try {
           totalBytes += fs.statSync(path.join(store.baseDir, f.name)).size;
-        } catch { /* */ }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:quality] Stat file failed: ${msg}`);
+        }
       }
     }
     memoryDirSizeKB = parseFloat((totalBytes / 1024).toFixed(1));
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:quality] Read dir size failed: ${msg}`);
+  }
 
   let duplicationRatio = 0;
   try {
@@ -102,7 +117,10 @@ async function handleReport(store: MemoryStore, db: DBBridge) {
       }
       duplicationRatio = totalPairs > 0 ? parseFloat(((similarPairs / totalPairs) * 100).toFixed(1)) : 0;
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:quality] Dedup calculation failed: ${msg}`);
+  }
 
   const recs = generateRecommendations(
     dateStats.dateCoverage,
@@ -133,7 +151,10 @@ async function handleDedup(db: DBBridge) {
   try {
     // Use a wildcard search instead of empty string for consistent FTS5 behavior
     results = db.search("*", 100);
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:quality] Dedup search failed: ${msg}`);
+  }
 
   if (results.length < 2) {
     return {

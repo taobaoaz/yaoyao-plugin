@@ -19,13 +19,19 @@ function getOpenClawMemoryDir() {
 
 export function queryOpenClawDB(sql: string, params?: unknown[]): SQLiteRow[] | null {
   const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");
-  try { if (!fs.existsSync(dbPath)) return null; } catch { return null; }
+  try { if (!fs.existsSync(dbPath)) return null; } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:external] Check OC DB failed: ${msg}`);
+    return null;
+  }
   try {
     const { db } = createCompatDB(dbPath);
     const rows = db.prepare(sql).all(...(params || []));
     db.close();
     return rows as SQLiteRow[];
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:external] Query OC DB failed: ${msg}`);
     return null;
   }
 }

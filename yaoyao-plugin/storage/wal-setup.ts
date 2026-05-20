@@ -29,17 +29,33 @@ export function setupWAL(
   } catch (e: unknown) {
     if ((e as Error).message?.includes("disk I/O")) {
       log("Stale WAL files detected, cleaning up");
-      try { db.close(); } catch { /* ignore */ }
+      try { db.close(); } catch (e2: unknown) {
+        const msg = e2 instanceof Error ? e2.message : String(e2);
+        console.warn(`[yaoyao-memory:wal] Close DB failed: ${msg}`);
+      }
       for (const ext of ["-wal", "-shm"]) {
-        try { fs.unlinkSync(dbPath + ext); } catch { /* ignore */ }
+        try { fs.unlinkSync(dbPath + ext); } catch (e2: unknown) {
+          const msg = e2 instanceof Error ? e2.message : String(e2);
+          console.warn(`[yaoyao-memory:wal] Unlink WAL file failed: ${msg}`);
+        }
       }
       const newBackend = createCompatDB(dbPath, { allowExtension: true }, loggerRef);
       Object.assign(db, newBackend.db);
-      try { newBackend.db.exec("PRAGMA journal_mode = WAL"); } catch { log("WAL recovery failed"); }
+      try { newBackend.db.exec("PRAGMA journal_mode = WAL"); } catch (e2: unknown) {
+        const msg = e2 instanceof Error ? e2.message : String(e2);
+        console.warn(`[yaoyao-memory:wal] WAL recovery failed: ${msg}`);
+        log("WAL recovery failed");
+      }
     } else {
       log(`WAL setup failed: ${(e as Error).message}`);
     }
   }
-  try { db.exec("PRAGMA busy_timeout = 5000"); } catch { /* ignore */ }
-  try { db.exec("PRAGMA cache_size = -65536"); } catch { /* ignore */ }
+  try { db.exec("PRAGMA busy_timeout = 5000"); } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:wal] Set busy timeout failed: ${msg}`);
+  }
+  try { db.exec("PRAGMA cache_size = -65536"); } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:wal] Set cache size failed: ${msg}`);
+  }
 }

@@ -49,7 +49,10 @@ export function createStatsTool(store: MemoryStore, db: DBBridge): ToolRegistrat
         const tagStats = db.countTags();
         tagCount = tagStats.total;
         uniqueTags = tagStats.unique;
-      } catch { /* tags table may not exist */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:stats] Count tags failed: ${msg}`);
+      }
 
       // Retrieval stats from Brain-style collector
       const retrievalStats = globalRetrievalStats.getStats();
@@ -60,7 +63,10 @@ export function createStatsTool(store: MemoryStore, db: DBBridge): ToolRegistrat
         if (fs.existsSync(sceneDir)) {
           sceneCount = fs.readdirSync(sceneDir).filter(f => f.endsWith(".md")).length;
         }
-      } catch { /* */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:stats] Count scenes failed: ${msg}`);
+      }
 
       let feedbackSizeKB = 0;
       const feedbackPath = path.join(store.baseDir, ".feedback.jsonl");
@@ -68,7 +74,10 @@ export function createStatsTool(store: MemoryStore, db: DBBridge): ToolRegistrat
         if (fs.existsSync(feedbackPath)) {
           feedbackSizeKB = fs.statSync(feedbackPath).size / 1024;
         }
-      } catch { /* */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:stats] Get feedback size failed: ${msg}`);
+      }
 
       let backupCount = 0;
       const backupDir = path.join(store.baseDir, ".backups");
@@ -77,7 +86,10 @@ export function createStatsTool(store: MemoryStore, db: DBBridge): ToolRegistrat
           backupCount = fs.readdirSync(backupDir, { withFileTypes: true })
             .filter(d => d.isDirectory() && d.name.startsWith("memory-backup-")).length;
         }
-      } catch { /* */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:stats] Count backups failed: ${msg}`);
+      }
 
       const jsonResult: Record<string, unknown> = {
         totalFiles,

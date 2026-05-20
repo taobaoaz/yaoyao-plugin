@@ -45,7 +45,10 @@ function loadScenesCached(memoryDir: string): Map<string, { name: string; memori
       }
       scenes.set(name, { name, memories });
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:graph] Load scenes failed: ${msg}`);
+  }
   _sceneCache = scenes;
   _sceneCacheMtime = currentMtime;
   return scenes;
@@ -59,7 +62,10 @@ function loadTagsFromMeta(db: DBBridge): Map<string, number[]> {
       if (!tags.has(r.tag)) tags.set(r.tag, []);
       tags.get(r.tag)!.push(r.memory_id);
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:graph] Load tags failed: ${msg}`);
+  }
   return tags;
 }
 
@@ -70,7 +76,10 @@ function buildFilenameToIdMap(db: DBBridge): Map<string, number> {
     for (const r of rows) {
       map.set(r.filename, r.id);
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:graph] Build filename map failed: ${msg}`);
+  }
   return map;
 }
 
@@ -127,7 +136,10 @@ export function createGraphTool(db: DBBridge, _dbPath: string, memoryDir: string
       if (embedding) {
         try {
           queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
-        } catch { /* best effort */ }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:graph] Embedding failed: ${msg}`);
+        }
       }
 
       const weights: GraphWeights = {

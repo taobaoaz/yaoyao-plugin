@@ -16,15 +16,29 @@ export function readDreams(memoryDir: string) {
   try {
     if (fs.existsSync(eventsPath)) {
       const lines = fs.readFileSync(eventsPath, "utf8").split("\n").filter(Boolean);
-      result.events = lines.slice(-20).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      result.events = lines.slice(-20).map(l => { try { return JSON.parse(l); } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:unify] Parse dream event failed: ${msg}`);
+        return null;
+      } }).filter(Boolean);
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:unify] Read dreams failed: ${msg}`);
+  }
   try {
     if (fs.existsSync(recallPath)) {
       try { result.shortTermRecall = JSON.parse(fs.readFileSync(recallPath, "utf8")); }
-      catch { result.shortTermRecall = []; }
+      catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:unify] Parse short-term recall failed: ${msg}`);
+        result.shortTermRecall = [];
+      }
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:unify] Read short-term recall failed: ${msg}`);
+  }
   return result;
 }
 
@@ -39,5 +53,9 @@ export function getDailyFilesCount(memoryDir: string): number {
     return fs.existsSync(memoryDir)
       ? fs.readdirSync(memoryDir).filter(f => /^\d{4}-\d{2}-\d{2}\.md$/.test(f)).length
       : 0;
-  } catch { return 0; }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:unify] Count daily files failed: ${msg}`);
+    return 0;
+  }
 }
