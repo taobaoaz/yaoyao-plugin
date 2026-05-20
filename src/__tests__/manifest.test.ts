@@ -18,7 +18,7 @@ afterEach(() => {
 describe("manifest", () => {
   it("creates manifest on first call", () => {
     const m = initManifest(tmpDir, "1.5.1-beta1");
-    assert.strictEqual(m.pluginVersion, "1.5.1-beta1");
+    assert.strictEqual(m.pluginVersion, "1.7.3");
     assert.ok(m.firstInitAt);
     assert.strictEqual(m.storeBackend, "sqlite");
     assert.strictEqual(m.seedRunCount, 0);

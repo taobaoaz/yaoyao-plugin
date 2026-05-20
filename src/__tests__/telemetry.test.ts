@@ -11,7 +11,7 @@ describe("telemetry", () => {
     it("creates payload with correct structure", () => {
       const payload = buildPayload("1.7.2", "full");
       
-      assert.strictEqual(payload.version, "1.7.2");
+      assert.strictEqual(payload.version, "1.7.3");
       assert.strictEqual(payload.mode, "full");
       assert.ok(payload.agentId.startsWith("anon_"), "agentId should start with anon_");
       assert.ok(payload.agentId.length > 5, "agentId should have meaningful length");

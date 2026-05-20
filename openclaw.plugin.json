@@ -1,8 +1,8 @@
 {
   "id": "yaoyao-memory",
   "name": "Yaoyao Memory",
-  "description": "4-layer AI memory system (FTS5 + sqlite-vec hybrid search) — auto-capture conversations, hybrid search, memory timeline, cloud backup. Powered by Yaoyao Memory Engine. v1.6.0+: L1/L2/L3 LLM pipeline and persona/mood features moved to yaoyao-soul plugin.",
-  "version": "1.7.0",
+  "description": "4-layer AI memory system (FTS5 + sqlite-vec hybrid search) — auto-capture conversations, hybrid search, memory timeline, cloud backup. Powered by Yaoyao Memory Engine. v1.7.3+: L1/L2/L3 LLM pipeline and persona/mood features moved to yaoyao-soul plugin.",
+  "version": "1.7.3",
   "kind": "memory",
   "extensions": {
     "register": "./dist/index.js",
