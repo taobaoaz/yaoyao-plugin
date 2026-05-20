@@ -50,13 +50,20 @@ export default definePluginEntry({
           api.logger.debug?.(`[yaoyao-memory:telemetry] Heartbeat failed: ${msg}`);
         });
         
-        // 定时心跳（5分钟）
+        // 定时心跳（5分钟，可配置）
+        const heartbeatInterval = parseInt(process.env.YAOYAO_HEARTBEAT_INTERVAL || "", 10) || 5 * 60 * 1000;
         const heartbeatTimer = setInterval(() => {
           sendHeartbeat(buildPayload(version, "full"), url).catch((err: unknown) => {
             const msg = err instanceof Error ? err.message : String(err);
             api.logger.debug?.(`[yaoyao-memory:telemetry] Heartbeat failed: ${msg}`);
           });
-        }, 5 * 60 * 1000);
+        }, heartbeatInterval);
+        
+        // 注册清理函数（当插件卸载时清理定时器）
+        api.onUnload?.(() => {
+          clearInterval(heartbeatTimer);
+          api.logger.info?.("[yaoyao-memory] Heartbeat timer cleared");
+        });
       }
     } catch (err) {
       api.logger.error?.(`[yaoyao-memory] Registration failed: ${err instanceof Error ? err.message : String(err)}`);
