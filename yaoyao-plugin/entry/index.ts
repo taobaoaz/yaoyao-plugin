@@ -1,5 +1,11 @@
 /**
  * Plugin entry — Universal adapter for OpenClaw / XiaoYi Claw.
+ *
+ * v1.8.0: System architecture detection
+ *   - Reads OpenClaw global config (~/.openclaw/openclaw.json)
+ *   - Detects if memory/contextEngine slots are owned by claw-core
+ *   - Automatically selects strategy: full | l0-only | supplement | disabled
+ *   - Coexistence with runtime UDS monitoring
  */
 import { definePluginEntry, type OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
@@ -7,8 +13,8 @@ import { bootstrapYaoyao } from "../core/app.ts";
 import { buildPayload, sendHeartbeat } from "../utils/telemetry.ts";
 import { createTelemetryTool } from "../features/telemetry/tool.ts";
 import { detectEnvironment, isXiaoYiClaw } from "../utils/environment-detector.ts";
-import { detectCoexistence, startCoexistenceMonitor, onCoexistChange } from "../utils/coexistence.ts";
-import { createClawBridge } from "../utils/claw-bridge.ts";
+import { detectSystemArchitecture, getRecommendedStrategy } from "../utils/system-config-reader.ts";
+import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, setCoexistMode, getCoexistMode } from "../utils/coexistence.ts";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
@@ -21,13 +27,25 @@ export default definePluginEntry({
       const isXiaoYi = isXiaoYiClaw();
       api.logger.info?.(`[yaoyao-memory] Detected environment: ${env}`);
 
-      // === Coexistence Detection (xiaoyiclaw claw-core) ===
+      // === System Architecture Detection ===
+      const sysArch = detectSystemArchitecture();
+      const strategy = getRecommendedStrategy(sysArch);
+
+      api.logger.info?.(`[yaoyao-memory] System: ${sysArch.isXiaoYiClaw ? "XiaoYi Claw" : "Standard OpenClaw"} (ver=${sysArch.openClawVersion})`);
+      api.logger.info?.(`[yaoyao-memory] Memory slot: ${sysArch.memorySlotOwner} | ContextEngine: ${sysArch.contextEngineSlotOwner}`);
+      api.logger.info?.(`[yaoyao-memory] Strategy: capture=${strategy.captureMode}, recall=${strategy.recallMode}`);
+
+      // === Coexistence Detection (runtime UDS + config-based) ===
       const coexist = detectCoexistence();
-      if (coexist.mode === "coexist") {
-        api.logger.info?.(`[yaoyao-memory] claw-core detected (UDS=${coexist.udsPath}) — entering coexistence mode`);
-        api.logger.info?.(`[yaoyao-memory] Flags: skipLocalIndexing=${coexist.flags.skipLocalIndexing}, primaryRecall=${coexist.flags.useClawPrimaryRecall}, forwardCapture=${coexist.flags.forwardCaptureToClaw}`);
-      } else if (coexist.mode === "disabled") {
-        api.logger.info?.("[yaoyao-memory] Coexistence manually disabled via env — running standalone");
+      // If system config says XiaoYi Claw, force coexist mode regardless of UDS
+      if (sysArch.isXiaoYiClaw && coexist.mode === "standalone") {
+        setCoexistMode("coexist");
+        api.logger.info?.("[yaoyao-memory] Config-forced coexistence (claw-core in system architecture)");
+      }
+
+      const finalMode = getCoexistMode();
+      if (finalMode === "coexist") {
+        api.logger.info?.("[yaoyao-memory] Coexist mode — L1/L2 skipped, heavy lifting delegated to claw-core");
       } else {
         api.logger.info?.("[yaoyao-memory] Standalone mode — all layers active");
       }
@@ -36,7 +54,7 @@ export default definePluginEntry({
       const stopMonitor = startCoexistenceMonitor(30000);
       api.logger.debug?.("[yaoyao-memory] Coexistence monitor started (30s interval)");
 
-      // React to transitions (e.g. claw-core suddenly appears)
+      // React to transitions
       onCoexistChange((prev, next) => {
         if (prev.mode !== "coexist" && next.mode === "coexist") {
           api.logger.info?.("[yaoyao-memory] claw-core appeared at runtime — switching to coexist mode");

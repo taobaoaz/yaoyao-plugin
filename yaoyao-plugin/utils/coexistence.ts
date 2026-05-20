@@ -63,6 +63,13 @@ export function getCoexistMode(): CoexistMode {
   return _state.mode;
 }
 
+/** External force-set (used by entry/index.ts when config detects XiaoYi Claw). */
+export function setCoexistMode(mode: CoexistMode): void {
+  const prev = _state;
+  const next = { ...prev, mode, flags: _deriveFlags(mode), lastCheckedAt: Date.now() };
+  _setState(next);
+}
+
 /** Subscribe to state transitions. */
 export function onCoexistChange(fn: (prev: CoexistState, next: CoexistState) => void): () => void {
   _listeners.push(fn);
