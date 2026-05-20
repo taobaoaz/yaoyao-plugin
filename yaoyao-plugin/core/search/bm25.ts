@@ -113,6 +113,6 @@ export function getBM25SigmoidParams(query: string): { midpoint: number; steepne
 }
 
 /** Normalize a raw BM25 score to [0, 1] using logistic sigmoid. */
-export function normalizeBM25Score(rawScore: number, params:: unknown { midpoint: number; steepness: number }): number {
+export function normalizeBM25Score(rawScore: number, params: { midpoint: number; steepness: number }): number {
   return 1 / (1 + Math.exp(-params.steepness * (rawScore - params.midpoint)));
 }

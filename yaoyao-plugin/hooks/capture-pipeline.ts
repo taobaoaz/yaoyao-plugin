@@ -103,7 +103,7 @@ export function indexToFTS5(
   indexableAsst: string,
   date: string,
   meta: string | undefined,
-  watermark:: void { skipFTS5?: boolean },
+  watermark: { skipFTS5?: boolean },
   writeQueue: ReturnType<typeof import("../utils/write-queue.ts").createWriteQueue> | null,
 ): void {
   if (watermark.skipFTS5) return;

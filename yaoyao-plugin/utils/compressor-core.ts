@@ -9,7 +9,7 @@ const DEFAULT_MIN_TEXTS = 3;
 export function compressTexts(
   texts: string[],
   maxChars: number,
-  options:: void { minTexts?: number; minScoreToKeep?: number } = {},
+  options: { minTexts?: number; minScoreToKeep?: number } = {},
 ): CompressResult {
   const minTexts = options.minTexts ?? DEFAULT_MIN_TEXTS;
   const minScoreToKeep = options.minScoreToKeep ?? 0.3;
