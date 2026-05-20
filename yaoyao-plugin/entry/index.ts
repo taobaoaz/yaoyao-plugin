@@ -45,11 +45,17 @@ export default definePluginEntry({
         const url = telemetryConfig.url || "https://yaoyao.dev/api/heartbeat";
         
         // 启动时发送一次心跳
-        sendHeartbeat(buildPayload(version, "full"), url).catch(() => {});
+        sendHeartbeat(buildPayload(version, "full"), url).catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          api.logger.debug?.(`[yaoyao-memory:telemetry] Heartbeat failed: ${msg}`);
+        });
         
         // 定时心跳（5分钟）
-        setInterval(() => {
-          sendHeartbeat(buildPayload(version, "full"), url).catch(() => {});
+        const heartbeatTimer = setInterval(() => {
+          sendHeartbeat(buildPayload(version, "full"), url).catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            api.logger.debug?.(`[yaoyao-memory:telemetry] Heartbeat failed: ${msg}`);
+          });
         }, 5 * 60 * 1000);
       }
     } catch (err) {

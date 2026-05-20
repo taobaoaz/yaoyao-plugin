@@ -135,17 +135,23 @@ export function registerMemoryTools(
 
   // Quality analysis
   if (registry?.isActive("quality") ?? true) {
-    try { tools.push(createQualityTool(store, db)); } catch { /* skip */ }
+    try { tools.push(createQualityTool(store, db)); } catch (e: unknown) {
+      api.logger.warn?.(`[yaoyao-memory] Quality tool skipped: ${(e as Error).message}`);
+    }
   }
 
   // Retain check
   if (registry?.isActive("retain") ?? true) {
-    try { tools.push(createRetainTool(store, db)); } catch { /* skip */ }
+    try { tools.push(createRetainTool(store, db)); } catch (e: unknown) {
+      api.logger.warn?.(`[yaoyao-memory] Retain tool skipped: ${(e as Error).message}`);
+    }
   }
 
   // Knowledge graph — requires scenes directory
   if (registry?.isActive("graph") ?? true) {
-    try { tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding)); } catch { /* skip */ }
+    try { tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding)); } catch (e: unknown) {
+      api.logger.warn?.(`[yaoyao-memory] Graph tool skipped: ${(e as Error).message}`);
+    }
   }
 
   // Anti-hallucination verify

@@ -49,7 +49,10 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
               files: files.length,
               createdAt: stat.mtime.toISOString(),
             });
-          } catch { /* skip */ }
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:backup] Skip entry ${name}: ${msg}`);
+          }
         }
         return results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       } catch {
@@ -69,12 +72,19 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
             .filter(f => f.startsWith("memory-backup-"))
             .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
             .sort((a, b) => b.mtime - a.mtime);
-        } catch { backups = []; }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:backup] List backups failed: ${msg}`);
+          backups = [];
+        }
         for (const d of backups.slice(keepCount)) {
           fs.rmSync(path.join(backupDir, d.name), { recursive: true, force: true });
           log(`Pruned: ${d.name}`);
         }
-      } catch { /* best effort */ }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:backup] Prune failed: ${msg}`);
+      }
     },
   };
 }

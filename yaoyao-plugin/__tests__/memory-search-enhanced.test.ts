@@ -80,7 +80,10 @@ function highlightKeywords(text: string, keywords: string[]): string {
     try {
       const regex = new RegExp(`(${escaped})`, "gi");
       result = result.replace(regex, " **$1** ");
-    } catch { /* skip */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:test] Highlight regex failed: ${msg}`);
+    }
   }
   return result.replace(/\s{2,}/g, " ");
 }
@@ -93,8 +96,14 @@ describe("语义搜索增强 (DB 层)", { concurrency: 1 }, () => {
   });
 
   after(() => {
-    try { db.close(); } catch { /* */ }
-    try { fs.rmSync(tmpDir, { recursive: true }); } catch { /* */ }
+    try { db.close(); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:test] DB close failed: ${msg}`);
+    }
+    try { fs.rmSync(tmpDir, { recursive: true }); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:test] Cleanup failed: ${msg}`);
+    }
   });
 
   it("FTS5 搜索返回匹配结果", () => {
