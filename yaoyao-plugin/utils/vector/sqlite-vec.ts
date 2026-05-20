@@ -33,7 +33,9 @@ export class SqliteVecBackend implements VectorBackend {
     try {
       // Detect if SQLite supports extensions (Node 22 native sqlite)
       this.supportsExtensions = db.enableLoadExtension !== undefined;
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:vec] Extension detection failed: ${msg}`);
       this.supportsExtensions = false;
     }
 

@@ -60,7 +60,10 @@ export function createMultiSignalSearchTool(
             ? db.rrfHybridSearch(query, queryVec, limit * 2, 60)
             : db.hybridSearch(query, queryVec, limit * 2);
           vecResults = rrfResults;
-        } catch { /* vector unavailable */ }
+        } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  vector unavailable : ${msg}`);
+    }
       }
 
       // 3. Merge candidates

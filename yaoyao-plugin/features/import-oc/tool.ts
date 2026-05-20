@@ -73,7 +73,10 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
           const stmt = ocDb.prepare(sql);
           chunks = limit > 0 ? stmt.all(limit) as unknown as OCChunk[] : stmt.all() as unknown as OCChunk[];
         } finally {
-          try { ocDb.close(); } catch { /* ignore */ }
+          try { ocDb.close(); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    }
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? (err as Error).message : String(err);
@@ -134,7 +137,9 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
           } else {
             skipped++;
           }
-        } catch {
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:import-oc] Import chunk failed: ${msg}`);
           skipped++;
         }
       }
@@ -143,9 +148,10 @@ export function createImportOCTool(store: MemoryStore, db: DBBridge): ToolRegist
       if (newHashes.length > 0) {
         try {
           db.batchSetConfig(newHashes.map(h => ({ key: h.key, value: h.value })));
-        } catch {
-          // 批量写入失败不阻断主流程，下次导入时 hash 检查会重新处理
-        }
+        } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] 批量写入失败不阻断主流程，下次导入时 hash 检查会重新处理: ${msg}`);
+    }
       }
 
       db.setConfig("oc_import_last_id", String(maxId));

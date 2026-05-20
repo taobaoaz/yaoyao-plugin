@@ -50,7 +50,9 @@ export function runHealthcheck(baseDir?: string): HealthResult {
     } else {
       checks.push({ name: "OpenClaw Gateway", status: "fail", message: `${gatewayVer} ❌`, detail: `要求 ${versions.pluginApiRange}。请升级 Gateway：npm install -g openclaw@latest` });
     }
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:health] Gateway detection failed: ${msg}`);
     checks.push({ name: "OpenClaw Gateway", status: "warn", message: `无法检测 ⚠️`, detail: `插件要求 Gateway ${versions.pluginApiRange}。如功能异常请升级。` });
   }
 
@@ -71,7 +73,9 @@ export function runHealthcheck(baseDir?: string): HealthResult {
     _require("sqlite-vec");
     vecAvailable = true;
     checks.push({ name: "sqlite-vec", status: "pass", message: "向量扩展可用 ✅" });
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:health] sqlite-vec detection failed: ${msg}`);
     checks.push({ name: "sqlite-vec", status: "warn", message: "未安装 ⚠️", detail: "向量搜索不可用，FTS5 纯文本搜索仍正常工作。如需向量搜索请 npm install sqlite-vec。" });
   }
 
@@ -147,7 +151,9 @@ export function runHealthcheck(baseDir?: string): HealthResult {
       } else {
         checks.push({ name: "磁盘空间", status: "warn", message: `${freeGb.toFixed(1)} GB ⚠️`, detail: "磁盘空间不足。长期运行可能无法写入新记忆。" });
       }
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:health] Disk space check failed: ${msg}`);
       checks.push({ name: "磁盘空间", status: "warn", message: "无法检测 ⚠️", detail: "无法获取磁盘空间信息。不影响功能，但建议确保有充足空间。" });
     }
   } else {
@@ -158,7 +164,9 @@ export function runHealthcheck(baseDir?: string): HealthResult {
   try {
     execSync("git --version", { stdio: "pipe", timeout: 3_000 });
     checks.push({ name: "Git 可用性", status: "pass", message: "git 可用 ✅" });
-  } catch {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:health] Git detection failed: ${msg}`);
     checks.push({ name: "Git 可用性", status: "warn", message: "不可用 ⚠️", detail: "git 命令未找到。自动迁移（yaoyao-soul 安装）将不可用，需手动安装。" });
   }
 

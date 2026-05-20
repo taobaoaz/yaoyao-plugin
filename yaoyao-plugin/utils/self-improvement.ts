@@ -52,9 +52,10 @@ async function nextLearningId(filePath: string, prefix: "LRN" | "ERR"): Promise<
     const content = await readFile(filePath, "utf-8");
     const matches = content.match(new RegExp(`\\[${prefix}-${date}-\\d{3}\\]`, "g"));
     count = matches?.length ?? 0;
-  } catch {
-    // ignore
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] ignore: ${msg}`);
+    }
   return `${prefix}-${date}-${String(count + 1).padStart(3, "0")}`;
 }
 
@@ -66,8 +67,9 @@ export async function ensureSelfImprovementFiles(baseDir: string): Promise<void>
     try {
       const existing = await readFile(filePath, "utf-8");
       if (existing.trim().length > 0) return;
-    } catch {
-      // write default below
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] write default below: ${msg}`);
     }
     await writeFile(filePath, `${content.trim()}\n`, "utf-8");
   };

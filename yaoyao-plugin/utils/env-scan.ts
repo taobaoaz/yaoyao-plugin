@@ -45,7 +45,9 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
     try {
       require("hnswlib-node");
       vector = true;
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
       vector = false;
     }
   }
@@ -55,9 +57,11 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
   try {
     require("openai");
     llm = true;
-  } catch {
-    llm = false;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      llm = false;
+    }
 
   // Cloud sync: check for common cloud SDKs
   let cloudSync = false;

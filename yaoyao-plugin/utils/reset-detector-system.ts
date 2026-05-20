@@ -11,9 +11,11 @@ import type { ResetRisk } from "./reset-detector-scan.ts";
 function safeExec(cmd: string): string | null {
   try {
     return execSync(cmd, { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "ignore"] }).trim();
-  } catch {
-    return null;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return null;
+    }
 }
 
 /** Scan system cron for memory-related tasks */
@@ -65,9 +67,11 @@ export function scanPluginConfigs(homeDir: string): ResetRisk[] {
   let entries: string[];
   try {
     entries = fs.readdirSync(pluginsDir);
-  } catch {
-    return risks;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return risks;
+    }
 
   for (const entry of entries) {
     const pluginConfigPath = path.join(pluginsDir, entry, "plugin.json");
@@ -75,7 +79,9 @@ export function scanPluginConfigs(homeDir: string): ResetRisk[] {
     try {
       const raw = fs.readFileSync(pluginConfigPath, "utf-8");
       cfg = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:reset] Read plugin config failed: ${msg}`);
       continue;
     }
     if (!cfg) continue;

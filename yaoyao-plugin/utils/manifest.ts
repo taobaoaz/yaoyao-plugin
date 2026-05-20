@@ -45,9 +45,11 @@ export function readManifest(baseDir: string): ManifestData | null {
   try {
     const raw = fs.readFileSync(file, "utf-8");
     return JSON.parse(raw) as ManifestData;
-  } catch {
-    return null;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return null;
+    }
 }
 
 /** Write manifest atomically */

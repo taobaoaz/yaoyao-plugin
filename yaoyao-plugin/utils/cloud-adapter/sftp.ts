@@ -67,7 +67,11 @@ export class SFTPAdapter implements CloudAdapter {
         if (parts.length >= 9) entries.push({ name: parts.slice(8).join(" "), size: parseInt(parts[4], 10) || 0, modified: 0 });
       }
       return entries;
-    } catch { return []; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return [];
+    }
   }
 
   async delete(remotePath: string): Promise<boolean> {

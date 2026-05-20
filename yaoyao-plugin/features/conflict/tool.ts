@@ -59,7 +59,11 @@ export function createJudgeTool(db: DBBridge): ToolRegistration {
 
       let meta: Record<string, unknown> = {};
       if (metaRaw) {
-        try { meta = JSON.parse(metaRaw); } catch { meta = {}; }
+        try { meta = JSON.parse(metaRaw); } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:conflict] Parse meta failed: ${msg}`);
+          meta = {};
+        }
       }
 
       const relationsArray: Array<Record<string, unknown>> = Array.isArray(meta.relations)
@@ -127,7 +131,10 @@ export function createConflictsTool(db: DBBridge): ToolRegistration {
               lines.push(`  ${formatRelation(rel.relation as ConflictRelation)} — ${rel.reason}（${rel.judgedAt.slice(0, 10)}）`);
             }
             lines.push("");
-          } catch { /* skip */ }
+          } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  skip : ${msg}`);
+    }
         }
         return { content: [{ type: "text", text: lines.join("\n") }] };
       }

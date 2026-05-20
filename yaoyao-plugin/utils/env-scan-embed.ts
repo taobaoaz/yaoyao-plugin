@@ -48,7 +48,10 @@ export function scanEmbeddingSources(): EmbeddingSource[] {
         });
       }
     }
-  } catch { /* ignore scan failures */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore scan failures : ${msg}`);
+    }
 
   // ── 2. Environment variables ──
   const envVars = [
@@ -99,7 +102,10 @@ export function scanEmbeddingSources(): EmbeddingSource[] {
         }
       }
     }
-  } catch { /* ignore */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    }
 
   return sources;
 }

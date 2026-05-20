@@ -27,7 +27,11 @@ export interface QueryApi {
 export function createQueryApi(ensureDB: () => UnifiedDB, vector: VectorStore | null): QueryApi {
   return {
     getStats(): DBStats {
-      try { return queryHelpers.getStats(ensureDB(), vector); } catch { return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 }; }
+      try { return queryHelpers.getStats(ensureDB(), vector); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
+    }
     },
     getAllTags(): Array<{ tag: string; memory_id: number }> {
       return queryHelpers.getAllTags(ensureDB());

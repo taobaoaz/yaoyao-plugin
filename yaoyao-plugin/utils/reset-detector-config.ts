@@ -11,9 +11,11 @@ function safeReadJson(filePath: string): Record<string, unknown> | null {
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
     return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return null;
+    }
 }
 
 /** Scan OpenClaw config for memory slot conflicts */

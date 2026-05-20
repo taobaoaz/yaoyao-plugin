@@ -57,11 +57,18 @@ export class SambaAdapter implements CloudAdapter {
     const unc = `\\\\${this.host}\\${this.share}`;
     try {
       if (execSync(`net use ${driveLetter}`, { encoding: "utf-8", timeout: this.mountCheckTimeoutMs }).includes(unc)) return driveLetter;
-    } catch { /* unmounted */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  unmounted : ${msg}`);
+    }
     try {
       execFileSync("net", ["use", driveLetter, unc, `/user:${this.username}`, "/persistent:no"], { encoding: "utf-8", timeout: this.mountTimeoutMs, env: { ...process.env as Record<string, string>, PASSWD: this.password } });
       return driveLetter;
-    } catch { return null; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return null;
+    }
   }
 
   async upload(localPath: string, remotePath: string): Promise<boolean> {
@@ -73,7 +80,11 @@ export class SambaAdapter implements CloudAdapter {
       }
       const rf = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
       this.smbCmd([`mkdir ${path.dirname(rf)} 2>/dev/null`, `put ${localPath} ${rf}`]); return true;
-    } catch { return false; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
   }
 
   async download(remotePath: string, localPath: string): Promise<boolean> {
@@ -85,7 +96,11 @@ export class SambaAdapter implements CloudAdapter {
       }
       const rf = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
       this.smbCmd([`get ${rf} ${localPath}`]); return true;
-    } catch { return false; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
   }
 
   async list(remotePath: string = "/"): Promise<CloudFileEntry[]> {
@@ -106,7 +121,11 @@ export class SambaAdapter implements CloudAdapter {
         if (m) entries.push({ name: m[1], size: parseInt(m[2], 10), modified: 0 });
       }
       return entries;
-    } catch { return []; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return [];
+    }
   }
 
   async delete(remotePath: string): Promise<boolean> {
@@ -117,7 +136,11 @@ export class SambaAdapter implements CloudAdapter {
       }
       const rf = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
       this.smbCmd([`rm ${rf}`]); return true;
-    } catch { return false; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
   }
 
   async exists(remotePath: string): Promise<boolean> {
@@ -128,6 +151,10 @@ export class SambaAdapter implements CloudAdapter {
       }
       const rf = this.remotePath ? `${this.remotePath}/${remotePath}` : remotePath;
       this.smbCmd([`ls ${rf}`]); return true;
-    } catch { return false; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
   }
 }

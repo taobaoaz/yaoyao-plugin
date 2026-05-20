@@ -110,9 +110,10 @@ export class DedupEngine {
             }
           }
         }
-      } catch {
-        // Vector search failed, fall through to L3
-      }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Vector search failed, fall through to L3: ${msg}`);
+    }
     }
 
     // ── L3: Text similarity (trigram Jaccard + Levenshtein) ──
@@ -128,8 +129,9 @@ export class DedupEngine {
           reason: `text similarity >= ${this.opts.textThreshold}`,
         };
       }
-    } catch {
-      // Best effort
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Best effort: ${msg}`);
     }
 
     // Not a duplicate — record the hash so future exact repeats are caught

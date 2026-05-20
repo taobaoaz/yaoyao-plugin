@@ -44,7 +44,10 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
         throw err; // re-throw so caller can decide (fallback to memory-only mode)
       }
     } else {
-      try { fs.chmodSync(dir, 0o700); } catch { /* ignore on Windows or restricted fs */ }
+      try { fs.chmodSync(dir, 0o700); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore on Windows or restricted fs : ${msg}`);
+    }
     }
   }
 
@@ -56,7 +59,9 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
   function readFile(filePath: string): string | null {
     try {
       return fs.readFileSync(filePath, "utf-8");
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
       return null;
     }
   }
@@ -68,7 +73,10 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
       const d = date || new Date().toISOString().slice(0, 10);
       const header = `# ${d} 记忆\n\n> 每日对话记录\n\n---\n\n_此文件由 yaoyao-memory 插件自动维护_\n`;
       fs.writeFileSync(fp, header, "utf-8");
-      try { fs.chmodSync(fp, 0o600); } catch { /* ignore on Windows */ }
+      try { fs.chmodSync(fp, 0o600); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore on Windows : ${msg}`);
+    }
       log(`Created daily file: ${fp}`);
     }
     return fp;
@@ -78,7 +86,10 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
   function appendToDaily(date: string | undefined, content: string): void {
     const fp = getDailyFile(date);
     fs.appendFileSync(fp, content, "utf-8");
-    try { fs.chmodSync(fp, 0o600); } catch { /* ignore on Windows */ }
+    try { fs.chmodSync(fp, 0o600); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore on Windows : ${msg}`);
+    }
   }
 
   /** List all memory files in the directory. */
@@ -103,9 +114,10 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
           size: stat.size,
           modified: stat.mtimeMs,
         });
-      } catch {
-        // skip unreadable
-      }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] skip unreadable: ${msg}`);
+    }
     }
 
     results.sort((a, b) => b.modified - a.modified);

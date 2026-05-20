@@ -45,7 +45,10 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
           db.exec("COMMIT");
           return rowId;
         } catch (err: unknown) {
-          try { db.exec("ROLLBACK"); } catch { /* ignore */ }
+          try { db.exec("ROLLBACK"); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    }
           throw err;
         }
       } catch (err: unknown) {
@@ -142,7 +145,10 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
     scheduleRebuild(db: UnifiedDB): void {
       try {
         db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
-      } catch { /* best effort */ }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+    }
     },
 
     /** Delete by exact date match. Returns count. */
@@ -150,9 +156,11 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
       try {
         const result = db.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
         return Number(result.changes ?? 0);
-      } catch {
-        return 0;
-      }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return 0;
+    }
     },
 
     /** Delete by LIKE pattern on user_text or asst_text. Returns count. */
@@ -164,9 +172,11 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
           "DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
         ).run(pattern, pattern);
         return Number(result.changes ?? 0);
-      } catch {
-        return 0;
-      }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return 0;
+    }
     },
   };
 }

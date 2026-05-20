@@ -67,14 +67,20 @@ function detectBackend(logger?: PluginLogger): DBBackend {
     _require("node:sqlite");
     logger?.info?.("[yaoyao-memory:db-compat] Using node:sqlite (Node 22+)");
     return "node-sqlite";
-  } catch { /* fall through */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  fall through : ${msg}`);
+    }
 
   try {
     const _require = createRequire(import.meta.url);
     _require("better-sqlite3");
     logger?.info?.("[yaoyao-memory:db-compat] Using better-sqlite3 (npm)");
     return "better-sqlite3";
-  } catch { /* fall through */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  fall through : ${msg}`);
+    }
 
   logger?.warn?.("[yaoyao-memory:db-compat] No SQLite available, falling back to file-db (pure filesystem mode)");
   return "file-db";
@@ -176,12 +182,18 @@ export function getDBCapability(): {
     const _require = createRequire(import.meta.url);
     _require("node:sqlite");
     nodeSqlite = true;
-  } catch { /* */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  : ${msg}`);
+    }
   try {
     const _require = createRequire(import.meta.url);
     _require("better-sqlite3");
     betterSqlite3 = true;
-  } catch { /* */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  : ${msg}`);
+    }
 
   const backend: DBBackend | "unknown" = nodeSqlite ? "node-sqlite" : betterSqlite3 ? "better-sqlite3" : "unknown";
   return { backend, nodeSqliteAvailable: nodeSqlite, betterSqlite3Available: betterSqlite3 };

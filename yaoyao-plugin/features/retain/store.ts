@@ -31,9 +31,15 @@ export function loadBoostRecords(baseDir: string): BoostRecord[] {
     if (!fs.existsSync(fp)) return records;
     const raw = fs.readFileSync(fp, "utf-8");
     for (const line of raw.split("\n").filter(Boolean)) {
-      try { records.push(JSON.parse(line) as BoostRecord); } catch { /* skip */ }
+      try { records.push(JSON.parse(line) as BoostRecord); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  skip : ${msg}`);
     }
-  } catch { /* best effort */ }
+    }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+    }
   return records;
 }
 
@@ -48,7 +54,11 @@ export function loadImportantTags(baseDir: string): ImportantTag[] {
   try {
     if (!fs.existsSync(fp)) return [];
     return JSON.parse(fs.readFileSync(fp, "utf-8")) as ImportantTag[];
-  } catch { return []; }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return [];
+    }
 }
 
 export function saveImportantTags(baseDir: string, tags: ImportantTag[]): void {

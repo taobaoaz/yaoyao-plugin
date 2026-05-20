@@ -84,7 +84,9 @@ export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetecti
                   });
                   db.updateMetadata(c.memoryId, JSON.stringify(meta));
                   autoResolved.push(c.memoryId);
-                } catch {
+                } catch (e: unknown) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  console.warn(`[yaoyao-memory:save] Auto-judge failed: ${msg}`);
                   pending.push(c);
                 }
               } else {
@@ -119,7 +121,11 @@ export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetecti
 }
 
 function tryParseJSON(s: string): Record<string, unknown> {
-  try { return JSON.parse(s); } catch { return {}; }
+  try { return JSON.parse(s); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return {};
+    }
 }
 
 function combineMessages(a: string, b: string): string {

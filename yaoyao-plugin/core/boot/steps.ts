@@ -70,7 +70,10 @@ export function stepCrossSessionRecovery(api: OpenClawPluginApi, config: YaoyaoM
       api.logger.info?.(`[yaoyao-memory] Loaded ${memories.length} cross-session memories`);
       (api as unknown as Record<string, unknown>)._crossSessionContext = memories;
     }
-  } catch { /* best-effort */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best-effort : ${msg}`);
+    }
 }
 
 export function stepMigration(api: OpenClawPluginApi, config: YaoyaoMemoryConfig): void {
@@ -105,7 +108,10 @@ export function stepCleanupScheduler(
         timer = setInterval(() => cleaner.cleanup(), 24 * 60 * 60 * 1000).unref();
       }
     }
-  } catch { /* best-effort */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best-effort : ${msg}`);
+    }
   return {
     cleanupStop: () => { if (timeout) clearTimeout(timeout); if (timer) clearInterval(timer); },
   };

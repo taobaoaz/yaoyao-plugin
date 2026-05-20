@@ -50,7 +50,11 @@ export function detectSentiment(text: string): SentimentResult {
   // Emoji markers
   const iterateText = (): string[] => {
     try { return Array.from(new Intl.Segmenter("en", { granularity: "grapheme" }).segment(text), s => s.segment); }
-    catch { return Array.from(text); }
+    catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:sentiment] Intl.Segmenter failed: ${msg}`);
+      return Array.from(text);
+    }
   };
   for (const em of iterateText()) {
     if (JOY_MARKERS.has(em)) emotionScores.joy += 2;

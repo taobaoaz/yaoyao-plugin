@@ -63,9 +63,11 @@ export function loadSecrets(filePath?: string): Secrets {
     _cachedPath = target;
     _cachedMtime = stat.mtimeMs;
     return secrets;
-  } catch {
-    return {};
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return {};
+    }
 }
 
 /**

@@ -21,7 +21,11 @@ function tryLoadVec(db: UnifiedDB): boolean {
     const sqliteVec = _require("sqlite-vec") as Record<string, unknown>;
     (sqliteVec.load as (db: unknown) => void)(db);
     return true;
-  } catch { return false; }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
 }
 
 function ensureSchema(db: UnifiedDB): void {
@@ -146,7 +150,10 @@ export function createImportTool(store: MemoryStore): ToolRegistration {
         ];
         return { content: [{ type: "text", text: parts.join("\n") }] };
       } finally {
-        try { db.close(); } catch { /* ignore */ }
+        try { db.close(); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    }
       }
     }),
   };

@@ -111,7 +111,11 @@ export class S3Adapter implements CloudAdapter {
         });
         req.on("error", reject); req.end();
       });
-    } catch { return []; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return [];
+    }
   }
 
   async delete(remotePath: string): Promise<boolean> {

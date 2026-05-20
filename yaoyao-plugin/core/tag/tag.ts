@@ -136,7 +136,10 @@ export function addTagsToQuery(db: UnifiedDB, query: string, tags: string[], lim
       try {
         addTag(db, memoryId, tag);
         added++;
-      } catch { /* tag may already exist */ }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  tag may already exist : ${msg}`);
+    }
     }
   }
   return { matched, added };

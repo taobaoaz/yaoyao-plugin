@@ -100,9 +100,11 @@ function toErrorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   try {
     return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return String(error);
+    }
 }
 
 function clipSingleLine(text: string, maxLen = 260): string {

@@ -30,7 +30,10 @@ export async function handleCheck(
       const keyword = r.snippet.slice(0, 60).replace(/[^\w\u4e00-\u9fff\s]/g, "").trim() || "untitled";
       allMemories.push({ keyword, filename: r.filename || "unknown", snippet: r.snippet.slice(0, 120) });
     }
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+    }
 
   const atRisk = detectAtRisk(allMemories, boostRecords, importantTags, 7);
   const text = formatRetainCheck(allMemories.length, boostRecords.length, importantTags.length, atRisk);
@@ -56,7 +59,10 @@ export async function handleBoost(
   let matchedCount = 0;
   try {
     matchedCount = db.search(keyword, 20).length;
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+    }
 
   const text = formatBoostResult(keyword, filename, reason, record.boostedAt, matchedCount);
   return { content: [{ type: "text", text }] };

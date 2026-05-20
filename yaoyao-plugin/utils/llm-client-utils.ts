@@ -41,7 +41,9 @@ export function isForbiddenHost(urlStr: string): boolean {
     const url = new URL(urlStr);
     const host = url.hostname.toLowerCase();
     return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
-  } catch {
-    return true;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return true;
+    }
 }

@@ -32,9 +32,11 @@ export function parseAccessMetadata(metadata: string | undefined): AccessMetadat
   let parsed: unknown;
   try {
     parsed = JSON.parse(metadata);
-  } catch {
-    return { accessCount: 0, lastAccessedAt: 0 };
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return { accessCount: 0, lastAccessedAt: 0 };
+    }
 
   if (typeof parsed !== "object" || parsed === null) {
     return { accessCount: 0, lastAccessedAt: 0 };
@@ -64,8 +66,9 @@ export function buildUpdatedMetadata(existingMetadata: string | undefined, acces
       if (typeof parsed === "object" && parsed !== null) {
         existing = { ...parsed };
       }
-    } catch {
-      // malformed JSON — start fresh
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] malformed JSON — start fresh: ${msg}`);
     }
   }
 

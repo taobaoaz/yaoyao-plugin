@@ -30,9 +30,11 @@ export function createHealthcheckTool(): ToolRegistration {
       let result: HealthResult;
       try {
         result = JSON.parse(JSON.stringify(rawResult));
-      } catch {
-        result = { ok: false, checks: [], summary: "Health check failed" };
-      }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      result = { ok: false, checks: [], summary: "Health check failed" };
+    }
 
       if (detail === "full") {
         return { content: [{ type: "text", text: formatHealthcheck(result) }] };

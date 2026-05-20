@@ -60,7 +60,11 @@ export class WebDAVAdapter implements CloudAdapter {
       const data = fs.readFileSync(localPath);
       const { status } = await this.request("PUT", this.buildUrl(remotePath), { "Content-Type": "application/octet-stream" }, data);
       return status >= 200 && status < 300;
-    } catch { return false; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
   }
 
   async download(remotePath: string, localPath: string): Promise<boolean> {
@@ -70,7 +74,11 @@ export class WebDAVAdapter implements CloudAdapter {
       fs.mkdirSync(path.dirname(localPath), { recursive: true });
       fs.writeFileSync(localPath, data);
       return true;
-    } catch { return false; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
   }
 
   async list(remotePath: string = "/"): Promise<CloudFileEntry[]> {
@@ -90,7 +98,11 @@ export class WebDAVAdapter implements CloudAdapter {
         }
       }
       return entries;
-    } catch { return []; }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return [];
+    }
   }
 
   async delete(remotePath: string): Promise<boolean> {

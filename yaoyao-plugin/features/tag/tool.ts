@@ -154,7 +154,10 @@ export function createTagTool(store: MemoryStore, dbBridge?: DBBridge): ToolRegi
         return { content: [{ type: "text", text: `## 标签: #${tag}\n(${results.length} 条)\n\n${lines.join("\n")}` }] };
       } finally {
         if (isOwned) {
-          try { db.close(); } catch { /* ignore */ }
+          try { db.close(); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    }
         }
       }
     }),

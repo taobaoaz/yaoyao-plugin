@@ -22,7 +22,9 @@ export function runMemoryStatsCheck(
       message: `共 ${total?.c ?? 0} 条记忆`,
       detail: `层级分布: ${tierDist?.map(t => `${t.tier}=${t.c}`).join(", ") || "active=0"} | 平均天数: ${(avgAge?.d ?? 0).toFixed(1)}`,
     };
-  } catch {
-    return null;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return null;
+    }
 }

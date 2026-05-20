@@ -35,9 +35,11 @@ export function createBackup(
           let meta: { timestamp: string };
           try {
             meta = JSON.parse(fs.readFileSync(lastBackupFile, "utf-8"));
-          } catch {
-            meta = { timestamp: new Date().toISOString() };
-        }
+          } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      meta = { timestamp: new Date().toISOString() };
+    }
           lastBackupMs = new Date(meta.timestamp).getTime();
           log(`Incremental backup, last backup at ${meta.timestamp}`);
         }

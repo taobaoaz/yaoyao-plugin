@@ -37,17 +37,21 @@ interface CronListResult {
 function safeReadJson(filePath: string): Record<string, unknown> | null {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  } catch {
-    return null;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return null;
+    }
 }
 
 function safeExec(cmd: string): string | null {
   try {
     return execSync(cmd, { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "ignore"] }).trim();
-  } catch {
-    return null;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return null;
+    }
 }
 
 import { detectCronRisks, isConflictingJob } from "./detect.ts";

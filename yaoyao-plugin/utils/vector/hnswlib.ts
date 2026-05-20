@@ -83,9 +83,11 @@ export class HnswlibBackend implements VectorBackend {
         let meta: import("./hnswlib-types.ts").HnswMeta;
         try {
           meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
-        } catch {
-          meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType, dimensions: this.dimensions, count: 0, space: "cosine" };
-        }
+        } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType, dimensions: this.dimensions, count: 0, space: "cosine" };
+    }
         if (meta.dimensions === this.dimensions) {
           this.index.readIndexSync(this.indexPath);
           this.isAvailable = true;
@@ -179,7 +181,10 @@ export class HnswlibBackend implements VectorBackend {
       const validIds = new Set(rows.map(r => r.id));
       const count = this.index.getCurrentCount?.() ?? 0;
       this.logger?.debug?.("[yaoyao-memory:vec] HNSW deleteOrphans: no-op (filtered at search time)");
-    } catch { /* best effort */ }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+    }
   }
 
   getVectorCount(): number {

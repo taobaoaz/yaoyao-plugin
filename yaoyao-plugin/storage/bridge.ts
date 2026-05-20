@@ -77,7 +77,10 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
 
       // WAL passive checkpoint timer
       walCheckTimer = setInterval(() => {
-        try { db?.exec("PRAGMA wal_checkpoint(PASSIVE)"); } catch { /* ignore */ }
+        try { db?.exec("PRAGMA wal_checkpoint(PASSIVE)"); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    }
       }, 60 * 60 * 1000);
       walCheckTimer.unref();
 
@@ -163,15 +166,20 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
     getLocalDate(tz?: string): string {
       try {
         return new Date().toLocaleDateString("sv-SE", { timeZone: tz || "Asia/Shanghai" });
-      } catch {
-        return new Date().toISOString().slice(0, 10);
-      }
+      } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return new Date().toISOString().slice(0, 10);
+    }
     },
 
     close(): void {
       if (walCheckTimer) { clearInterval(walCheckTimer); walCheckTimer = null; }
       vector?.close();
-      if (db) { try { db.close(); } catch { /* ignore */ } db = null; }
+      if (db) { try { db.close(); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    } db = null; }
       fts = null;
       hybrid = null;
       initFailed = false;

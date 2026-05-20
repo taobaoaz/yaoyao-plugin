@@ -55,7 +55,10 @@ export function createVectorStore(config: YaoyaoMemoryConfig, logger?: PluginLog
 
     /** Clean up orphaned vectors. */
     deleteOrphans(): void {
-      try { backend?.deleteOrphans?.(); } catch { /* best effort */ }
+      try { backend?.deleteOrphans?.(); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+    }
     },
 
     /** Close backend. */

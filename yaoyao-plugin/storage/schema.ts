@@ -50,7 +50,10 @@ export function ensureSchema(db: UnifiedDB): void {
     }
     db.exec("COMMIT");
   } catch (err: unknown) {
-    try { db.exec("ROLLBACK"); } catch { /* ignore */ }
+    try { db.exec("ROLLBACK"); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  ignore : ${msg}`);
+    }
     throw err;
   }
 }

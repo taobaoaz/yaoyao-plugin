@@ -22,7 +22,11 @@ export function restoreBackup(
     }
 
     let files: string[];
-    try { files = fs.readdirSync(backupPath); } catch { files = []; }
+    try { files = fs.readdirSync(backupPath); } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory:backup] Read backup path failed: ${msg}`);
+      files = [];
+    }
 
     const preDir = path.join(backupDir, `pre-restore-${Date.now()}`);
     fs.mkdirSync(preDir, { recursive: true });
@@ -36,7 +40,11 @@ export function restoreBackup(
         fs.mkdirSync(destDir, { recursive: true });
         fs.mkdirSync(path.join(preDir, f), { recursive: true });
         let subs: string[];
-        try { subs = fs.readdirSync(backupSrc); } catch { subs = []; }
+        try { subs = fs.readdirSync(backupSrc); } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:backup] Read backup source failed: ${msg}`);
+          subs = [];
+        }
         for (const sub of subs) {
           const subSrc = path.join(destDir, sub);
           if (fs.existsSync(subSrc)) fs.copyFileSync(subSrc, path.join(preDir, f, sub));

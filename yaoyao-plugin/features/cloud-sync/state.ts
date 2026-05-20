@@ -19,9 +19,11 @@ export function loadSyncState(baseDir: string): SyncState {
   const fp = path.join(baseDir, SYNC_STATE_FILE);
   try {
     return JSON.parse(fs.readFileSync(fp, "utf-8"));
-  } catch {
-    return { lastSync: 0, uploaded: [], downloaded: [] };
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return { lastSync: 0, uploaded: [], downloaded: [] };
+    }
 }
 
 export function saveSyncState(baseDir: string, state: SyncState): void {
@@ -36,5 +38,8 @@ export function markSynced(filePath: string, provider: string, baseDir: string):
     const markerPath = path.join(markerDir, rel + SYNC_MARKER);
     fs.mkdirSync(markerDir, { recursive: true });
     fs.writeFileSync(markerPath, JSON.stringify({ provider, time: Date.now() }), "utf-8");
-  } catch { /* best effort */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+    }
 }

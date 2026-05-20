@@ -12,6 +12,9 @@ export function requireHnswlib(): HnswlibModule | null {
     if (mod && typeof mod === "object" && "HierarchicalNSW" in mod) {
       return mod as HnswlibModule;
     }
-  } catch { /* not installed or platform incompatible */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  not installed or platform incompatible : ${msg}`);
+    }
   return null;
 }

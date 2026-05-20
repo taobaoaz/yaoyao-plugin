@@ -46,16 +46,19 @@ export function readCrossSessionMemories(
                   timestamp: ts,
                 });
               }
-            } catch {
-              // skip malformed lines
-            }
+            } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] skip malformed lines: ${msg}`);
+    }
           }
-        } catch {
-          // skip unreadable files
-        }
+        } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] skip unreadable files: ${msg}`);
+    }
       }
-    } catch {
-      // skip inaccessible dirs
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] skip inaccessible dirs: ${msg}`);
     }
   }
 

@@ -47,9 +47,11 @@ function listConfiguredAgentIds(cfg: unknown): string[] {
       if (id) ids.push(id);
     }
     return ids;
-  } catch {
-    return [];
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return [];
+    }
 }
 
 export interface SessionSearchParams {
@@ -122,9 +124,10 @@ export function resolveSessionSearchDirs(params: SessionSearchParams): string[] 
         if (workspace) addHome(openclawHomes, deriveOpenClawHomeFromWorkspacePath(workspace));
       }
     }
-  } catch {
-    // ignore
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] ignore: ${msg}`);
+    }
 
   const agentIds: string[] = [];
   addAgentId(agentIds, params.sourceAgentId);

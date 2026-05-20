@@ -21,7 +21,10 @@ function loadScenesCached(memoryDir: string): Map<string, { name: string; memori
     if (fs.existsSync(sceneDir)) {
       currentMtime = fs.statSync(sceneDir).mtimeMs;
     }
-  } catch { /* */ }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory]  : ${msg}`);
+    }
   if (_sceneCache && currentMtime === _sceneCacheMtime) {
     return _sceneCache;
   }

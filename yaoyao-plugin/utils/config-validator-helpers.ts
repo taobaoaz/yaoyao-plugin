@@ -36,9 +36,11 @@ export function isValidUrl(url: string): boolean {
   try {
     const u = new URL(url);
     return u.protocol.startsWith("http");
-  } catch {
-    return false;
-  }
+  } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      return false;
+    }
 }
 
 export function isPositiveInt(n: unknown): boolean {
