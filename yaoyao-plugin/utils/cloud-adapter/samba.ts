@@ -59,14 +59,14 @@ export class SambaAdapter implements CloudAdapter {
       if (execSync(`net use ${driveLetter}`, { encoding: "utf-8", timeout: this.mountCheckTimeoutMs }).includes(unc)) return driveLetter;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  unmounted : ${msg}`);
+      console.warn(`[yaoyao-memory:samba] Unmount check failed: ${msg}`);
     }
     try {
       execFileSync("net", ["use", driveLetter, unc, `/user:${this.username}`, "/persistent:no"], { encoding: "utf-8", timeout: this.mountTimeoutMs, env: { ...process.env as Record<string, string>, PASSWD: this.password } });
       return driveLetter;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:samba] Mount failed: ${msg}`);
       return null;
     }
   }
