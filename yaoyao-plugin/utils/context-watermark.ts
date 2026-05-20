@@ -53,7 +53,7 @@ export function computeCompressLevel(
 }
 
 /** Estimate total context size from message array */
-export function estimateContextSize(messages: Array<: number { role?: string; content?: unknown }>): number {
+export function estimateContextSize(messages: Array<{ role?: string; content?: unknown }>): number {
   let totalChars = 0;
   for (const m of messages) {
     const content = m.content;

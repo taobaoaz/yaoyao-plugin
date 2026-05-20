@@ -39,12 +39,12 @@
   "private": false,
   "scripts": {
     "build": "tsc",
-    "test": "node --experimental-strip-types --test src/__tests__/*.test.ts",
-    "test:db": "node --experimental-strip-types --test src/__tests__/db-bridge.test.ts",
-    "test:sentiment": "node --experimental-strip-types --test src/__tests__/sentiment.test.ts",
-    "test:store": "node --experimental-strip-types --test src/__tests__/memory-store.test.ts",
-    "test:core": "node --test src/__tests__/remind-cron.test.ts src/__tests__/trends-core.test.ts src/__tests__/quality-core.test.ts src/__tests__/recommend-core.test.ts src/__tests__/retain-core.test.ts",
-    "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.ts"
+    "test": "node --experimental-strip-types --test __tests__/*.test.ts",
+    "test:db": "node --experimental-strip-types --test __tests__/db-bridge.test.ts",
+    "test:sentiment": "node --experimental-strip-types --test __tests__/sentiment.test.ts",
+    "test:store": "node --experimental-strip-types --test __tests__/memory-store.test.ts",
+    "test:core": "node --test __tests__/remind-cron.test.ts __tests__/trends-core.test.ts __tests__/quality-core.test.ts __tests__/recommend-core.test.ts __tests__/retain-core.test.ts",
+    "benchmark": "node --experimental-strip-types --test __tests__/benchmark.ts"
   },
   "openclaw": {
     "extensions": [
