@@ -7,6 +7,7 @@ import { bootstrapYaoyao } from "../core/app.ts";
 import { buildPayload, sendHeartbeat } from "../utils/telemetry.ts";
 import { createTelemetryTool } from "../features/telemetry/tool.ts";
 import { detectEnvironment, isXiaoYiClaw } from "../utils/environment-detector.ts";
+import { detectCoexistence, setCoexistMode } from "../utils/coexistence.ts";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
@@ -17,20 +18,25 @@ export default definePluginEntry({
       // === Environment Detection ===
       const env = detectEnvironment();
       const isXiaoYi = isXiaoYiClaw();
-      
       api.logger.info?.(`[yaoyao-memory] Detected environment: ${env}`);
 
-      // === Bootstrap Core ===
-      bootstrapYaoyao(api, (api.pluginConfig || {}) as unknown as YaoyaoMemoryConfig);
+      // === Coexistence Detection (xiaoyiclaw claw-core) ===
+      const coexist = detectCoexistence();
+      setCoexistMode(coexist.mode);
+      if (coexist.mode === "coexist") {
+        api.logger.info?.(`[yaoyao-memory] claw-core detected (UDS=${coexist.udsPath}) — entering coexistence mode`);
+        api.logger.info?.("[yaoyao-memory] L1/L2 indexing skipped; heavy lifting delegated to claw-core");
+      } else {
+        api.logger.info?.("[yaoyao-memory] Standalone mode — all layers active");
+      }
 
       // === XiaoYi Claw Adaptations ===
       if (isXiaoYi) {
-        // 小艺 Claw 特定适配
         api.logger.info?.("[yaoyao-memory] XiaoYi Claw mode — enabling compatibility layer");
-        
-        // 小艺 Claw 可能有不同的 hook 系统，需要适配
-        // 这里可以添加特定适配代码
       }
+
+      // === Bootstrap Core ===
+      bootstrapYaoyao(api, (api.pluginConfig || {}) as unknown as YaoyaoMemoryConfig);
 
       // === Telemetry ===
       const telemetryConfig = {

@@ -7,6 +7,7 @@
  *   - writeDailyFile now async (goes through debouncer)
  *   - Async flus for all persistence layers (L0 .md, L1 FTS5, L2 vector)
  */
+import { getCoexistMode } from "../utils/coexistence.ts";
 import { clampNum } from "../utils/clamp.ts";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.ts";
@@ -41,12 +42,15 @@ export function registerCaptureHook(
   embedding?: import("../utils/embedding.ts").EmbeddingService | null,
 ): void {
   const captureMode = (config.capture?.mode as string) || "async";
-  api.logger.info?.(`[yaoyao-memory] auto-capture mode=${captureMode}${embedding ? " + vector" : ""}`);
+  const coexistMode = getCoexistMode();
+  const skipHeavyLayers = coexistMode === "coexist";
+  
+  api.logger.info?.(`[yaoyao-memory] auto-capture mode=${captureMode}${embedding ? " + vector" : ""}${skipHeavyLayers ? " [coexist: L1/L2 skipped]" : ""}`);
 
   const persist = createPersistHandlers(api, db, store, embedding);
 
-  // L1+L2 async batch write queue
-  const writeQueue = captureMode === "async"
+  // L1+L2 async batch write queue (disabled in coexistence mode)
+  const writeQueue = (captureMode === "async" && !skipHeavyLayers)
     ? createWriteQueue(persist.flushBatch, api.logger, audit)
     : null;
 
@@ -144,7 +148,7 @@ export function registerCaptureHook(
       handleMermaidOffload(store, sessionKey, cctx.userContent + "\n" + cctx.asstContent, capCfg.enableOffload, capCfg.offloadThreshold);
 
       const { meta } = await buildMetaObj(cctx.userContent, cctx.indexableAsst, scopeManager, agentId,
-        specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false,
+        specCheck, corrCheck, skipHeavyLayers ? false : capCfg.enableL1, watermark.skipL1 || false,
         capCfg.brainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config);
 
       const dedupResult = await dedupEngine.check(
