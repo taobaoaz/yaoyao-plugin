@@ -59,6 +59,17 @@ export function pruneStaleSessions(windowHours: number): number {
   return pruned;
 }
 
+/** Hard limit prune — keep only maxEntries most recent */
+export function pruneToMax(maxEntries: number): number {
+  if (activityMap.size <= maxEntries) return 0;
+  const entries = Array.from(activityMap.entries()).sort((a, b) => b[1].lastActiveMs - a[1].lastActiveMs);
+  const toRemove = entries.slice(maxEntries);
+  for (const [key] of toRemove) {
+    activityMap.delete(key);
+  }
+  return toRemove.length;
+}
+
 /** Reset a session (e.g. after /new or /reset) */
 export function resetSession(sessionKey: string): void {
   activityMap.delete(sessionKey);
