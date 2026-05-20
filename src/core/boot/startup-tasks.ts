@@ -10,14 +10,26 @@ import type { MemoryTier } from "../../utils/tier-manager.ts";
 import { runTextCompaction } from "../../core/compactor/index.ts";
 import { evaluateAllTiers, DEFAULT_TIER_CONFIG } from "../../utils/tier-manager.ts";
 import type { TierableMemory } from "../../utils/tier-manager.ts";
+import { syncMarkdownToFTS } from "./md-sync.ts";
 
-/** Background tasks that don't block startup */
+/** Background startup tasks that don't block startup */
 export function runStartupTasks(
   api: OpenClawPluginApi,
   config: YaoyaoMemoryConfig,
   storage: Storage,
   store: { baseDir: string },
 ): void {
+  // ── 6a. Markdown → SQLite sync (fixes dual-storage drift) ──
+  try {
+    const syncResult = syncMarkdownToFTS(store.baseDir, storage, api.logger);
+    if (syncResult.imported > 0) {
+      api.logger.info?.(`[yaoyao-memory:md-sync] Imported ${syncResult.imported} turns from .md files`);
+    }
+  } catch (e) {
+    api.logger.debug?.(`[yaoyao-memory:md-sync] Not available: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── 6b. Text compaction ──
   try {
     const allEntries = storage.getAllMeta ? storage.getAllMeta() : [];
     const cfg = {
