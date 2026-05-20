@@ -85,7 +85,7 @@ export class HnswlibBackend implements VectorBackend {
           meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
         } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:vec] Operation failed: ${msg}`);
       meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType, dimensions: this.dimensions, count: 0, space: "cosine" };
     }
         if (meta.dimensions === this.dimensions) {

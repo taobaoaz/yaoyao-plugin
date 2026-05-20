@@ -47,7 +47,7 @@ export function readManifest(baseDir: string): ManifestData | null {
     return JSON.parse(raw) as ManifestData;
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return null;
     }
 }

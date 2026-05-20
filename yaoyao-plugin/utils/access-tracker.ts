@@ -34,7 +34,7 @@ export function parseAccessMetadata(metadata: string | undefined): AccessMetadat
     parsed = JSON.parse(metadata);
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:access] Operation failed: ${msg}`);
       return { accessCount: 0, lastAccessedAt: 0 };
     }
 

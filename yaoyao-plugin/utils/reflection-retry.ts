@@ -102,7 +102,7 @@ function toErrorMessage(error: unknown): string {
     return JSON.stringify(error);
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return String(error);
     }
 }

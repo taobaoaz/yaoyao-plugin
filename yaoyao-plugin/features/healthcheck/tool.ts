@@ -32,7 +32,7 @@ export function createHealthcheckTool(): ToolRegistration {
         result = JSON.parse(JSON.stringify(rawResult));
       } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:healthcheck] Operation failed: ${msg}`);
       result = { ok: false, checks: [], summary: "Health check failed" };
     }
 

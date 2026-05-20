@@ -126,7 +126,7 @@ export function runInstallCheck(): CapabilityReport {
       wal: backend !== "file-db",
       vec: backend === "node-sqlite" && (() => { try { const _r = createRequire(import.meta.url); _r("sqlite-vec"); return true; } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:install] Operation failed: ${msg}`);
       return false;
     } })(),
       autoCapture: true, // always works (writes to daily md)

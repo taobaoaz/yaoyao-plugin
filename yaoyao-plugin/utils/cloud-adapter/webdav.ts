@@ -62,7 +62,7 @@ export class WebDAVAdapter implements CloudAdapter {
       return status >= 200 && status < 300;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:webdav] Operation failed: ${msg}`);
       return false;
     }
   }
@@ -76,7 +76,7 @@ export class WebDAVAdapter implements CloudAdapter {
       return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:webdav] Operation failed: ${msg}`);
       return false;
     }
   }
@@ -100,7 +100,7 @@ export class WebDAVAdapter implements CloudAdapter {
       return entries;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:webdav] Operation failed: ${msg}`);
       return [];
     }
   }

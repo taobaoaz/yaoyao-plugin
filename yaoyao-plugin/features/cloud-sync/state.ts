@@ -21,7 +21,7 @@ export function loadSyncState(baseDir: string): SyncState {
     return JSON.parse(fs.readFileSync(fp, "utf-8"));
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:cloud-sync] Operation failed: ${msg}`);
       return { lastSync: 0, uploaded: [], downloaded: [] };
     }
 }

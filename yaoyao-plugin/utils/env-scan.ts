@@ -47,7 +47,7 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
       vector = true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:env] Operation failed: ${msg}`);
       vector = false;
     }
   }
@@ -59,7 +59,7 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
     llm = true;
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:env] Operation failed: ${msg}`);
       llm = false;
     }
 

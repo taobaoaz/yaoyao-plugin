@@ -65,7 +65,7 @@ export function loadSecrets(filePath?: string): Secrets {
     return secrets;
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return {};
     }
 }

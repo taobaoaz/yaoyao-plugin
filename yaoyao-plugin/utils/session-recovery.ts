@@ -49,7 +49,7 @@ function listConfiguredAgentIds(cfg: unknown): string[] {
     return ids;
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:recovery] Operation failed: ${msg}`);
       return [];
     }
 }

@@ -61,7 +61,7 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
       return fs.readFileSync(filePath, "utf-8");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:store] Operation failed: ${msg}`);
       return null;
     }
   }

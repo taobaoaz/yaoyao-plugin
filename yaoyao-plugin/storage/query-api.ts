@@ -29,7 +29,7 @@ export function createQueryApi(ensureDB: () => UnifiedDB, vector: VectorStore | 
     getStats(): DBStats {
       try { return queryHelpers.getStats(ensureDB(), vector); } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:storage] Operation failed: ${msg}`);
       return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
     }
     },

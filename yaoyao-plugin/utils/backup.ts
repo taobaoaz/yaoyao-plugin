@@ -57,7 +57,7 @@ export function createBackupManager(baseDir: string, logger?: Logger) {
         return results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return [];
     }
     },

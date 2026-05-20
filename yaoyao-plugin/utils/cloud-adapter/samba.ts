@@ -82,7 +82,7 @@ export class SambaAdapter implements CloudAdapter {
       this.smbCmd([`mkdir ${path.dirname(rf)} 2>/dev/null`, `put ${localPath} ${rf}`]); return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:cloud-adapter] Operation failed: ${msg}`);
       return false;
     }
   }
@@ -98,7 +98,7 @@ export class SambaAdapter implements CloudAdapter {
       this.smbCmd([`get ${rf} ${localPath}`]); return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:cloud-adapter] Operation failed: ${msg}`);
       return false;
     }
   }
@@ -123,7 +123,7 @@ export class SambaAdapter implements CloudAdapter {
       return entries;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:cloud-adapter] Operation failed: ${msg}`);
       return [];
     }
   }
@@ -138,7 +138,7 @@ export class SambaAdapter implements CloudAdapter {
       this.smbCmd([`rm ${rf}`]); return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:cloud-adapter] Operation failed: ${msg}`);
       return false;
     }
   }
@@ -153,7 +153,7 @@ export class SambaAdapter implements CloudAdapter {
       this.smbCmd([`ls ${rf}`]); return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:cloud-adapter] Operation failed: ${msg}`);
       return false;
     }
   }

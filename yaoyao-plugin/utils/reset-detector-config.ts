@@ -13,7 +13,7 @@ function safeReadJson(filePath: string): Record<string, unknown> | null {
     return JSON.parse(raw) as Record<string, unknown>;
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return null;
     }
 }

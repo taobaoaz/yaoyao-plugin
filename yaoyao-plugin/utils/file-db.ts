@@ -34,7 +34,7 @@ export class FileDB implements UnifiedDB {
           raw = JSON.parse(fs.readFileSync(this.indexPath, "utf-8"));
         } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       raw = {};
     }
         for (const [k, v] of Object.entries(raw)) {
@@ -181,7 +181,7 @@ export class FileDB implements UnifiedDB {
       return fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md")).length;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return 0;
     }
   }

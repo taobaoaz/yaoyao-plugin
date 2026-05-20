@@ -13,7 +13,7 @@ function safeExec(cmd: string): string | null {
     return execSync(cmd, { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "ignore"] }).trim();
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return null;
     }
 }
@@ -69,7 +69,7 @@ export function scanPluginConfigs(homeDir: string): ResetRisk[] {
     entries = fs.readdirSync(pluginsDir);
   } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
       return risks;
     }
 

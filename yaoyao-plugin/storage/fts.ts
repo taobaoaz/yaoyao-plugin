@@ -158,7 +158,7 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
         return Number(result.changes ?? 0);
       } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:storage] Operation failed: ${msg}`);
       return 0;
     }
     },
@@ -174,7 +174,7 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
         return Number(result.changes ?? 0);
       } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] Error: ${msg}`);
+      console.warn(`[yaoyao-memory:storage] Operation failed: ${msg}`);
       return 0;
     }
     },
