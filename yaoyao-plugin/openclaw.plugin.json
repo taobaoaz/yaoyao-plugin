@@ -1,0 +1,29 @@
+{
+  "id": "yaoyao-memory",
+  "name": "Yaoyao Memory",
+  "version": "1.7.2",
+  "description": "自适应记忆引擎：FTS5 + 向量搜索 + 时间线 + 云备份",
+  "entry": "./dist/index.js",
+  "hooks": [
+    "./dist/src/hooks/auto-capture.js",
+    "./dist/src/hooks/auto-recall.js"
+  ],
+  "compat": {
+    "pluginApi": ">=2026.4.2"
+  },
+  "config": {
+    "capture": {
+      "enabled": true,
+      "mode": "async",
+      "watermark": 0.7
+    },
+    "recall": {
+      "enabled": true,
+      "maxResults": 5,
+      "minScore": 0.3
+    },
+    "embedding": {
+      "provider": "sqlite-vec"
+    }
+  }
+}
