@@ -43,9 +43,6 @@ export async function doRecallSearch(
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory:recall] Search failed: ${msg}`);
     }
-      results = db.search(query, cfg.maxResults * 2).map(r => ({ ...r, score: r.score ?? 0.5 }));
-      mode = "fts";
-    }
   } else if (embedding?.isAvailable) {
     mode = "hybrid";
     try {

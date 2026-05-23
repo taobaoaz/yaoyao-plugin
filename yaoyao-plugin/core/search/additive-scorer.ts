@@ -1,5 +1,5 @@
 /**
- * core/search/additive-scorer.ts — Additive scoring fusion (mem0 v3 style).
+ * core/search/additive-scorer.ts — Additive scoring fusion.
  *
  * Alternative to RRF. Instead of ranking-position fusion, additive scoring
  * directly combines the signal scores (semantic + BM25 + entity boost)
@@ -8,8 +8,6 @@
  * Key differences from RRF:
  *   RRF:         1/(k+rank) — rank-based, ignores score magnitude
  *   Additive:    (semantic + BM25 + entity) / max_possible — score-based
- *
- * mem0 reference: mem0/utils/scoring.py → score_and_rank()
  */
 
 import { getBM25SigmoidParams, normalizeBM25Score, scoreBM25, buildBM25Index } from "./bm25.ts";
@@ -58,7 +56,6 @@ const DEFAULT_CONFIG: Required<AdditiveScorerConfig> = {
 /**
  * Score candidates additively and return top-k results.
  *
- * Logic (from mem0):
  *   1. Extract entities from query
  *   2. For each candidate:
  *      a. Get semantic score
@@ -75,7 +72,7 @@ const DEFAULT_CONFIG: Required<AdditiveScorerConfig> = {
  */
 export function additiveScoreAndRank(
   query: string,
-  candidates: Array<: void {
+  candidates: Array<{
     id: number | string;
     snippet: string;
     semanticScore: number;

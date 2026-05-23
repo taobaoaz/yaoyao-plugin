@@ -1,46 +1,29 @@
 /**
  * hooks/auto-recall.ts — Auto-recall orchestrator.
  *
- * Uses api.on("before_prompt_build", ...) to inject relevant memories
- * into the prompt context via FTS5 + optional vector search.
- *
- * v1.7.0:
- *   - Per-agent overrides (maxResults, scoreThreshold, queryPrefix, etc.)
- *   - Intent-driven search strategy (auto-classifies query, applies weights)
- *   - Query prefix enhancement (like queryPrefix)
- *   - Secondary model-based recall filtering (like recallFilter)
- *   - Configurable maxContextChars for injection budget
- *
- * Scoring, config, and session tracking are in sibling modules:
- *   recall-config.ts   — config type + extraction + per-agent merge
- *   recall-scoring.ts  — time decay, diversity, normalization
- *   recall-session.ts  — keyword accumulation
- *   recall-filter.ts   — model-based secondary filter
- *   recall-query-cache.ts — repeat query detection
+ * v1.7.2: Parallel search extracted to recall-parallel.ts.
+ * Delegates: config→recall-config, search→recall-search/parallel, postprocess→recall-postprocess.
  */
-import { getCoexistState } from "../utils/coexistence.ts";
-import { createClawBridge, type ClawBridge } from "../utils/claw-bridge.ts";
+
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
-import type { DBBridge, SearchResult } from "../utils/db-bridge.ts";
-import { RetrievalStatsCollector, globalRetrievalStats } from "../utils/retrieval-stats.ts";
+import type { DBBridge } from "../utils/db-bridge.ts";
+import { globalRetrievalStats } from "../utils/retrieval-stats.ts";
 import { createSessionFilter } from "../utils/session-filter.ts";
 import { expandQuery } from "../utils/query-expander.ts";
 import { SimpleLRU } from "../utils/simple-lru.ts";
 import { isTrivial } from "../core/filter/trivial.ts";
 import { classifyIntent } from "../core/search/intent.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
+import { getCoexistState } from "../utils/coexistence.ts";
+import { createClawBridge } from "../utils/claw-bridge.ts";
 
-import { getRecallConfig, applyAgentOverrides, type RecallThresholds } from "./recall-config.ts";
-import { doRecallSearch, type RecallSearchConfig } from "./recall-search.ts";
+import { getRecallConfig, applyAgentOverrides } from "./recall-config.ts";
+import { doParallelRecall } from "./recall-parallel.ts";
 import { doPostProcess, type PostProcessConfig } from "./recall-postprocess.ts";
-import { buildRecallContext, buildHookResult, makeSimpleTrace } from "./recall-formatter.ts";
+import { buildRecallContext, buildHookResult } from "./recall-formatter.ts";
 
-export interface RecallHookHandle {
-  unregister: () => void;
-}
-
-// ── Main hook registration ──
+export interface RecallHookHandle { unregister: () => void; }
 
 export function registerRecallHook(
   api: OpenClawPluginApi,
@@ -53,21 +36,12 @@ export function registerRecallHook(
   const coexist = getCoexistState();
   const useClawPrimary = coexist.flags.useClawPrimaryRecall;
   const clawBridge = useClawPrimary ? createClawBridge() : null;
-  
+
   api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})${clawBridge ? " [coexist: claw-core recall primary]" : ""}`);
 
   const baseCfg = getRecallConfig(config);
-  const sessionFilter = createSessionFilter({
-    blockLabels: config.blockLabels || [],
-    blockInternal: true,
-    minMessages: 1,
-  });
-
-  // Brain-style LRU result cache
-  const resultCache = new SimpleLRU<string, SearchResult[]>({
-    maxSize: baseCfg.maxCacheSize,
-    ttlMs: baseCfg.cacheTTL,
-  });
+  const sessionFilter = createSessionFilter({ blockLabels: config.blockLabels || [], blockInternal: true, minMessages: 1 });
+  const resultCache = new SimpleLRU<string, import("../storage/bridge.ts").SearchResult[]>({ maxSize: baseCfg.maxCacheSize, ttlMs: baseCfg.cacheTTL });
   const stats = globalRetrievalStats;
 
   const handler = async (event: unknown, ctx: unknown) => {
@@ -78,17 +52,14 @@ export function registerRecallHook(
         if (!sessionFilter.shouldProcess(sessionKey)) return;
 
         const agentId = (ctx as Record<string, unknown>).agentId as string | undefined;
-
-        // Apply per-agent overrides
         const cfg = applyAgentOverrides(baseCfg, agentId);
 
         const e = event as Record<string, unknown>;
         const userMessage = e?.message || e?.prompt;
         if (!userMessage || isTrivial(userMessage as string)) return;
-
         const userText = String(userMessage);
 
-        // LRU cache hit (include agentId in cache key)
+        // LRU cache hit
         const cacheKey = `${agentId || "default"}:${userText.slice(0, 120)}`;
         const cached = resultCache.get(cacheKey);
         if (cached) {
@@ -96,100 +67,29 @@ export function registerRecallHook(
           return;
         }
 
-        // Query prefix enhancement (like queryPrefix)
-        // If queryPrefix is set, prepend it to guide memory search semantics
-        const prefixedQuery = cfg.queryPrefix ? `${cfg.queryPrefix} ${userText}` : userText;
-
         // Query expansion
-        const expandedQuery = expandQuery(prefixedQuery);
-        const primaryQuery = expandedQuery || prefixedQuery;
-
-        // Intent classification for logging (no behavioral change for base search)
+        const prefixedQuery = cfg.queryPrefix ? `${cfg.queryPrefix} ${userText}` : userText;
+        const primaryQuery = expandQuery(prefixedQuery) || prefixedQuery;
         const intent = cfg.enableIntentDriven ? classifyIntent(userText) : undefined;
 
-        // ── Parallel search: claw-core + local (if bridge available) ──
-        const searchCfg: RecallSearchConfig = {
-          enableIntentDriven: cfg.enableIntentDriven,
-          maxResults: cfg.maxResults,
-        };
-        let localResults: SearchResult[] = [];
-        let searchMode = "fts";
-        let clawResults: SearchResult[] = [];
+        // Parallel search + merge
+        const { results: mergedResults, mode: searchMode } = await doParallelRecall(
+          db, userText, primaryQuery,
+          { enableIntentDriven: cfg.enableIntentDriven, maxResults: cfg.maxResults },
+          cfg.maxResults, embedding, clawBridge, api.logger,
+        );
 
-        if (clawBridge) {
-          // Parallel: local + claw-core at the same time
-          const [localRes, clawRes] = await Promise.allSettled([
-            doRecallSearch(db, primaryQuery, searchCfg, embedding, api.logger),
-            Promise.race([
-              clawBridge.recall(userText, cfg.maxResults * 2),
-              new Promise<null>((_, reject) => setTimeout(() => reject(new Error("claw timeout")), 5000)),
-            ]),
-          ]);
-
-          // Parse local results
-          if (localRes.status === "fulfilled") {
-            localResults = localRes.value.results;
-            searchMode = localRes.value.mode;
-          }
-
-          // Parse claw-core results if successful
-          if (clawRes.status === "fulfilled" && clawRes.value) {
-            const raw = clawRes.value;
-            if (raw.memories) {
-              clawResults = raw.memories.map((m, i) => ({
-                id: `claw-${i}`,
-                content: m.content,
-                score: m.confidence,
-                metadata: { source: m.source, claw_verified: raw.verified ?? false },
-              })) as SearchResult[];
-            }
-            api.logger.debug?.(`[yaoyao-memory:recall] claw-core returned ${clawResults.length} memories`);
-          } else {
-            const reason = clawRes.status === "rejected" ? String(clawRes.reason) : "empty";
-            api.logger.debug?.(`[yaoyao-memory:recall] claw-core recall failed: ${reason}`);
-          }
-        } else {
-          // Standalone: local only
-          const localRes = await doRecallSearch(db, primaryQuery, searchCfg, embedding, api.logger);
-          localResults = localRes.results;
-          searchMode = localRes.mode;
-        }
-
-        // ── Smart merge: dedupe + re-rank ──
-        let mergedResults: SearchResult[];
-        if (clawResults.length > 0) {
-          // Merge and dedupe by content hash (first 200 chars)
-          const seen = new Set<string>();
-          const merged: SearchResult[] = [];
-          // Prefer claw-core results (higher base score boost)
-          for (const r of [...clawResults, ...localResults]) {
-            const key = r.content.slice(0, 200);
-            if (!seen.has(key)) {
-              seen.add(key);
-              merged.push(r);
-            }
-          }
-          // Sort by score descending
-          merged.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-          mergedResults = merged.slice(0, cfg.maxResults);
-          api.logger.debug?.(`[yaoyao-memory:recall] merged ${clawResults.length}+${localResults.length} → ${mergedResults.length}`);
-        } else {
-          mergedResults = localResults.slice(0, cfg.maxResults);
-        }
-
-        // ── Post-processing pipeline ──
-        const ppResult = await doPostProcess(
+        // Post-processing
+        return await doPostProcess(
           mergedResults, searchMode, userText, cfg as PostProcessConfig,
           scopeManager, agentId, intent,
           resultCache, stats, startMs, audit, sessionKey, api.logger,
         );
-        return ppResult;
       } catch (err) {
         api.logger.error?.(`[yaoyao-memory:recall] Hook error: ${err instanceof Error ? err.message : String(err)}`);
       }
     };
 
-    // Timeout guard
     try {
       await Promise.race([
         recallAsync(),
@@ -201,10 +101,10 @@ export function registerRecallHook(
   };
 
   api.on("before_prompt_build", handler);
-
   return {
     unregister: () => {
-      (api as unknown as { off?: (event: string, handler: unknown) => void }).off?.("before_prompt_build", handler);
+      const apiOff = (api as unknown as { off?: (event: string, handler: unknown) => void }).off;
+      apiOff?.("before_prompt_build", handler);
     },
   };
 }

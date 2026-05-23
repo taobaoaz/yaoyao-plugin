@@ -24,7 +24,7 @@ export interface DebouncedCapture {
   /** L0 markdown entry string */
   entry?: string;
   /** How many raw calls were merged into this one */
-  mergedCount: number;
+  mergedCount?: number;
 }
 
 export interface CaptureDebouncerConfig {
@@ -48,8 +48,8 @@ const DEFAULT_CONFIG: CaptureDebouncerConfig = {
  */
 export function createCaptureDebouncer(
   config: Partial<CaptureDebouncerConfig> = {},
-  flushHandler: (batch: DebouncedCapture[]) => void,
-): CaptureDebouncer {
+  flushHandler: (batch: DebouncedCapture[]) => void | Promise<void>,
+) {
   const cfg: CaptureDebouncerConfig = {
     debounceMs: clampNum(config.debounceMs ?? DEFAULT_CONFIG.debounceMs, 3_000, 500, 30_000),
     maxDelayMs: clampNum(config.maxDelayMs ?? DEFAULT_CONFIG.maxDelayMs, 10_000, 2_000, 60_000),

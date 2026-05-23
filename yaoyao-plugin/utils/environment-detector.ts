@@ -8,10 +8,9 @@
  * 4. Module presence
  */
 
-import { existsSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-
-export type ClawEnvironment = "openclaw" | "xiaoyi-claw" | "unknown";
+import { detectByFileSystem, type ClawEnvironment } from "./env-detect-fs.ts";
+export { type ClawEnvironment } from "./env-detect-fs.ts";
+import { existsSync } from "node:fs";
 
 interface DetectionResult {
   env: ClawEnvironment;
@@ -19,50 +18,6 @@ interface DetectionResult {
   signals: string[];
 }
 
-// === File System Signatures ===
-
-function detectByFileSystem(): { env: ClawEnvironment; signals: string[] } {
-  const signals: string[] = [];
-  
-  // Check for XiaoYi Claw directory structure
-  const possibleRoots = [
-    process.env.XIAOYI_CLAW_HOME,
-    process.env.OPENCLAW_HOME,
-    process.cwd(),
-    dirname(process.cwd()),
-  ].filter(Boolean) as string[];
-
-  for (const root of possibleRoots) {
-    // XiaoYi Claw has extensions/ directory with claw-core
-    const extDir = join(root, "extensions");
-    if (existsSync(extDir)) {
-      try {
-        const entries = readdirSync(extDir);
-        if (entries.includes("claw-core") || entries.includes("xiaoyi-channel")) {
-          signals.push(`found xiaoyi extensions in ${extDir}`);
-          return { env: "xiaoyi-claw", signals };
-        }
-        if (entries.includes("openclaw-better-gateway")) {
-          signals.push(`found xiaoyi-specific gateway in ${extDir}`);
-          return { env: "xiaoyi-claw", signals };
-        }
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.warn(`[yaoyao-memory:env] Read directory failed: ${msg}`);
-        // ignore read errors
-      }
-    }
-
-    // OpenClaw has plugins/ or .openclaw/extensions/
-    const ocExtDir = join(root, ".openclaw", "extensions");
-    if (existsSync(ocExtDir)) {
-      signals.push(`found openclaw extensions in ${ocExtDir}`);
-      return { env: "openclaw", signals };
-    }
-  }
-
-  return { env: "unknown", signals };
-}
 
 // === Environment Variables ===
 

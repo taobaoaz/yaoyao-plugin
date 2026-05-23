@@ -18,7 +18,7 @@ export { type ConflictRelation } from "./types.ts";
  */
 export function detectConflicts(
   newContent: string,
-  existingMemories: Array<: boolean { id?: number; date?: string; snippet?: string; score?: number }>,
+  existingMemories: Array<{ id?: number; date?: string; snippet?: string; score?: number }>,
   options: DetectConflictOptions = {},
 ): ConflictCandidate[] {
   const {

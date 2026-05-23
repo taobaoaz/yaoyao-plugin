@@ -34,12 +34,14 @@
     "url": "https://github.com/taobaoaz/yaoyao-plugin/issues"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18.0.0"
   },
   "private": false,
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "test": "node --experimental-strip-types --test __tests__/*.test.ts",
+    "test:ci": "node --experimental-strip-types --test __tests__/*.test.ts",
     "test:db": "node --experimental-strip-types --test __tests__/db-bridge.test.ts",
     "test:sentiment": "node --experimental-strip-types --test __tests__/sentiment.test.ts",
     "test:store": "node --experimental-strip-types --test __tests__/memory-store.test.ts",
@@ -49,8 +51,8 @@
   "openclaw": {
     "extensions": [
       "./dist/index.js",
-      "./dist/src/hooks/auto-capture.js",
-      "./dist/src/hooks/auto-recall.js"
+      "./dist/hooks/auto-capture.js",
+      "./dist/hooks/auto-recall.js"
     ],
     "compat": {
       "pluginApi": ">=2026.4.2"
@@ -75,7 +77,7 @@
       "dynamic_code_execution": {
         "reason": "Cloud backup adapters use child_process for SFTP/Samba file transfer only. All commands are hardcoded, no arbitrary code execution. Passwords passed via environment variables.",
         "files": [
-          "src/utils/cloud-adapter.ts"
+          "utils/cloud-adapter.ts"
         ],
         "optIn": true,
         "mitigation": "Cloud tools require explicit credential configuration in ~/.openclaw/credentials/secrets.env"
@@ -83,7 +85,7 @@
       "llm_suspicious": {
         "reason": "Optional LLM API calls for memory extraction pipeline (L1→L2→L3). Only active when user configures llm.apiKey. No telemetry or data transmission without explicit configuration.",
         "files": [
-          "src/utils/llm-client.ts"
+          "utils/llm-client.ts"
         ],
         "optIn": true,
         "mitigation": "Set llm.enabled=false to disable all LLM functionality"

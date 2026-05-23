@@ -27,23 +27,30 @@ If none are relevant, respond with "[]".
 
 Items:\n${items}\n\nRelevant indices: [`;
 
-    const response = await fetch(cfg.recallFilterBaseUrl + "/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(cfg.recallFilterApiKey ? { Authorization: `Bearer ${cfg.recallFilterApiKey}` } : {}),
-      },
-      body: JSON.stringify({
-        model: cfg.recallFilterModel,
-        messages: [
-          { role: "system", content: "You are a relevance filter. Only keep items directly answering the query. Return indices as comma-separated numbers inside brackets." },
-          { role: "user", content: prompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 128,
-      }),
-      signal: AbortSignal.timeout(cfg.recallFilterTimeoutMs),
-    });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), cfg.recallFilterTimeoutMs);
+    let response: Response;
+    try {
+      response = await fetch(cfg.recallFilterBaseUrl + "/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(cfg.recallFilterApiKey ? { Authorization: `Bearer ${cfg.recallFilterApiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          model: cfg.recallFilterModel,
+          messages: [
+            { role: "system", content: "You are a relevance filter. Only keep items directly answering the query. Return indices as comma-separated numbers inside brackets." },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.1,
+          max_tokens: 128,
+        }),
+        signal: ac.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (!response.ok) {
       if (cfg.recallFilterFailOpen) return candidates;

@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "noEmit": false,
+    "strict": false,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "declaration": false,
+    "noEmitOnError": false,
+    "types": ["node"],
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "openclaw/plugin-sdk/plugin-entry": ["./types/openclaw-plugin-sdk.d.ts"]
+    }
+  },
+  "include": [
+    "entry/**/*.ts",
+    "core/**/*.ts",
+    "utils/**/*.ts",
+    "hooks/**/*.ts",
+    "features/**/*.ts",
+    "tools/**/*.ts",
+    "platform/**/*.ts",
+    "optional/**/*.ts",
+    "storage/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "memory",
+    "__tests__"
+  ]
+}

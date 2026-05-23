@@ -24,7 +24,6 @@ export function segmentChinese(text: string): string[] {
 
 /**
  * Lightweight English suffix stripping for BM25 matching.
- * mem0 reference: mem0/utils/lemmatization.py
  */
 export function stripEnglishSuffix(word: string): { stem: string; preserveOriginal: boolean } {
   if (word.length <= 3) return { stem: word, preserveOriginal: false };

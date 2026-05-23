@@ -15,7 +15,7 @@ export interface SessionFilterConfig {
   minMessages?: number;
 }
 
-export function createSessionFilter(config?: SessionFilterConfig): SessionFilter {
+export function createSessionFilter(config?: SessionFilterConfig) {
   const internalLabels = new Set([
     "system",
     "admin",

@@ -9,8 +9,8 @@ import path from "node:path";
 import os from "node:os";
 import { queryOpenClawDB, type SQLiteRow } from "../../storage/external-oc.ts";
 
-export function readDreams(memoryDir: string) : void: unknown {
-  const result = { events: [] as unknown[], shortTermRecall: null as unknown };
+export function readDreams(memoryDir: string): { events: unknown[]; shortTermRecall: unknown | null } {
+  const result = { events: [] as unknown[], shortTermRecall: null as unknown | null };
   const eventsPath = path.join(memoryDir, ".dreams", "events.jsonl");
   const recallPath = path.join(memoryDir, ".dreams", "short-term-recall.json");
   try {

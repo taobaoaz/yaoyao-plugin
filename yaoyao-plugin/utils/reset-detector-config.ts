@@ -103,9 +103,9 @@ export function scanMemorySlotConflict(homeDir: string): ResetRisk[] {
     const name = pluginVal.name as string | undefined;
     if (!name) continue;
 
-    const memoryPlugins = ["memory-core", "mem0", "lance", "engram", "langmem"];
+    const memoryPlugins = ["memory-core"];
     const lowerName = name.toLowerCase();
-    if (memoryPlugins.some(p => lowerName.includes(p))) {
+    if (memoryPlugins.some(p => lowerName.includes(p)) || lowerName.includes("memory")) {
       risks.push({
         source: "plugin conflict",
         severity: "critical",

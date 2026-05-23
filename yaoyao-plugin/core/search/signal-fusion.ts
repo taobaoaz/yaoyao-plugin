@@ -61,7 +61,7 @@ export function multiSignalFusion(
   ftsResults: SearchResult[],
   vecResults: EmbeddedSearchResult[],
   allResults: SearchResult[],
-  config: MultiSignalConfig =: void {},
+  config: MultiSignalConfig = {},
 ): MultiSignalResult[] {
   const cfg = { ...DEFAULT_CONFIG, ...config };
   if (allResults.length === 0) return [];

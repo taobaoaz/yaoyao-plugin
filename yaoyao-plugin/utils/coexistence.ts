@@ -1,19 +1,20 @@
 /**
- * utils/coexistence.ts — Detect xiaoyiclaw claw-core presence with runtime refresh.
+ * utils/coexistence.ts — Detect extended-claw presence with runtime refresh.
  *
- * v2 improvements:
- *   - Periodic auto-refresh (detects claw-core starting/stopping post-yaoyao)
- *   - Environment-variable override (force mode for testing/emergencies)
- *   - Feature-level toggles (selective delegation instead of all-or-nothing)
- *   - Event-emitting state changes (hooks can react to transitions)
+ * v3 improvements (v4.6 adapter):
+ *   - Mmap state reading for zero-copy heartbeat detection (v4.6 Gateway writes /var/claw_shared_state)
+ *   - Shorter refresh interval (10s, down from 30s) — v4.6 Gateway heartbeat is 5s
+ *   - Version-aware detection (reads Gateway version from mmap)
+ *   - Method registry cache (reads _gatewayMethods from mmap)
  *
  * When claw-core is detected, yaoyao enters coexistence mode:
  * - L0 (daily log) still written by yaoyao
  * - L1/L2/FTS5/vector indexing skipped (claw-core handles heavy lifting)
- * - auto-recall delegates to claw_recall tool, then supplements with yaoyao results
+ * - auto-recall delegates to claw-core, then supplements with yaoyao results
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { readMmapState, isGatewayAlive } from "./mmap-state.ts";
 
 export type CoexistMode = "standalone" | "coexist" | "disabled";
 
@@ -34,6 +35,10 @@ export interface CoexistState {
   flags: CoexistFeatureFlags;
   lastCheckedAt: number;
   checkCount: number;
+  /** v4.6: Gateway version from mmap */
+  gatewayVersion: string | null;
+  /** v4.6: Is Gateway alive based on mmap heartbeat */
+  gatewayAlive: boolean;
 }
 
 let _state: CoexistState = {
@@ -48,6 +53,8 @@ let _state: CoexistState = {
   },
   lastCheckedAt: 0,
   checkCount: 0,
+  gatewayVersion: null,
+  gatewayAlive: false,
 };
 
 let _refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -112,7 +119,7 @@ function _setState(next: CoexistState) {
   }
 }
 
-/** Detect whether xiaoyiclaw claw-core is installed / running. */
+/** Detect whether extended-claw core is installed / running. */
 export function detectCoexistence(homeDir?: string): CoexistState {
   const home = homeDir || process.env.HOME || "/home/sandbox";
   const udsPath = path.join(home, ".openclaw/extensions/claw-core/var/claw-worker.sock");
@@ -121,20 +128,30 @@ export function detectCoexistence(homeDir?: string): CoexistState {
   const extDir = path.join(home, ".openclaw/extensions/claw-core");
   const hasExt = existsSync(extDir);
 
+  // v4.6: Read mmap heartbeat for zero-copy detection
+  const gatewayAlive = isGatewayAlive(15000);
+  const mmapState = readMmapState();
+  const gatewayVersion = mmapState?.version ?? null;
+
+  // v4.6: Either UDS socket OR mmap heartbeat indicates claw-core presence
+  const hasWorker = hasUds || gatewayAlive;
+
   // Environment-variable override (for testing or emergency manual control)
   const envMode = process.env.YAOYAO_COEXIST_MODE as CoexistMode | undefined;
   const effectiveMode: CoexistMode = envMode && ["standalone", "coexist", "disabled"].includes(envMode)
     ? envMode
-    : hasUds ? "coexist" : "standalone";
+    : hasWorker ? "coexist" : "standalone";
 
   const next: CoexistState = {
     hasClawCore: hasExt,
-    hasClawWorker: hasUds,
+    hasClawWorker: hasWorker,
     udsPath,
     mode: effectiveMode,
     flags: _deriveFlags(effectiveMode),
     lastCheckedAt: Date.now(),
     checkCount: _state.checkCount + 1,
+    gatewayVersion,
+    gatewayAlive,
   };
   _setState(next);
   return next;
@@ -145,8 +162,8 @@ export function refreshCoexistence(): CoexistState {
   return detectCoexistence();
 }
 
-/** Start periodic auto-refresh (default every 30s). Call once at plugin init. */
-export function startCoexistenceMonitor(intervalMs = 30000): () => void {
+/** Start periodic auto-refresh (default every 10s for v4.6 rapid detection). Call once at plugin init. */
+export function startCoexistenceMonitor(intervalMs = 10000): () => void {
   if (_refreshTimer) {
     clearInterval(_refreshTimer);
     _refreshTimer = null;

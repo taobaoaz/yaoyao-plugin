@@ -100,7 +100,7 @@ export function bm25Search(docs: string[], query: string, config?: BM25Config): 
   return scored.map(r => ({ index: parseInt(r.id, 10), score: r.score }));
 }
 
-// ── BM25 Score Normalization (mem0 v3 inspired) ──
+// ── BM25 Score Normalization ──
 
 /** Get sigmoid normalization parameters based on query length. */
 export function getBM25SigmoidParams(query: string): { midpoint: number; steepness: number } {

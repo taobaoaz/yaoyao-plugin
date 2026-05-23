@@ -27,7 +27,7 @@ export interface TraceResult {
     name: string;
     inputCount: number;
     outputCount: number;
-    droppedIds: number[];
+    droppedIds: string[];
     scoreRange: null;
     durationMs: number;
   }>;

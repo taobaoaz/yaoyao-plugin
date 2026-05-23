@@ -40,7 +40,7 @@ import { createQualityTool } from "../features/quality/tool.ts";
 import { createRetainTool } from "../features/retain/tool.ts";
 import { createGraphTool } from "../features/graph/tool.ts";
 
-/* ── Multi-signal search (mem0 v3 style) ────────── */
+/* ── Multi-signal search ────────── */
 import { createMultiSignalSearchTool } from "../features/multi-signal/tool.ts";
 
 /* ── Structured MemoryCall search style ─── */

@@ -16,6 +16,8 @@ import { createMemoryCleaner, getNextCleanTimeMs, type CleanerConfig } from "../
 import { SimpleScopeManager } from "../../utils/scope-manager.ts";
 import { resolveSessionSearchDirs, readCrossSessionMemories } from "../../utils/session-recovery.ts";
 
+export { stepImportExistingMemories } from "./import-memories.ts";
+
 export interface BootContext {
   store: ReturnType<typeof createMemoryStore>;
   storage: Storage;

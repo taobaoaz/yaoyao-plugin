@@ -16,7 +16,7 @@ import { getProp, getBool } from "../utils/config.ts";
 import { clampNum } from "../utils/clamp.ts";
 import { createSessionFilter } from "../utils/session-filter.ts";
 import { isExcludedAgent } from "../utils/glob-match.ts";
-import { recordSessionActivity, isSessionActive, pruneStaleSessions, pruneToMax } from "../utils/session-activity.ts";
+import { recordSessionActivity, isSessionActive, pruneStaleSessions, pruneToMax, activityMap } from "../utils/session-activity.ts";
 
 export interface CaptureDecision {
   /** Should the capture proceed? */

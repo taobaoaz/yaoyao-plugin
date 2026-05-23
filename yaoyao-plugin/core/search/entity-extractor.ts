@@ -2,8 +2,7 @@
  * core/search/entity-extractor.ts — Zero-dependency entity extraction.
  *
  * Extracts tech/framework/project names from text for entity boost.
- * Inspired by mem0's entity_extraction.py (spaCy-based), but uses
- * regex + curated entity list to avoid external NLP deps.
+ * Uses regex + curated entity list to avoid external NLP deps.
  *
  * Centralizes what was duplicated in multi-signal.ts and additive-scorer.ts.
  */

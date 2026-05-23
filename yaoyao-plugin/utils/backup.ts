@@ -16,7 +16,7 @@ export interface BackupEntry {
 
 type Logger = { info?: (s: string) => void; error?: (s: string) => void };
 
-export function createBackupManager(baseDir: string, logger?: Logger): BackupManager {
+export function createBackupManager(baseDir: string, logger?: Logger) {
   const backupDir = path.join(baseDir, ".backups");
   const log = (msg: string) => logger?.info?.(`[yaoyao-memory:backup] ${msg}`);
 

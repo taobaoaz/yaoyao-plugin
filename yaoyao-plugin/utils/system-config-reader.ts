@@ -118,7 +118,7 @@ export function detectSystemArchitecture(): SystemArchitectureState {
   // Either claw-core is explicitly enabled, OR memory slot is assigned to claw-core
   const isXiaoYiClaw = clawCoreEnabled || memorySlotOwner === "claw-core";
 
-  const version = (cfg as Record<string, unknown>).meta?.lastTouchedVersion as string || "unknown";
+  const version = ((cfg as Record<string, unknown>).meta as Record<string, unknown>)?.lastTouchedVersion as string || "unknown";
 
   _systemState = {
     isXiaoYiClaw,
@@ -147,58 +147,5 @@ export function getSystemArchitecture(): SystemArchitectureState | null {
   return _systemState;
 }
 
-/** Recommended yaoyao strategy based on system architecture. */
-export function getRecommendedStrategy(state: SystemArchitectureState): {
-  captureMode: "full" | "l0-only" | "disabled";
-  recallMode: "primary" | "supplement" | "disabled";
-  shouldRegisterHooks: boolean;
-  reason: string;
-} {
-  if (!state.isXiaoYiClaw) {
-    // Standard OpenClaw — yaoyao runs full stack
-    return {
-      captureMode: "full",
-      recallMode: "primary",
-      shouldRegisterHooks: true,
-      reason: "Standard OpenClaw system — yaoyao full stack active",
-    };
-  }
-
-  if (state.memorySlotOwner === "claw-core" && state.clawCoreEnabled) {
-    // Full XiaoYi Claw delegation
-    return {
-      captureMode: "l0-only",
-      recallMode: "supplement",
-      shouldRegisterHooks: true,
-      reason: "XiaoYi Claw system (claw-core owns memory slot) — yaoyao L0 + supplement recall",
-    };
-  }
-
-  if (state.hasCompetingMemoryPlugin) {
-    // Another memory plugin is active but not claw-core
-    return {
-      captureMode: "l0-only",
-      recallMode: "supplement",
-      shouldRegisterHooks: true,
-      reason: `Competing memory plugin detected (${state.memorySlotOwner}) — yaoyao L0 + supplement`,
-    };
-  }
-
-  if (state.memorySlotOwner === "none") {
-    // Memory explicitly disabled system-wide — yaoyao should fill the gap
-    return {
-      captureMode: "full",
-      recallMode: "primary",
-      shouldRegisterHooks: true,
-      reason: "Memory slot disabled system-wide — yaoyao filling the gap",
-    };
-  }
-
-  // claw-core present but not owning memory slot (edge case)
-  return {
-    captureMode: "full",
-    recallMode: "primary",
-    shouldRegisterHooks: true,
-    reason: "claw-core present but not owning memory slot — yaoyao full stack with coexist bridge",
-  };
-}
+import { getRecommendedStrategy, type StrategyRecommendation } from "./system-strategy.ts";
+export { getRecommendedStrategy, type StrategyRecommendation } from "./system-strategy.ts";

@@ -27,7 +27,7 @@ export type { SearchStrategy, SearchPipelineOptions } from "./pipeline-types.ts"
 export function createSearchPipeline(
   storage: Storage,
   embedding?: EmbeddingService | null,
-): SearchPipeline {
+) {
   const hasEmbedding = !!embedding;
 
   return {

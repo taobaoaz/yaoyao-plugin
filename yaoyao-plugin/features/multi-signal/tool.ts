@@ -1,5 +1,5 @@
 /**
- * features/multi-signal/tool.ts — memory_search_multi tool (mem0 v3 inspired).
+ * features/multi-signal/tool.ts — memory_search_multi tool.
  *
  * Thin layer: param validation → search orchestration → formatter output.
  * Fusion algorithms live in core/search/, formatting in formatter.ts.
@@ -24,7 +24,7 @@ export function createMultiSignalSearchTool(
     name: "memory_search_multi",
     label: "Multi-Signal Search",
     description:
-      "Searches using multi-signal fusion (mem0 v3 style). Supports rrf (default) and additive modes. " +
+      "Searches using multi-signal fusion. Supports rrf (default) and additive modes. " +
       "Outputs per-result signal breakdown.",
     parameters: {
       type: "object",

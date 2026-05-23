@@ -10,11 +10,19 @@
 
 - **23 个记忆工具**：搜索、管理、导入、分析、系统全覆盖
 - **4 层记忆架构**：L0 Markdown → L1 FTS5 → L2 向量 → L3 图谱
-- **双环境兼容**：OpenClaw / XiaoYi Claw
+- **双环境兼容**：标准 OpenClaw / 扩展架构兼容
 - **零外部依赖**：核心零 npm 依赖，仅可选 sqlite-vec
 - **智能召回**：意图感知评分 + 多信号融合 + 时间衰减
 - **防幻觉验证**：LLM 辅助的事实核查
 - **自动分层**：Core / Working / Peripheral 三层晋升机制
+
+## 系统要求
+
+- **Node.js >= 18.0.0**（推荐 20 LTS 或更高）
+- 平台层自动选择后端：
+  - `node:sqlite`（Node 22+ 原生）
+  - `better-sqlite3`（Node 18/20）
+  - `file-db`（纯文件回退，任意版本）
 
 ## 快速开始
 
@@ -51,7 +59,7 @@ const plugin = bootstrapYaoyao(api, config);
 | `memory_search` | FTS5 全文搜索，按相关性排序 |
 | `memory_search_enhanced` | 向量重排序 + 关键词高亮 |
 | `memory_search_timeline` | 按时间范围搜索 |
-| `memory_multi_signal` | mem0 v3 风格多信号融合搜索 |
+| `memory_multi_signal` | 多信号融合搜索 |
 | `memory_call` | 结构化 MemoryCall 查询 |
 
 ### 管理类（8 个工具）
@@ -103,8 +111,8 @@ const plugin = bootstrapYaoyao(api, config);
 │    └── Hybrid 混合搜索（RRF/加权）        │
 ├─────────────────────────────────────────┤
 │  platform/          平台抽象             │
-│    ├── node:sqlite（Node 22+）           │
-│    ├── better-sqlite3（Node 18/20）      │
+│    ├── node:sqlite（Node 22+ 原生）    │
+│    ├── better-sqlite3（Node 18/20 兼容）│
 │    └── file-db（纯文件回退）             │
 ├─────────────────────────────────────────┤
 │  hooks/             OpenClaw 钩子        │

@@ -170,7 +170,7 @@ export function searchByLike(db: UnifiedDB, query: string, limit: number): Array
   }
 }
 
-export function batchSetConfig(db: UnifiedDB, entries: Array<: void { key: string; value: string }>): void {
+export function batchSetConfig(db: UnifiedDB, entries: Array<{ key: string; value: string }>): void {
   if (entries.length === 0) return;
   try {
     db.exec("BEGIN TRANSACTION");

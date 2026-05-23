@@ -16,7 +16,7 @@ export interface SessionActivity {
 }
 
 /** In-memory session activity map (sessionKey → activity) */
-const activityMap = new Map<string, SessionActivity>();
+export const activityMap = new Map<string, SessionActivity>();
 
 /** Record activity for a session */
 export function recordSessionActivity(sessionKey: string): SessionActivity {

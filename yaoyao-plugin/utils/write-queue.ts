@@ -23,7 +23,7 @@ export function createWriteQueue(
   logger?: PluginLogger,
   audit?: AuditLog,
   maxSize = 1000,
-): WriteQueue {
+) {
   const pending: WriteTask[] = [];
   let scheduled = false;
   let flushing = false;

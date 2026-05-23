@@ -1,7 +1,7 @@
 /**
  * Plugin entry — Universal adapter for OpenClaw / XiaoYi Claw.
  *
- * v1.8.0: System architecture detection
+ * v1.7.2: System architecture detection
  *   - Reads OpenClaw global config (~/.openclaw/openclaw.json)
  *   - Detects if memory/contextEngine slots are owned by claw-core
  *   - Automatically selects strategy: full | l0-only | supplement | disabled
@@ -14,11 +14,12 @@ import { buildPayload, sendHeartbeat } from "../utils/telemetry.ts";
 import { createTelemetryTool } from "../features/telemetry/tool.ts";
 import { detectEnvironment, isXiaoYiClaw } from "../utils/environment-detector.ts";
 import { detectSystemArchitecture, getRecommendedStrategy } from "../utils/system-config-reader.ts";
-import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, setCoexistMode, getCoexistMode } from "../utils/coexistence.ts";
+import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, setCoexistMode, getCoexistMode, getCoexistState } from "../utils/coexistence.ts";
 
 export default definePluginEntry({
   id: "yaoyao-memory",
   name: "Yaoyao Memory",
+  version: "1.7.2",
   description: "自适应记忆引擎: FTS5 + 向量搜索 + 时间线 + 云备份",
   register(api: OpenClawPluginApi) {
     try {
@@ -44,20 +45,21 @@ export default definePluginEntry({
       }
 
       const finalMode = getCoexistMode();
+      const finalState = getCoexistState();
       if (finalMode === "coexist") {
-        api.logger.info?.("[yaoyao-memory] Coexist mode — L1/L2 skipped, heavy lifting delegated to claw-core");
+        api.logger.info?.(`[yaoyao-memory] Coexist mode — L1/L2 skipped, heavy lifting delegated to claw-core${finalState.gatewayVersion ? ` (Gateway ${finalState.gatewayVersion})` : ""}${finalState.gatewayAlive ? " [mmap heartbeat OK]" : " [UDS socket only]"}`);
       } else {
         api.logger.info?.("[yaoyao-memory] Standalone mode — all layers active");
       }
 
-      // Start periodic monitor (detects claw-core starting/stopping)
-      const stopMonitor = startCoexistenceMonitor(30000);
-      api.logger.debug?.("[yaoyao-memory] Coexistence monitor started (30s interval)");
+      // Start periodic monitor (v4.6: 10s interval for rapid detection — Gateway heartbeat is 5s)
+      const stopMonitor = startCoexistenceMonitor(10000);
+      api.logger.debug?.("[yaoyao-memory] Coexistence monitor started (10s interval, v4.6 mmap-aware)");
 
       // React to transitions
       onCoexistChange((prev, next) => {
         if (prev.mode !== "coexist" && next.mode === "coexist") {
-          api.logger.info?.("[yaoyao-memory] claw-core appeared at runtime — switching to coexist mode");
+          api.logger.info?.(`[yaoyao-memory] claw-core appeared at runtime — switching to coexist mode${next.gatewayVersion ? ` (Gateway ${next.gatewayVersion})` : ""}`);
         } else if (prev.mode === "coexist" && next.mode !== "coexist") {
           api.logger.info?.("[yaoyao-memory] claw-core disappeared at runtime — switching to standalone mode");
         }

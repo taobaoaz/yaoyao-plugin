@@ -29,7 +29,7 @@ function validateMemoryDir(rawDir: string | undefined): string {
   return resolved;
 }
 
-export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLogger): MemoryStore {
+export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   let baseDir = validateMemoryDir(config.memoryDir);
 
   const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:store] ${msg}`);

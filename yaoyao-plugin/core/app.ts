@@ -23,6 +23,7 @@ import {
   stepInstallCheck, stepConfigValidation, stepCoreInit,
   stepManifest, stepScopeManager, stepCrossSessionRecovery,
   stepMigration, stepCleanupScheduler,
+  stepImportExistingMemories,
 } from "./boot/steps.ts";
 import { runHealthcheck, runInstallCheck, formatInstallCheck, detectScheduledResetRisks, formatResetRiskReport } from "../utils/check-barrel.ts";
 import { showBanner } from "../entry/banner.ts";
@@ -67,7 +68,10 @@ export function bootstrapYaoyao(
   const llmResult = registry.service<import("../utils/llm-client.ts").CreateLLMClientResult>("llm");
   if (llmResult?.client) api.logger.info?.(`[yaoyao-memory] LLM client: ${llmResult.client.config.model}`);
 
-  // ── 5. Cross-session recovery & migration ──
+  // ── 5. Import existing workspace memories (MEMORY.md + memory/*.md) ──
+  stepImportExistingMemories(api.logger, api.baseDir || ".", config, store, storage);
+
+  // ── 6. Cross-session recovery & migration ──
   const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
   stepCrossSessionRecovery(api, config, agentId);
   stepMigration(api, config);
