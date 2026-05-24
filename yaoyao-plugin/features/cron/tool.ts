@@ -59,6 +59,7 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
       required: ["action"],
     },
     execute: async (args: Record<string, unknown>) => {
+      try {
       const action = args.action as string;
 
       // Read openclaw.json
@@ -178,6 +179,10 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
       }
 
       return { error: "Unknown action" };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { error: `cron 操作失败: ${msg}` };
+      }
     },
   };
 }
