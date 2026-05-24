@@ -80,7 +80,7 @@ export function stepCrossSessionRecovery(api: OpenClawPluginApi, config: YaoyaoM
 }
 
 export function stepMigration(api: OpenClawPluginApi, config: YaoyaoMemoryConfig): void {
-  const m = detectLegacy(config, api.baseDir || ".");
+  const m = detectLegacy(config, resolveWorkspaceDir(api.baseDir || "."));
   if (m.hasLegacy) m.bannerLines.forEach(l => api.logger.warn?.(`[yaoyao-memory:migration] ${l}`));
   cleanupOldSkills(api.logger);
 }
