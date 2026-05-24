@@ -29,12 +29,10 @@ export interface MmapGatewayState {
 export function readMmapState(): MmapGatewayState | null {
   if (!existsSync(MMAP_PATH)) return null;
   try {
-    // 4KB shared region — read small, fast
     const buf = readFileSync(MMAP_PATH, { encoding: "utf-8", flag: "r" });
-    // JSON segment may be padded — extract first complete JSON object
-    const match = buf.match(/\{[\s\S]*?\}(?=\s*$)/);
-    if (!match) return null;
-    const data = JSON.parse(match[0]) as Record<string, unknown>;
+    // Try parsing the whole buffer first (trim padding/null bytes)
+    const clean = buf.replace(/\0/g, "").trim();
+    const data = JSON.parse(clean) as Record<string, unknown>;
     return {
       pid: typeof data.pid === "number" ? data.pid : undefined,
       uptime: typeof data.uptime === "number" ? data.uptime : undefined,
