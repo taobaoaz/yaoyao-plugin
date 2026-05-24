@@ -15,6 +15,7 @@ import { detectLegacy, cleanupOldSkills } from "../../entry/migration.ts";
 import { createMemoryCleaner, getNextCleanTimeMs, type CleanerConfig } from "../../utils/memory-cleaner.ts";
 import { SimpleScopeManager } from "../../utils/scope-manager.ts";
 import { resolveSessionSearchDirs, readCrossSessionMemories } from "../../utils/session-recovery.ts";
+import { resolveWorkspaceDir } from "../../utils/discover-memory-files.ts";
 
 export { stepImportExistingMemories } from "./import-memories.ts";
 
@@ -60,7 +61,7 @@ export function stepCrossSessionRecovery(api: OpenClawPluginApi, config: YaoyaoM
     const searchDirs = resolveSessionSearchDirs({
       context: ((api as unknown as Record<string, unknown>).context || {}) as Record<string, unknown>,
       cfg: api.pluginConfig || {},
-      workspaceDir: api.baseDir || ".",
+      workspaceDir: resolveWorkspaceDir(api.baseDir || "."),
       currentSessionFile: (api as unknown as Record<string, unknown>).sessionFile as string | undefined,
       sourceAgentId: agentId,
     });

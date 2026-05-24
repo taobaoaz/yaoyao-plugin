@@ -30,7 +30,7 @@ const ROOT_MEMORY_FILES = [
 ];
 
 /** Resolve the actual OpenClaw workspace directory from multiple candidates. */
-function resolveWorkspaceDir(given: string): string {
+export function resolveWorkspaceDir(given: string): string {
   const candidates = [given];
   if (process.env.OPENCLAW_WORKSPACE) {
     candidates.push(process.env.OPENCLAW_WORKSPACE);
