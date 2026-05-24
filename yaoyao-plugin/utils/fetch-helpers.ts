@@ -55,7 +55,10 @@ export async function fetchWithRetry(
         isTransientUpstreamError(err) ||
         String(err).startsWith("HTTP 5")
       ) {
-        await new Promise((r) => setTimeout(r, backoffBaseMs * (attempt + 1)));
+        await new Promise((r) => {
+          const t = setTimeout(r, backoffBaseMs * (attempt + 1));
+          t.unref?.();
+        });
         continue;
       }
       throw err;
