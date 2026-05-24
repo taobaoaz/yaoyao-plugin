@@ -4,6 +4,7 @@
 
 import { withErrorHandling } from "../../tools/common.ts";
 import type { ToolRegistration } from "../../tools/common.ts";
+import { globalFetch } from "../../utils/fetch-helpers.ts";
 
 interface TelemetryConfig {
   enabled: boolean;
@@ -48,7 +49,8 @@ export function createTelemetryTool(config: TelemetryConfig): ToolRegistration {
       }
 
       // stats — tRPC endpoint
-      const res = await fetch(`${baseUrl}/api/trpc/telemetry.stats`);
+
+      const res = await globalFetch(`${baseUrl}/api/trpc/telemetry.stats`);
       if (!res.ok) {
         return { content: [{ type: "text", text: `查询失败: HTTP ${res.status}` }] };
       }

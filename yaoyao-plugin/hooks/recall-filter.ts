@@ -7,6 +7,7 @@
 
 import type { SearchResult } from "../utils/db-bridge.ts";
 import type { RecallThresholds } from "./recall-config.ts";
+import { globalFetch } from "../utils/fetch-helpers.ts";
 
 export async function runRecallFilter(
   candidates: SearchResult[],
@@ -31,7 +32,7 @@ Items:\n${items}\n\nRelevant indices: [`;
     const timer = setTimeout(() => ac.abort(), cfg.recallFilterTimeoutMs);
     let response: Response;
     try {
-      response = await fetch(cfg.recallFilterBaseUrl + "/chat/completions", {
+      response = await globalFetch(cfg.recallFilterBaseUrl + "/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -2,6 +2,8 @@
  * utils/telemetry.ts — Anonymous heartbeat to yaoyao website backend.
  */
 
+import { globalFetch } from "../utils/fetch-helpers.ts";
+
 const DEFAULT_URL = "https://yaoyao.dev/api/heartbeat";
 
 export interface TelemetryPayload {
@@ -34,7 +36,7 @@ export async function sendHeartbeat(
 ): Promise<void> {
   const target = url || process.env.YAOYAO_TELEMETRY_URL || DEFAULT_URL;
   try {
-    const res = await fetch(target, {
+    const res = await globalFetch(target, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

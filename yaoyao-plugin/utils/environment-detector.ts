@@ -11,6 +11,7 @@
 import { detectByFileSystem, type ClawEnvironment } from "./env-detect-fs.ts";
 export { type ClawEnvironment } from "./env-detect-fs.ts";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 
 interface DetectionResult {
   env: ClawEnvironment;
@@ -70,17 +71,33 @@ function detectByGlobalMarkers(): { env: ClawEnvironment; signals: string[] } {
 function detectByModules(): { env: ClawEnvironment; signals: string[] } {
   const signals: string[] = [];
 
+  // ESM-safe module detection using createRequire (Node 12.2.0+)
+  let resolveModule: ((id: string) => string) | null = null;
+  try {
+    resolveModule = createRequire(import.meta.url).resolve;
+  } catch {
+    // Fallback: try global require (legacy CJS only)
+    if (typeof require !== "undefined") {
+      resolveModule = require.resolve;
+    }
+  }
+
+  if (!resolveModule) {
+    return { env: "unknown", signals: [] };
+  }
+
   // Check for XiaoYi Claw specific modules
   try {
-    require.resolve("xiaoyi-claw-sdk");
+    resolveModule("xiaoyi-claw-sdk");
     signals.push("xiaoyi-claw-sdk module");
     return { env: "xiaoyi-claw", signals };
   } catch {
     // not found
   }
 
+  // Check for OpenClaw modules
   try {
-    require.resolve("openclaw/plugin-sdk");
+    resolveModule("openclaw/plugin-sdk");
     signals.push("openclaw/plugin-sdk module");
     return { env: "openclaw", signals };
   } catch {

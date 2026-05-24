@@ -2,6 +2,7 @@
  * utils/llm-client-class.ts — LLMClient implementation.
  */
 import type { LLMConfig, LLMMessage, LLMResponse } from "./llm-client.ts";
+import { globalFetch } from "./fetch-helpers.ts";
 
 export class LLMClient {
   public config: LLMConfig;
@@ -34,7 +35,7 @@ export class LLMClient {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
     try {
-      const res = await fetch(url, {
+      const res = await globalFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

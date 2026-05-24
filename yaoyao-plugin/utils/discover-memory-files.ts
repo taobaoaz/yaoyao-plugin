@@ -7,6 +7,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import type { MemoryStore } from "./memory-store.ts";
 
 export interface DiscoveredFile {
@@ -28,14 +29,37 @@ const ROOT_MEMORY_FILES = [
   "IDENTITY.md", "identity.md",
 ];
 
+/** Resolve the actual OpenClaw workspace directory from multiple candidates. */
+function resolveWorkspaceDir(given: string): string {
+  const candidates = [given];
+  if (process.env.OPENCLAW_WORKSPACE) {
+    candidates.push(process.env.OPENCLAW_WORKSPACE);
+  }
+  candidates.push(path.join(os.homedir(), ".openclaw", "workspace"));
+
+  for (const dir of candidates) {
+    if (!dir || dir === ".") continue;
+    const resolved = path.resolve(dir);
+    if (!fs.existsSync(resolved)) continue;
+    // Heuristic: a valid OpenClaw workspace should have at least one marker file/dir
+    const markers = ["MEMORY.md", "memory", "SOUL.md", "AGENTS.md", "USER.md"];
+    const hasMarker = markers.some(m => fs.existsSync(path.join(resolved, m)));
+    if (hasMarker) return resolved;
+  }
+
+  // Fallback: return given (even if wrong) so caller can log it
+  return path.resolve(given || ".");
+}
+
 /** Discover all memory-relevant markdown files in workspace. */
 export function discoverMemoryFiles(workspaceDir: string, store: MemoryStore): DiscoveredFile[] {
+  const resolvedDir = resolveWorkspaceDir(workspaceDir);
   const results: DiscoveredFile[] = [];
   const seenPaths = new Set<string>();
 
   // 1. Root-level known files
   for (const name of ROOT_MEMORY_FILES) {
-    const fp = path.join(workspaceDir, name);
+    const fp = path.join(resolvedDir, name);
     if (fs.existsSync(fp) && !seenPaths.has(fp)) {
       results.push({ path: fp, filename: name, type: "root" });
       seenPaths.add(fp);
