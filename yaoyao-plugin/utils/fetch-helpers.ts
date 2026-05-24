@@ -22,6 +22,7 @@ export async function fetchWithTimeout(
   const timeout = init.timeoutMs ?? defaultTimeout;
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeout);
+  timer.unref?.();
   try {
     const res = await _globalFetch(url, { ...init, signal: ac.signal });
     return res;

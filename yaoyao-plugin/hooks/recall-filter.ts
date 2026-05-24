@@ -30,6 +30,7 @@ Items:\n${items}\n\nRelevant indices: [`;
 
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), cfg.recallFilterTimeoutMs);
+    timer.unref?.();
     let response: Response;
     try {
       response = await globalFetch(cfg.recallFilterBaseUrl + "/chat/completions", {

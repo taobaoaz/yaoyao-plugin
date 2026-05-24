@@ -57,6 +57,7 @@ export function createAuditLog(
   function scheduleFlush() {
     if (!flushTimer && buffer.length > 0) {
       flushTimer = setTimeout(flush, flushIntervalMs);
+      flushTimer.unref?.();
     }
   }
 

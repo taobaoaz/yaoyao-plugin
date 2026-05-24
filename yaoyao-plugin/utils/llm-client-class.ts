@@ -34,6 +34,7 @@ export class LLMClient {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
+    timeout.unref?.();
     try {
       const res = await globalFetch(url, {
         method: "POST",

@@ -20,6 +20,7 @@ export function createPersistManager(ctx: PersistContext) {
   function scheduleFlush(): void {
     if (flushTimer) clearTimeout(flushTimer);
     flushTimer = setTimeout(() => flush(), 2000);
+    flushTimer.unref?.();
   }
 
   function flush(sync = false): void {
