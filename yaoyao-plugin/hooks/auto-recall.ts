@@ -1,7 +1,7 @@
 /**
  * hooks/auto-recall.ts — Auto-recall orchestrator.
  *
- * v1.7.2: Parallel search extracted to recall-parallel.ts.
+ * v1.7.3: Parallel search extracted to recall-parallel.ts.
  * Delegates: config→recall-config, search→recall-search/parallel, postprocess→recall-postprocess.
  */
 

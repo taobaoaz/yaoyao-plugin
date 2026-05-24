@@ -6,7 +6,7 @@
  *   - capture-flush.ts     — L0/L1/L2 flush strategy
  *   - capture-event.ts     — agent_end event processing
  *
- * v1.7.2: Split to comply with 200-line limit.
+ * v1.7.3: Split to comply with 200-line limit.
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";

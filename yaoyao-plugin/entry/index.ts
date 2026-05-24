@@ -1,7 +1,7 @@
 /**
  * Plugin entry — Universal adapter for OpenClaw / XiaoYi Claw.
  *
- * v1.7.2: System architecture detection
+ * v1.7.3: System architecture detection
  *   - Reads OpenClaw global config (~/.openclaw/openclaw.json)
  *   - Detects if memory/contextEngine slots are owned by claw-core
  *   - Automatically selects strategy: full | l0-only | supplement | disabled
@@ -19,7 +19,7 @@ import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, setCoexist
 export default definePluginEntry({
   id: "yaoyao-memory",
   name: "Yaoyao Memory",
-  version: "1.7.2",
+  version: "1.7.3",
   description: "自适应记忆引擎: FTS5 + 向量搜索 + 时间线 + 云备份",
   register(api: OpenClawPluginApi) {
     try {

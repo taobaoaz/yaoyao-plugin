@@ -1,7 +1,7 @@
 /**
  * core/boot/import-memories.ts — Import existing workspace memories at startup.
  *
- * v1.7.2: Added vector embedding support for imported memories.
+ * v1.7.3: Added vector embedding support for imported memories.
  * Orchestrates file discovery → parsing → FTS5 indexing → optional vector storage.
  * Delegates all algorithm work to utils/ modules.
  */
