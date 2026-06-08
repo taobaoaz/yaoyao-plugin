@@ -5,7 +5,7 @@
 export interface YaoyaoMemoryConfig {
   capture?: {
     enabled?: boolean;
-    mode?: "sync" | "async";
+    mode?: 'sync' | 'async';
     maxContentLen?: number;
     minContentLen?: number;
     batchSize?: number;
@@ -14,7 +14,7 @@ export interface YaoyaoMemoryConfig {
   };
   recall?: {
     enabled?: boolean;
-    strategy?: "hybrid" | "fts" | "vector";
+    strategy?: 'hybrid' | 'fts' | 'vector';
     maxResults?: number;
     topK?: number;
     minScore?: number;
@@ -97,7 +97,7 @@ export interface YaoyaoMemoryConfig {
 }
 
 export interface MemoryEntry {
-  type: "daily" | "memory" | "archive";
+  type: 'daily' | 'memory' | 'archive';
   path: string;
   filename: string;
   date?: string;

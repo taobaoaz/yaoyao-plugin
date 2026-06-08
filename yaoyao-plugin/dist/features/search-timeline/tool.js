@@ -8,30 +8,30 @@ import { detectSentiment } from "../../core/sentiment/index.js";
 import { withErrorHandling } from "../../tools/common.js";
 export function createSearchTimelineTool(pipeline) {
     return {
-        id: "memory_search_timeline",
-        name: "memory_search_timeline",
-        label: "Memory Search with Timeline",
-        description: "Search memories and show when they occurred on a timeline. Combines FTS5 search with temporal context for richer results.",
+        id: 'memory_search_timeline',
+        name: 'memory_search_timeline',
+        label: 'Memory Search with Timeline',
+        description: 'Search memories and show when they occurred on a timeline. Combines FTS5 search with temporal context for richer results.',
         parameters: {
-            type: "object",
+            type: 'object',
             properties: {
-                query: { type: "string", description: "Search query" },
-                maxResults: { type: "number", description: "Maximum results (default: 10)", default: 10 },
+                query: { type: 'string', description: 'Search query' },
+                maxResults: { type: 'number', description: 'Maximum results (default: 10)', default: 10 },
             },
-            required: ["query"],
+            required: ['query'],
         },
         execute: withErrorHandling(async (_id, params) => {
-            const query = String(params.query ?? "").trim();
+            const query = String(params.query ?? '').trim();
             const limit = clampNum(params.maxResults, 10, 1, 50);
             if (!query)
-                return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
-            const results = await pipeline.search(query, { strategy: "fts", limit });
+                return { content: [{ type: 'text', text: '请输入搜索关键词。' }] };
+            const results = await pipeline.search(query, { strategy: 'fts', limit });
             if (results.length === 0) {
-                return { content: [{ type: "text", text: `没有找到与 "${query}" 相关的记忆。` }] };
+                return { content: [{ type: 'text', text: `没有找到与 "${query}" 相关的记忆。` }] };
             }
             const byDate = new Map();
             for (const r of results) {
-                const date = r.date || "unknown";
+                const date = r.date || 'unknown';
                 if (!byDate.has(date))
                     byDate.set(date, []);
                 byDate.get(date).push(r);
@@ -48,7 +48,7 @@ export function createSearchTimelineTool(pipeline) {
                 }
                 parts.push(``);
             }
-            return { content: [{ type: "text", text: parts.join("\n") }] };
+            return { content: [{ type: 'text', text: parts.join('\n') }] };
         }),
     };
 }

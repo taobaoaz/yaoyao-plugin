@@ -6,17 +6,17 @@
  *
  * v1.8.0
  */
-import type { DBBridge } from "./db-bridge.ts";
-import type { EmbeddingService } from "./embedding.ts";
-import { SimpleLRU } from "./simple-lru.ts";
-import { isDuplicateOfRecent, textSimilarity } from "./batch-dedup.ts";
-import { cosineSimilarity } from "../core/search/enhanced.ts";
+import type { DBBridge } from './db-bridge.ts';
+import type { EmbeddingService } from './embedding.ts';
+import { SimpleLRU } from './simple-lru.ts';
+import { isDuplicateOfRecent, textSimilarity } from './batch-dedup.ts';
+import { cosineSimilarity } from '../core/search/enhanced.ts';
 
 // ── Types ──
 
 export interface DedupResult {
   isDuplicate: boolean;
-  stage: "hash" | "vector" | "text" | "none";
+  stage: 'hash' | 'vector' | 'text' | 'none';
   /** Confidence 0-1 */
   confidence: number;
   /** Human-readable reason */
@@ -40,7 +40,7 @@ export interface DedupOptions {
 const DEFAULT_OPTIONS: DedupOptions = {
   enabled: true,
   hashLruSize: 500,
-  vectorThreshold: 0.80,
+  vectorThreshold: 0.8,
   vectorTopN: 5,
   textThreshold: 0.85,
   textLookback: 10,
@@ -50,13 +50,13 @@ const DEFAULT_OPTIONS: DedupOptions = {
 
 function contentHash(text: string, owner?: string): string {
   let hash = 0;
-  const data = `${owner || "default"}:${text}`;
+  const data = `${owner || 'default'}:${text}`;
   for (let i = 0; i < data.length; i++) {
     const char = data.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
-  return `${owner || "default"}:${hash}`;
+  return `${owner || 'default'}:${hash}`;
 }
 
 // ── Main engine ──
@@ -78,7 +78,7 @@ export class DedupEngine {
     owner?: string,
   ): Promise<DedupResult> {
     if (!this.opts.enabled) {
-      return { isDuplicate: false, stage: "none", confidence: 0, reason: "dedup disabled" };
+      return { isDuplicate: false, stage: 'none', confidence: 0, reason: 'dedup disabled' };
     }
 
     // ── L1: Exact content hash ──
@@ -86,7 +86,12 @@ export class DedupEngine {
     if (this.hashCache.get(hash)) {
       // Record in LRU so it stays hot
       this.hashCache.set(hash, true);
-      return { isDuplicate: true, stage: "hash", confidence: 1.0, reason: "exact content hash match" };
+      return {
+        isDuplicate: true,
+        stage: 'hash',
+        confidence: 1.0,
+        reason: 'exact content hash match',
+      };
     }
 
     // ── L2: Vector cosine similarity ──
@@ -97,13 +102,13 @@ export class DedupEngine {
           const vecResults = db.vectorSearch(queryVec, this.opts.vectorTopN);
           for (const vr of vecResults) {
             // vr.vectorScore is already cosine similarity from the backend
-            const sim = typeof vr.vectorScore === "number" ? vr.vectorScore : 0;
+            const sim = typeof vr.vectorScore === 'number' ? vr.vectorScore : 0;
             if (sim >= this.opts.vectorThreshold) {
               // Cache the hash for future L1 matches
               this.hashCache.set(hash, true);
               return {
                 isDuplicate: true,
-                stage: "vector",
+                stage: 'vector',
                 confidence: sim,
                 reason: `vector similarity ${sim.toFixed(3)} >= ${this.opts.vectorThreshold}`,
               };
@@ -124,7 +129,7 @@ export class DedupEngine {
         this.hashCache.set(hash, true);
         return {
           isDuplicate: true,
-          stage: "text",
+          stage: 'text',
           confidence: this.opts.textThreshold,
           reason: `text similarity >= ${this.opts.textThreshold}`,
         };
@@ -136,7 +141,7 @@ export class DedupEngine {
 
     // Not a duplicate — record the hash so future exact repeats are caught
     this.hashCache.set(hash, true);
-    return { isDuplicate: false, stage: "none", confidence: 0, reason: "unique content" };
+    return { isDuplicate: false, stage: 'none', confidence: 0, reason: 'unique content' };
   }
 
   /** Get current hash cache size (for stats/debugging) */

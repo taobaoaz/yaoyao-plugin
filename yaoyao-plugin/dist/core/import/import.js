@@ -2,9 +2,9 @@
  * core/import/import.ts — Pure import logic, zero platform awareness.
  */
 export function parseJSONL(jsonlData) {
-    if (typeof jsonlData !== "string")
-        throw new TypeError("parseJSONL: jsonlData must be a string");
-    const lines = jsonlData.split("\n").filter(l => l.trim());
+    if (typeof jsonlData !== 'string')
+        throw new TypeError('parseJSONL: jsonlData must be a string');
+    const lines = jsonlData.split('\n').filter((l) => l.trim());
     const entries = [];
     const errors = [];
     for (let i = 0; i < lines.length; i++) {
@@ -28,8 +28,8 @@ export function parseJSONL(jsonlData) {
             }
             entries.push({
                 date: String(parsed.date).slice(0, 10),
-                user_text: String(parsed.user_text || ""),
-                asst_text: String(parsed.asst_text || ""),
+                user_text: String(parsed.user_text || ''),
+                asst_text: String(parsed.asst_text || ''),
             });
         }
         catch (e) {
@@ -40,13 +40,13 @@ export function parseJSONL(jsonlData) {
 }
 export function batchImport(db, entries) {
     if (!db)
-        throw new TypeError("batchImport: db is required");
+        throw new TypeError('batchImport: db is required');
     if (!Array.isArray(entries))
-        throw new TypeError("batchImport: entries must be an array");
-    const insertedMeta = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-    const insertedFts = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+        throw new TypeError('batchImport: entries must be an array');
+    const insertedMeta = db.prepare('INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)');
+    const insertedFts = db.prepare('INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)');
     let successCount = 0;
-    db.exec("BEGIN TRANSACTION");
+    db.exec('BEGIN TRANSACTION');
     try {
         for (const entry of entries) {
             const r = insertedMeta.run(entry.date, entry.user_text, entry.asst_text);
@@ -57,11 +57,11 @@ export function batchImport(db, entries) {
             insertedFts.run(rowId, entry.date, entry.user_text, entry.asst_text);
             successCount++;
         }
-        db.exec("COMMIT");
+        db.exec('COMMIT');
     }
     catch (txErr) {
         try {
-            db.exec("ROLLBACK");
+            db.exec('ROLLBACK');
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -73,7 +73,7 @@ export function batchImport(db, entries) {
 }
 export function getTotalCount(db) {
     if (!db)
-        throw new TypeError("getTotalCount: db is required");
-    const row = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get();
+        throw new TypeError('getTotalCount: db is required');
+    const row = db.prepare('SELECT COUNT(*) as c FROM memory_meta').get();
     return Number(row?.c ?? 0);
 }

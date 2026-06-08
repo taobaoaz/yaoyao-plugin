@@ -4,49 +4,72 @@
  * Thin layer: param validation → search orchestration → formatter output.
  * Fusion algorithms live in core/search/, formatting in formatter.ts.
  */
-import type { DBBridge, SearchResult, EmbeddedSearchResult } from "../../utils/db-bridge.ts";
-import type { EmbeddingService } from "../../utils/embedding.ts";
-import { clampNum } from "../../utils/clamp.ts";
-import { withErrorHandling } from "../../tools/common.ts";
-import type { ToolRegistration } from "../../tools/common.ts";
-import { multiSignalFusion } from "../../core/search/multi-signal.ts";
-import { additiveScoreAndRank } from "../../core/search/additive-scorer.ts";
-import { mergeAndDedupResults, formatJsonResults, formatTextResults, type FormattedResult } from "./formatter.ts";
+import type { DBBridge, SearchResult, EmbeddedSearchResult } from '../../utils/db-bridge.ts';
+import type { EmbeddingService } from '../../utils/embedding.ts';
+import { clampNum } from '../../utils/clamp.ts';
+import { withErrorHandling } from '../../tools/common.ts';
+import type { ToolRegistration } from '../../tools/common.ts';
+import { multiSignalFusion } from '../../core/search/multi-signal.ts';
+import { additiveScoreAndRank } from '../../core/search/additive-scorer.ts';
+import {
+  mergeAndDedupResults,
+  formatJsonResults,
+  formatTextResults,
+  type FormattedResult,
+} from './formatter.ts';
 
-type FusionMode = "rrf" | "additive";
+type FusionMode = 'rrf' | 'additive';
 
 export function createMultiSignalSearchTool(
   db: DBBridge,
   embedding?: EmbeddingService | null,
 ): ToolRegistration {
   return {
-    id: "memory_search_multi",
-    name: "memory_search_multi",
-    label: "Multi-Signal Search",
+    id: 'memory_search_multi',
+    name: 'memory_search_multi',
+    label: 'Multi-Signal Search',
     description:
-      "Searches using multi-signal fusion. Supports rrf (default) and additive modes. " +
-      "Outputs per-result signal breakdown.",
+      'Searches using multi-signal fusion. Supports rrf (default) and additive modes. ' +
+      'Outputs per-result signal breakdown.',
     parameters: {
-      type: "object",
+      type: 'object',
       properties: {
-        query: { type: "string", description: "Search query" },
-        maxResults: { type: "number", description: "Max results (1-30, default 10)", default: 10 },
-        format: { type: "string", enum: ["text", "json"], description: "Output format", default: "text" },
-        temporalDecayDays: { type: "number", description: "Temporal decay half-life (0=disabled, default 30)", default: 30 },
-        entityBoost: { type: "boolean", description: "Enable entity relevance boost (default true)", default: true },
-        fusionMode: { type: "string", enum: ["rrf", "additive"], description: "Fusion mode", default: "rrf" },
+        query: { type: 'string', description: 'Search query' },
+        maxResults: { type: 'number', description: 'Max results (1-30, default 10)', default: 10 },
+        format: {
+          type: 'string',
+          enum: ['text', 'json'],
+          description: 'Output format',
+          default: 'text',
+        },
+        temporalDecayDays: {
+          type: 'number',
+          description: 'Temporal decay half-life (0=disabled, default 30)',
+          default: 30,
+        },
+        entityBoost: {
+          type: 'boolean',
+          description: 'Enable entity relevance boost (default true)',
+          default: true,
+        },
+        fusionMode: {
+          type: 'string',
+          enum: ['rrf', 'additive'],
+          description: 'Fusion mode',
+          default: 'rrf',
+        },
       },
-      required: ["query"],
+      required: ['query'],
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
-      const query = String(params.query ?? "").trim();
+      const query = String(params.query ?? '').trim();
       const limit = clampNum(params.maxResults, 10, 1, 30);
-      const format = String(params.format || "text");
+      const format = String(params.format || 'text');
       const temporalDecayDays = clampNum(params.temporalDecayDays, 30, 0, 365);
       const enableEntityBoost = params.entityBoost !== false;
-      const fusionMode = (String(params.fusionMode || "rrf") as FusionMode);
+      const fusionMode = String(params.fusionMode || 'rrf') as FusionMode;
 
-      if (!query) return { content: [{ type: "text", text: "Please enter a search query." }] };
+      if (!query) return { content: [{ type: 'text', text: 'Please enter a search query.' }] };
 
       // 1. FTS5 search
       const ftsResults = db.search(query, limit * 2);
@@ -61,22 +84,22 @@ export function createMultiSignalSearchTool(
             : db.hybridSearch(query, queryVec, limit * 2);
           vecResults = rrfResults;
         } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  vector unavailable : ${msg}`);
-    }
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory]  vector unavailable : ${msg}`);
+        }
       }
 
       // 3. Merge candidates
       const allResults: SearchResult[] = mergeAndDedupResults(ftsResults, vecResults);
       if (allResults.length === 0) {
-        return { content: [{ type: "text", text: "No matching memories found." }] };
+        return { content: [{ type: 'text', text: 'No matching memories found.' }] };
       }
 
       // 4. Fusion
       let topResults: FormattedResult[];
 
-      if (fusionMode === "additive") {
-        const candidates = allResults.map(r => ({
+      if (fusionMode === 'additive') {
+        const candidates = allResults.map((r) => ({
           id: r.id ?? r.snippet,
           snippet: r.snippet,
           semanticScore: r.score,
@@ -92,36 +115,44 @@ export function createMultiSignalSearchTool(
           semanticThreshold: 0,
         });
 
-        topResults = additiveResults.map(r => ({
+        topResults = additiveResults.map((r) => ({
           id: r.id,
           snippet: r.snippet,
           date: r.date,
           score: r.score,
           signals: r.signals,
-          source: "additive",
+          source: 'additive',
           filename: r.filename,
         }));
       } else {
         const signalConfig: Record<string, unknown> = { temporalHalfLifeDays: temporalDecayDays };
         if (!enableEntityBoost) signalConfig.entityBoostMax = 0;
 
-        const fused = multiSignalFusion(
-          query,
-          ftsResults,
-          vecResults,
-          allResults,
-          signalConfig,
-        );
+        const fused = multiSignalFusion(query, ftsResults, vecResults, allResults, signalConfig);
 
         topResults = fused.slice(0, limit);
       }
 
       // 5. Format output
-      if (format === "json") {
-        return { content: [{ type: "text", text: formatJsonResults(query, topResults, allResults.length, fusionMode) }] };
+      if (format === 'json') {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: formatJsonResults(query, topResults, allResults.length, fusionMode),
+            },
+          ],
+        };
       }
 
-      return { content: [{ type: "text", text: formatTextResults(topResults, query, fusionMode, allResults.length) }] };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: formatTextResults(topResults, query, fusionMode, allResults.length),
+          },
+        ],
+      };
     }),
   };
 }

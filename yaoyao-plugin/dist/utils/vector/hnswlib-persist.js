@@ -1,7 +1,7 @@
 /**
  * utils/vector/hnswlib-persist.ts — HNSW index persistence helpers.
  */
-import fs from "node:fs";
+import fs from 'node:fs';
 export function createPersistManager(ctx) {
     let flushTimer = null;
     let dirty = false;
@@ -22,10 +22,10 @@ export function createPersistManager(ctx) {
                 dimensions: ctx.dimensions,
                 model: ctx.config.embedding?.model,
                 count: ctx.index.getCurrentCount?.() ?? 0,
-                space: "cosine",
+                space: 'cosine',
             };
-            fs.writeFileSync(ctx.metaPath, JSON.stringify(meta, null, 2), "utf-8");
-            ctx.logger?.debug?.("[yaoyao-memory:vec] HNSW index flushed to disk");
+            fs.writeFileSync(ctx.metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+            ctx.logger?.debug?.('[yaoyao-memory:vec] HNSW index flushed to disk');
         }
         catch (err) {
             ctx.logger?.warn?.(`[yaoyao-memory:vec] flush failed: ${err instanceof Error ? err.message : String(err)}`);

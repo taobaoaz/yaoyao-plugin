@@ -3,10 +3,10 @@
  *
  * Extracted from db-bridge.ts (hybridSearch + rrfHybridSearch).
  */
-import type { SearchResult, EmbeddedSearchResult } from "./types.ts";
-import type { FtsEngine } from "./fts.ts";
-import type { VectorStore } from "./vector-store.ts";
-import { reciprocalRankFusion, type RankedDoc } from "../core/search/rrf.ts";
+import type { SearchResult, EmbeddedSearchResult } from './types.ts';
+import type { FtsEngine } from './fts.ts';
+import type { VectorStore } from './vector-store.ts';
+import { reciprocalRankFusion, type RankedDoc } from '../core/search/rrf.ts';
 
 export interface HybridConfig {
   rrfK: number;
@@ -26,7 +26,11 @@ export function createHybridSearch(config?: Partial<HybridConfig>) {
      * Weighted combination hybrid: FTS5 score * 0.6 + vector * 0.4.
      * Used when RRF is not desired.
      */
-    weighted(ftsResults: SearchResult[], vecResults: EmbeddedSearchResult[], limit: number): EmbeddedSearchResult[] {
+    weighted(
+      ftsResults: SearchResult[],
+      vecResults: EmbeddedSearchResult[],
+      limit: number,
+    ): EmbeddedSearchResult[] {
       if (ftsResults.length === 0 && vecResults.length === 0) return [];
 
       const merged = new Map<string, EmbeddedSearchResult>();
@@ -44,7 +48,7 @@ export function createHybridSearch(config?: Partial<HybridConfig>) {
         if (merged.has(key)) {
           const existing = merged.get(key)!;
           existing.vectorScore = r.vectorScore;
-          existing.hybridScore = (existing.score * 0.6) + (r.vectorScore * 0.4);
+          existing.hybridScore = existing.score * 0.6 + r.vectorScore * 0.4;
         } else {
           merged.set(key, {
             ...r,
@@ -54,9 +58,7 @@ export function createHybridSearch(config?: Partial<HybridConfig>) {
         }
       }
 
-      return [...merged.values()]
-        .sort((a, b) => b.hybridScore - a.hybridScore)
-        .slice(0, limit);
+      return [...merged.values()].sort((a, b) => b.hybridScore - a.hybridScore).slice(0, limit);
     },
 
     /**
@@ -72,13 +74,13 @@ export function createHybridSearch(config?: Partial<HybridConfig>) {
 
       const ftsRanked: RankedDoc[] = ftsResults.map((r, i) => ({
         id: `${r.date}|${r.snippet}|${r.id || i}`,
-        doc: { ...r, source: "fts" as const },
+        doc: { ...r, source: 'fts' as const },
         originalScore: r.score,
       }));
 
       const vecRanked: RankedDoc[] = vecResults.map((r, i) => ({
         id: `${r.date}|${r.snippet}|${r.id || i}`,
-        doc: { ...r, source: "vec" as const },
+        doc: { ...r, source: 'vec' as const },
         originalScore: r.vectorScore,
       }));
 
@@ -89,10 +91,10 @@ export function createHybridSearch(config?: Partial<HybridConfig>) {
         const doc = f.doc as Record<string, unknown>;
         results.push({
           id: doc.id as number,
-          filename: String(doc.filename || ""),
-          snippet: String(doc.snippet || ""),
+          filename: String(doc.filename || ''),
+          snippet: String(doc.snippet || ''),
           score: Number(doc.originalScore || 0),
-          date: String(doc.date || ""),
+          date: String(doc.date || ''),
           vectorScore: f.ranks[1] >= 0 ? Number(doc.originalScore || 0) : 0,
           hybridScore: f.rrfScore,
         });

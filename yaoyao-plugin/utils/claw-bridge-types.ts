@@ -14,14 +14,14 @@ export interface ClawRecallResult {
   verified: boolean;
 }
 
-export type ClawErrorClass = "unavailable" | "timeout" | "transient" | "fatal";
+export type ClawErrorClass = 'unavailable' | 'timeout' | 'transient' | 'fatal';
 
 export class ClawBridgeError extends Error {
   readonly classification: ClawErrorClass;
   readonly cause?: unknown;
   constructor(message: string, classification: ClawErrorClass, cause?: unknown) {
     super(message);
-    this.name = "ClawBridgeError";
+    this.name = 'ClawBridgeError';
     this.classification = classification;
     this.cause = cause;
   }

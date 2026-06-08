@@ -2,19 +2,19 @@ import { scoreBM25, buildBM25Index } from "./bm25.js";
 import { reciprocalRankFusion } from "./rrf.js";
 import { extractEntities, computeEntityBoost } from "./entity-extractor.js";
 const DEFAULT_CONFIG = {
-    bm25Weight: 0.20,
-    ftsWeight: 0.20,
-    vectorWeight: 0.30,
-    entityBoostMax: 0.30,
+    bm25Weight: 0.2,
+    ftsWeight: 0.2,
+    vectorWeight: 0.3,
+    entityBoostMax: 0.3,
     rrfK: 60,
     temporalHalfLifeDays: 30,
 };
 function buildBM25FromResults(results) {
-    return buildBM25Index(results.map(r => r.snippet), results.map(r => String(r.id ?? "")));
+    return buildBM25Index(results.map((r) => r.snippet), results.map((r) => String(r.id ?? '')));
 }
 function scoreWithBM25(index, query) {
     const scored = scoreBM25(index, query);
-    const maxScore = scored.length > 0 ? Math.max(...scored.map(s => s.score)) : 1;
+    const maxScore = scored.length > 0 ? Math.max(...scored.map((s) => s.score)) : 1;
     const map = new Map();
     for (const s of scored)
         map.set(s.id, maxScore > 0 ? s.score / maxScore : 0);
@@ -25,7 +25,7 @@ function computeTemporalWeight(timestamp, halfLifeDays) {
         return 1;
     const ageMs = Date.now() - timestamp;
     const halfLifeMs = halfLifeDays * 24 * 60 * 60 * 1000;
-    return ageMs <= 0 ? 1 : Math.exp(-ageMs * Math.LN2 / halfLifeMs);
+    return ageMs <= 0 ? 1 : Math.exp((-ageMs * Math.LN2) / halfLifeMs);
 }
 export function multiSignalFusion(query, ftsResults, vecResults, allResults, config = {}) {
     const cfg = { ...DEFAULT_CONFIG, ...config };
@@ -41,16 +41,24 @@ export function multiSignalFusion(query, ftsResults, vecResults, allResults, con
     const idToEntityBoost = new Map();
     const idToSnippet = new Map();
     for (const [id, score] of bm25Scores) {
-        bm25Ranked.push({ id, doc: { originalScore: score, source: "bm25" }, originalScore: score });
+        bm25Ranked.push({ id, doc: { originalScore: score, source: 'bm25' }, originalScore: score });
     }
     for (const r of ftsResults) {
         const id = r.id ?? r.snippet;
-        ftsRanked.push({ id, doc: { ...r, originalScore: r.score, source: "fts" }, originalScore: r.score });
+        ftsRanked.push({
+            id,
+            doc: { ...r, originalScore: r.score, source: 'fts' },
+            originalScore: r.score,
+        });
         idToSnippet.set(id, r.snippet);
     }
     for (const r of vecResults) {
         const id = r.id ?? r.snippet;
-        vecRanked.push({ id, doc: { ...r, originalScore: r.hybridScore, source: "vec" }, originalScore: r.vectorScore });
+        vecRanked.push({
+            id,
+            doc: { ...r, originalScore: r.hybridScore, source: 'vec' },
+            originalScore: r.vectorScore,
+        });
         idToSnippet.set(id, r.snippet);
     }
     // Entity boosts
@@ -61,7 +69,7 @@ export function multiSignalFusion(query, ftsResults, vecResults, allResults, con
         idToSnippet.set(id, r.snippet);
     }
     for (const id of allIds) {
-        const snippet = idToSnippet.get(id) || "";
+        const snippet = idToSnippet.get(id) || '';
         idToEntityBoost.set(id, Math.min(1, computeEntityBoost(queryEntities, extractEntities(snippet))));
     }
     // RRF fusion
@@ -74,8 +82,8 @@ export function multiSignalFusion(query, ftsResults, vecResults, allResults, con
         lists.push(vecRanked);
     let fused;
     if (lists.length <= 1) {
-        const source = lists[0]?.[0]?.doc?.source ?? "fts";
-        const signalWeight = source === "bm25" ? cfg.bm25Weight : source === "fts" ? cfg.ftsWeight : cfg.vectorWeight;
+        const source = lists[0]?.[0]?.doc?.source ?? 'fts';
+        const signalWeight = source === 'bm25' ? cfg.bm25Weight : source === 'fts' ? cfg.ftsWeight : cfg.vectorWeight;
         const dedup = new Map();
         for (const list of lists) {
             for (const item of list) {
@@ -85,18 +93,22 @@ export function multiSignalFusion(query, ftsResults, vecResults, allResults, con
                     dedup.set(item.id, { doc: item.doc, score });
             }
         }
-        fused = Array.from(dedup.entries()).map(([id, val]) => ({ id, rrfScore: val.score, doc: val.doc }));
+        fused = Array.from(dedup.entries()).map(([id, val]) => ({
+            id,
+            rrfScore: val.score,
+            doc: val.doc,
+        }));
     }
     else {
         fused = reciprocalRankFusion(lists, cfg.rrfK);
     }
     // Final scoring with entity boost + temporal decay
-    const maxRrfScore = fused.length > 0 ? Math.max(...fused.map(f => f.rrfScore)) : 1;
+    const maxRrfScore = fused.length > 0 ? Math.max(...fused.map((f) => f.rrfScore)) : 1;
     const results = [];
     for (const f of fused) {
         const doc = f.doc;
         const id = f.id;
-        const snippet = String(doc.snippet ?? idToSnippet.get(id) ?? "");
+        const snippet = String(doc.snippet ?? idToSnippet.get(id) ?? '');
         const entityBoost = idToEntityBoost.get(id) ?? 0;
         const boostMultiplier = 1 + entityBoost * cfg.entityBoostMax;
         const timestamp = Number(doc.timestamp ?? 0) || undefined;
@@ -107,21 +119,24 @@ export function multiSignalFusion(query, ftsResults, vecResults, allResults, con
         const idStr = String(id);
         if (bm25Scores.has(idStr))
             signals.bm25 = bm25Scores.get(idStr);
-        if (doc.source === "fts")
+        if (doc.source === 'fts')
             signals.fts = Number(doc.originalScore ?? 0);
-        if (doc.source === "vec")
+        if (doc.source === 'vec')
             signals.vector = Number(doc.originalScore ?? 0);
         if (entityBoost > 0)
             signals.entityBoost = entityBoost;
-        let source = "hybrid";
+        let source = 'hybrid';
         if (lists.length === 1) {
             const s = lists[0]?.[0]?.doc?.source;
-            source = s === "bm25" ? "bm25" : s === "vec" ? "vector" : "fts";
+            source = s === 'bm25' ? 'bm25' : s === 'vec' ? 'vector' : 'fts';
         }
         results.push({
-            id, snippet, date: String(doc.date ?? ""),
-            score: finalScore, signals,
-            filename: String(doc.filename ?? ""),
+            id,
+            snippet,
+            date: String(doc.date ?? ''),
+            score: finalScore,
+            signals,
+            filename: String(doc.filename ?? ''),
             source,
         });
     }

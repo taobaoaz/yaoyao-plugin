@@ -3,7 +3,7 @@
  * 腾讯方案：BM25 编码器增强搜索质量，支持中英文混合。
  * 纯正则/数学实现，零外部依赖。
  */
-import { tokenize } from "./bm25-tokenize.ts";
+import { tokenize } from './bm25-tokenize.ts';
 
 /** Compute term frequency map */
 function computeTF(terms: string[]): Map<string, number> {
@@ -25,7 +25,7 @@ export interface BM25Config {
   /** Length normalization parameter (default: 0.75) */
   b?: number;
   /** Language mode: "zh" = Chinese heavy, "en" = English heavy, "mixed" = auto (default) */
-  language?: "zh" | "en" | "mixed";
+  language?: 'zh' | 'en' | 'mixed';
 }
 
 export interface BM25Document {
@@ -66,7 +66,11 @@ export function buildBM25Index(texts: string[], ids?: string[]): BM25Index {
 }
 
 /** Score a query against the BM25 index */
-export function scoreBM25(index: BM25Index, query: string, config?: BM25Config): Array<{ id: string; score: number; text: string }> {
+export function scoreBM25(
+  index: BM25Index,
+  query: string,
+  config?: BM25Config,
+): Array<{ id: string; score: number; text: string }> {
   const k1 = config?.k1 ?? 1.2;
   const b = config?.b ?? 0.75;
   const qTerms = tokenize(query);
@@ -94,10 +98,14 @@ export function scoreBM25(index: BM25Index, query: string, config?: BM25Config):
 }
 
 /** Quick BM25 search over a string array */
-export function bm25Search(docs: string[], query: string, config?: BM25Config): Array<{ index: number; score: number }> {
+export function bm25Search(
+  docs: string[],
+  query: string,
+  config?: BM25Config,
+): Array<{ index: number; score: number }> {
   const index = buildBM25Index(docs);
   const scored = scoreBM25(index, query, config);
-  return scored.map(r => ({ index: parseInt(r.id, 10), score: r.score }));
+  return scored.map((r) => ({ index: parseInt(r.id, 10), score: r.score }));
 }
 
 // ── BM25 Score Normalization ──
@@ -113,6 +121,9 @@ export function getBM25SigmoidParams(query: string): { midpoint: number; steepne
 }
 
 /** Normalize a raw BM25 score to [0, 1] using logistic sigmoid. */
-export function normalizeBM25Score(rawScore: number, params: { midpoint: number; steepness: number }): number {
+export function normalizeBM25Score(
+  rawScore: number,
+  params: { midpoint: number; steepness: number },
+): number {
   return 1 / (1 + Math.exp(-params.steepness * (rawScore - params.midpoint)));
 }

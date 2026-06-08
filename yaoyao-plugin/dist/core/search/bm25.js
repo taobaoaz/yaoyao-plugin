@@ -64,7 +64,7 @@ export function scoreBM25(index, query, config) {
 export function bm25Search(docs, query, config) {
     const index = buildBM25Index(docs);
     const scored = scoreBM25(index, query, config);
-    return scored.map(r => ({ index: parseInt(r.id, 10), score: r.score }));
+    return scored.map((r) => ({ index: parseInt(r.id, 10), score: r.score }));
 }
 // ── BM25 Score Normalization ──
 /** Get sigmoid normalization parameters based on query length. */

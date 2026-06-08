@@ -21,37 +21,37 @@ export function createCompatDB(dbPath, config, logger) {
     if (isNativeAvailable()) {
         const db = createNativeDB(dbPath, config?.allowExtension ?? true);
         if (db) {
-            logger?.info?.("[yaoyao-memory:db] Using node:sqlite (Node 22+)");
+            logger?.info?.('[yaoyao-memory:db] Using node:sqlite (Node 22+)');
             return {
                 db,
-                backend: "node-sqlite",
+                backend: 'node-sqlite',
                 supportsFTS5: true,
                 supportsWAL: true,
                 supportsExtensions: true,
             };
         }
-        logger?.warn?.("[yaoyao-memory:db] node:sqlite available but failed to open DB, trying better-sqlite3");
+        logger?.warn?.('[yaoyao-memory:db] node:sqlite available but failed to open DB, trying better-sqlite3');
     }
     // ── 2. Try better-sqlite3 ──
     if (isNpmAvailable()) {
         const db = createNpmDB(dbPath);
         if (db) {
-            logger?.info?.("[yaoyao-memory:db] Using better-sqlite3 (npm)");
+            logger?.info?.('[yaoyao-memory:db] Using better-sqlite3 (npm)');
             return {
                 db,
-                backend: "better-sqlite3",
+                backend: 'better-sqlite3',
                 supportsFTS5: true,
                 supportsWAL: true,
                 supportsExtensions: false,
             };
         }
-        logger?.warn?.("[yaoyao-memory:db] better-sqlite3 available but failed to open DB, falling back to file-db");
+        logger?.warn?.('[yaoyao-memory:db] better-sqlite3 available but failed to open DB, falling back to file-db');
     }
     // ── 3. Pure filesystem fallback ──
-    logger?.warn?.("[yaoyao-memory:db] No SQLite backend could open the database. Using file-db (read-only memory index).");
+    logger?.warn?.('[yaoyao-memory:db] No SQLite backend could open the database. Using file-db (read-only memory index).');
     return {
         db: createFileDB(dbPath),
-        backend: "file-db",
+        backend: 'file-db',
         supportsFTS5: false,
         supportsWAL: false,
         supportsExtensions: false,
@@ -60,6 +60,6 @@ export function createCompatDB(dbPath, config, logger) {
 export function getDBCapability() {
     const node = isNativeAvailable();
     const npm = isNpmAvailable();
-    const backend = node ? "node-sqlite" : npm ? "better-sqlite3" : "unknown";
+    const backend = node ? 'node-sqlite' : npm ? 'better-sqlite3' : 'unknown';
     return { backend, nodeSqliteAvailable: node, betterSqlite3Available: npm };
 }

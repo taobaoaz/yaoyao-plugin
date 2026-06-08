@@ -13,8 +13,12 @@ import { extractFacts } from "../utils/l1-extractor.js";
 import { classifyMemoryType } from "../core/memory-types.js";
 import { isDuplicateOfRecent } from "../utils/batch-dedup.js";
 export function runAntiHallucination(userContent, asstContent, verifyActive) {
-    let riskTag = "";
-    let specCheck = { isSpeculative: false, markers: [], confidence: "high" };
+    let riskTag = '';
+    let specCheck = {
+        isSpeculative: false,
+        markers: [],
+        confidence: 'high',
+    };
     let corrCheck = { isCorrection: false, markers: [] };
     if (verifyActive) {
         try {
@@ -27,19 +31,19 @@ export function runAntiHallucination(userContent, asstContent, verifyActive) {
         }
     }
     if (specCheck.isSpeculative)
-        riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(", ")}]`;
+        riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(', ')}]`;
     if (corrCheck.isCorrection)
         riskTag += ` [🚫 用户纠正]`;
     return { riskTag, specCheck, corrCheck };
 }
 export async function buildMetaObj(userContent, asstContent, scopeManager, agentId, specCheck, corrCheck, enableL1, skipL1, brainMode, llmClient, logger, maxMemories, config) {
-    const temporalType = classifyTemporal(userContent + " " + asstContent);
-    const expiryAt = temporalType === "dynamic" ? inferExpiry(userContent + " " + asstContent) : undefined;
+    const temporalType = classifyTemporal(userContent + ' ' + asstContent);
+    const expiryAt = temporalType === 'dynamic' ? inferExpiry(userContent + ' ' + asstContent) : undefined;
     const memoryTag = classifyMemoryType(userContent, asstContent);
     const metaObj = { temporal: temporalType, memoryType: memoryTag.type };
     if (scopeManager)
         metaObj.scope = scopeManager.getDefaultScope(agentId);
-    const identities = extractIdentityCandidates(userContent + " " + asstContent);
+    const identities = extractIdentityCandidates(userContent + ' ' + asstContent);
     if (identities.length > 0)
         metaObj.identities = identities;
     if (expiryAt)
@@ -65,7 +69,7 @@ export async function buildMetaObj(userContent, asstContent, scopeManager, agent
             console.warn(`[yaoyao-memory:capture] Watermark eval failed: ${msg}`);
         }
     }
-    enrichMetadata(metaObj, userContent + " " + asstContent);
+    enrichMetadata(metaObj, userContent + ' ' + asstContent);
     const meta = Object.keys(metaObj).length > 1 ? JSON.stringify(metaObj) : undefined;
     return { metaObj, meta, memoryTag };
 }

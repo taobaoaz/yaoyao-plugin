@@ -6,38 +6,42 @@ import { VALID_RELATIONS, formatRelation, formatJudgeResult } from "./formatter.
  */
 export function createJudgeTool(db) {
     return {
-        id: "memory_judge",
-        name: "memory_judge",
-        label: "Judge Memory Conflict",
-        description: "🧑⚖️ 裁决两条记忆之间的关系。关系类型：supersedes / conflicts_with / compatible / related / not_conflict。",
+        id: 'memory_judge',
+        name: 'memory_judge',
+        label: 'Judge Memory Conflict',
+        description: '🧑⚖️ 裁决两条记忆之间的关系。关系类型：supersedes / conflicts_with / compatible / related / not_conflict。',
         parameters: {
-            type: "object",
+            type: 'object',
             properties: {
-                memoryId: { type: "number", description: "目标记忆的 ID" },
+                memoryId: { type: 'number', description: '目标记忆的 ID' },
                 relation: {
-                    type: "string",
+                    type: 'string',
                     enum: VALID_RELATIONS,
-                    description: "新记忆与目标的关系",
+                    description: '新记忆与目标的关系',
                 },
-                reason: { type: "string", description: "裁决理由" },
-                evidence: { type: "string", description: "可选：用户的原始表达或确认内容", default: "" },
+                reason: { type: 'string', description: '裁决理由' },
+                evidence: { type: 'string', description: '可选：用户的原始表达或确认内容', default: '' },
             },
-            required: ["memoryId", "relation", "reason"],
+            required: ['memoryId', 'relation', 'reason'],
         },
         execute: withErrorHandling(async (_id, params) => {
             const memoryId = Number(params.memoryId);
-            const relation = String(params.relation ?? "");
-            const reason = String(params.reason ?? "").trim();
-            const evidence = params.evidence ? String(params.evidence).trim() : "";
+            const relation = String(params.relation ?? '');
+            const reason = String(params.reason ?? '').trim();
+            const evidence = params.evidence ? String(params.evidence).trim() : '';
             if (!Number.isFinite(memoryId) || memoryId <= 0) {
-                return { content: [{ type: "text", text: "❌ 无效的 memoryId" }] };
+                return { content: [{ type: 'text', text: '❌ 无效的 memoryId' }] };
             }
             if (!VALID_RELATIONS.includes(relation)) {
-                return { content: [{ type: "text", text: `❌ 无效的 relation。可选: ${VALID_RELATIONS.join(", ")}` }] };
+                return {
+                    content: [
+                        { type: 'text', text: `❌ 无效的 relation。可选: ${VALID_RELATIONS.join(', ')}` },
+                    ],
+                };
             }
             const typedRelation = relation;
             if (!reason) {
-                return { content: [{ type: "text", text: "❌ 请提供裁决理由（reason 参数）" }] };
+                return { content: [{ type: 'text', text: '❌ 请提供裁决理由（reason 参数）' }] };
             }
             const judgedAt = new Date().toISOString();
             // Store in the target memory's meta field
@@ -58,13 +62,26 @@ export function createJudgeTool(db) {
                 : [];
             if (!Array.isArray(meta.relations))
                 meta.relations = relationsArray;
-            relationsArray.push({ relation: typedRelation, reason, evidence: evidence || undefined, judgedAt });
+            relationsArray.push({
+                relation: typedRelation,
+                reason,
+                evidence: evidence || undefined,
+                judgedAt,
+            });
             db.updateMetadata(memoryId, JSON.stringify(meta));
             return {
-                content: [{
-                        type: "text",
-                        text: formatJudgeResult({ memoryId, relation: typedRelation, reason, evidence, judgedAt }),
-                    }],
+                content: [
+                    {
+                        type: 'text',
+                        text: formatJudgeResult({
+                            memoryId,
+                            relation: typedRelation,
+                            reason,
+                            evidence,
+                            judgedAt,
+                        }),
+                    },
+                ],
             };
         }),
     };
@@ -74,62 +91,63 @@ export function createJudgeTool(db) {
  */
 export function createConflictsTool(db) {
     return {
-        id: "memory_conflicts",
-        name: "memory_conflicts",
-        label: "Memory Conflicts List",
-        description: "📋 查看或扫描记忆冲突关系。action=list 列出已有关系; action=scan 对新文本进行冲突检测。",
+        id: 'memory_conflicts',
+        name: 'memory_conflicts',
+        label: 'Memory Conflicts List',
+        description: '📋 查看或扫描记忆冲突关系。action=list 列出已有关系; action=scan 对新文本进行冲突检测。',
         parameters: {
-            type: "object",
+            type: 'object',
             properties: {
                 action: {
-                    type: "string",
-                    enum: ["list", "scan"],
-                    description: "操作: list=列出已有冲突, scan=对新文本进行冲突扫描",
-                    default: "list",
+                    type: 'string',
+                    enum: ['list', 'scan'],
+                    description: '操作: list=列出已有冲突, scan=对新文本进行冲突扫描',
+                    default: 'list',
                 },
-                text: { type: "string", description: "（仅 scan）待检测的文本内容" },
-                limit: { type: "number", description: "返回结果上限（默认 20）", default: 20 },
+                text: { type: 'string', description: '（仅 scan）待检测的文本内容' },
+                limit: { type: 'number', description: '返回结果上限（默认 20）', default: 20 },
             },
         },
         execute: withErrorHandling(async (_id, params) => {
-            const action = String(params.action ?? "list");
+            const action = String(params.action ?? 'list');
             const limit = Math.min(Math.max(Number(params.limit ?? 20), 1), 100);
-            if (action === "list") {
+            if (action === 'list') {
                 const rows = db.searchByMetaRelations(limit);
                 if (rows.length === 0) {
-                    return { content: [{ type: "text", text: "📋 当前没有已裁决的冲突关系。" }] };
+                    return { content: [{ type: 'text', text: '📋 当前没有已裁决的冲突关系。' }] };
                 }
-                const lines = ["📋 **已裁决的冲突关系**", ""];
+                const lines = ['📋 **已裁决的冲突关系**', ''];
                 for (const row of rows) {
                     try {
                         const meta = JSON.parse(row.meta);
                         const relations = meta.relations;
                         if (!relations || relations.length === 0)
                             continue;
-                        lines.push(`**记忆 ID ${row.id}** [${row.date}]`, `内容: ${(row.user_text ?? "").slice(0, 80)}...`);
+                        lines.push(`**记忆 ID ${row.id}** [${row.date}]`, `内容: ${(row.user_text ?? '').slice(0, 80)}...`);
                         for (const rel of relations) {
                             lines.push(`  ${formatRelation(rel.relation)} — ${rel.reason}（${rel.judgedAt.slice(0, 10)}）`);
                         }
-                        lines.push("");
+                        lines.push('');
                     }
                     catch (e) {
                         const msg = e instanceof Error ? e.message : String(e);
                         console.warn(`[yaoyao-memory]  skip : ${msg}`);
                     }
                 }
-                return { content: [{ type: "text", text: lines.join("\n") }] };
+                return { content: [{ type: 'text', text: lines.join('\n') }] };
             }
             // scan
-            const text = String(params.text ?? "").trim();
+            const text = String(params.text ?? '').trim();
             if (!text)
-                return { content: [{ type: "text", text: "❌ scan 模式需要提供 text 参数" }] };
+                return { content: [{ type: 'text', text: '❌ scan 模式需要提供 text 参数' }] };
             const results = db.search(text, limit);
             const candidates = detectConflicts(text, results, { maxCandidates: Math.min(limit, 5) });
             if (candidates.length === 0) {
-                return { content: [{ type: "text", text: "✅ 扫描完成，未检测到冲突。" }] };
+                return { content: [{ type: 'text', text: '✅ 扫描完成，未检测到冲突。' }] };
             }
-            const report = formatConflictCandidates(candidates) + `\n共扫描 ${results.length} 条相关记忆，发现 ${candidates.length} 个冲突候选。`;
-            return { content: [{ type: "text", text: report }] };
+            const report = formatConflictCandidates(candidates) +
+                `\n共扫描 ${results.length} 条相关记忆，发现 ${candidates.length} 个冲突候选。`;
+            return { content: [{ type: 'text', text: report }] };
         }),
     };
 }

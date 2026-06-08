@@ -1,15 +1,15 @@
 /**
  * utils/backup-create.ts — Backup creation logic.
  */
-import path from "node:path";
-import fs from "node:fs";
+import path from 'node:path';
+import fs from 'node:fs';
 
 type Logger = { info?: (s: string) => void; error?: (s: string) => void };
 
 export function createBackup(
   baseDir: string,
   backupDir: string,
-  mode: "full" | "incremental" = "full",
+  mode: 'full' | 'incremental' = 'full',
   logger?: Logger,
 ): string | null {
   const log = (msg: string) => logger?.info?.(`[yaoyao-memory:backup] ${msg}`);
@@ -20,21 +20,21 @@ export function createBackup(
 
   try {
     ensureDir(backupDir);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const backupName = `memory-backup-${mode}-${timestamp}`;
     const backupPath = path.join(backupDir, backupName);
     ensureDir(backupPath);
 
     let fileCount = 0;
-    const lastBackupFile = path.join(backupDir, ".last-backup.json");
+    const lastBackupFile = path.join(backupDir, '.last-backup.json');
 
     let lastBackupMs = 0;
-    if (mode === "incremental") {
+    if (mode === 'incremental') {
       try {
         if (fs.existsSync(lastBackupFile)) {
           let meta: { timestamp: string };
           try {
-            meta = JSON.parse(fs.readFileSync(lastBackupFile, "utf-8"));
+            meta = JSON.parse(fs.readFileSync(lastBackupFile, 'utf-8'));
           } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : String(e);
             console.warn(`[yaoyao-memory:backup] Parse last backup failed: ${msg}`);
@@ -51,7 +51,9 @@ export function createBackup(
 
     if (fs.existsSync(baseDir)) {
       let files: string[];
-      try { files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md")); } catch (e: unknown) {
+      try {
+        files = fs.readdirSync(baseDir).filter((f) => f.endsWith('.md'));
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         console.warn(`[yaoyao-memory:backup] Read baseDir failed: ${msg}`);
         files = [];
@@ -63,12 +65,14 @@ export function createBackup(
         fileCount++;
       }
 
-      const sceneDir = path.join(baseDir, "scene_blocks");
+      const sceneDir = path.join(baseDir, 'scene_blocks');
       if (fs.existsSync(sceneDir)) {
-        const sceneBackupDir = path.join(backupPath, "scene_blocks");
+        const sceneBackupDir = path.join(backupPath, 'scene_blocks');
         fs.mkdirSync(sceneBackupDir, { recursive: true });
         let files: string[];
-        try { files = fs.readdirSync(sceneDir).filter(f => f.endsWith(".md")); } catch (e: unknown) {
+        try {
+          files = fs.readdirSync(sceneDir).filter((f) => f.endsWith('.md'));
+        } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
           console.warn(`[yaoyao-memory:backup] Read sceneDir failed: ${msg}`);
           files = [];
@@ -82,28 +86,28 @@ export function createBackup(
       }
     }
 
-    const dbPath = path.join(baseDir, ".yaoyao.db");
+    const dbPath = path.join(baseDir, '.yaoyao.db');
     if (fs.existsSync(dbPath)) {
       const backupDb = lastBackupMs === 0 || fs.statSync(dbPath).mtimeMs > lastBackupMs;
       if (backupDb || fileCount > 0) {
-        fs.copyFileSync(dbPath, path.join(backupPath, ".yaoyao.db"));
+        fs.copyFileSync(dbPath, path.join(backupPath, '.yaoyao.db'));
         fileCount++;
       }
     }
 
-    const feedbackPath = path.join(baseDir, ".feedback.jsonl");
+    const feedbackPath = path.join(baseDir, '.feedback.jsonl');
     if (fs.existsSync(feedbackPath)) {
       if (lastBackupMs === 0 || fs.statSync(feedbackPath).mtimeMs > lastBackupMs) {
-        fs.copyFileSync(feedbackPath, path.join(backupPath, ".feedback.jsonl"));
+        fs.copyFileSync(feedbackPath, path.join(backupPath, '.feedback.jsonl'));
         fileCount++;
       }
     }
 
     const meta = { timestamp, mode, fileCount };
-    fs.writeFileSync(path.join(backupPath, ".meta.json"), JSON.stringify(meta, null, 2));
+    fs.writeFileSync(path.join(backupPath, '.meta.json'), JSON.stringify(meta, null, 2));
     fs.writeFileSync(lastBackupFile, JSON.stringify({ timestamp }));
 
-    if (fileCount === 0 && mode === "incremental") {
+    if (fileCount === 0 && mode === 'incremental') {
       fs.rmSync(backupPath, { recursive: true, force: true });
       log(`No changes since last backup, incremental backup skipped`);
       return null;
@@ -112,7 +116,9 @@ export function createBackup(
     log(`Backup created: ${backupName} (${fileCount} files, ${mode})`);
     return backupName;
   } catch (err: unknown) {
-    logger?.error?.(`[yaoyao-memory:backup] Create failed: ${err instanceof Error ? err.message : String(err)}`);
+    logger?.error?.(
+      `[yaoyao-memory:backup] Create failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return null;
   }
 }

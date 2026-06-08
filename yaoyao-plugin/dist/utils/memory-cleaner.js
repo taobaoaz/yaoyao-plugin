@@ -7,8 +7,8 @@
  * - Evicts cold session checkpoints
  */
 import { clampNum } from "./clamp.js";
-import path from "node:path";
-import fs from "node:fs";
+import path from 'node:path';
+import fs from 'node:fs';
 export function parseCleanTime(cleanTime) {
     if (!cleanTime)
         return null;
@@ -84,7 +84,7 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
                     const stat = fs.statSync(fp);
                     if (stat.mtimeMs < cutoff) {
                         // Archive before deletion
-                        const archiveDir = path.join(baseDir, ".archive");
+                        const archiveDir = path.join(baseDir, '.archive');
                         fs.mkdirSync(archiveDir, { recursive: true });
                         fs.copyFileSync(fp, path.join(archiveDir, f));
                         fs.unlinkSync(fp);
@@ -100,7 +100,7 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
             }
         }
         // Clean up empty scene_blocks and stale pipeline checkpoints
-        const scenesDir = path.join(baseDir, "scene_blocks");
+        const scenesDir = path.join(baseDir, 'scene_blocks');
         if (fs.existsSync(scenesDir)) {
             let files;
             try {
@@ -124,7 +124,7 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
                 }
             }
         }
-        const pipelineDir = path.join(baseDir, ".pipeline");
+        const pipelineDir = path.join(baseDir, '.pipeline');
         if (fs.existsSync(pipelineDir)) {
             let files;
             try {
@@ -150,7 +150,7 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
             }
         }
         // Prune old backups (keep last 10)
-        const backupDir = path.join(baseDir, ".backups");
+        const backupDir = path.join(baseDir, '.backups');
         if (fs.existsSync(backupDir)) {
             let backups;
             try {
@@ -162,8 +162,8 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
                 backups = [];
             }
             const backupEntries = backups
-                .filter(f => f.startsWith("memory-backup-"))
-                .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
+                .filter((f) => f.startsWith('memory-backup-'))
+                .map((f) => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
                 .sort((a, b) => b.mtime - a.mtime);
             for (const b of backupEntries.slice(cfg.maxBackups)) {
                 fs.rmSync(path.join(backupDir, b.name), { recursive: true, force: true });

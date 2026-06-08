@@ -3,12 +3,18 @@
  */
 
 export type NodeMutator = (id: string, node: GraphNode) => void;
-export type EdgeMutator = (src: string, tgt: string, relation: string, weight: number, detail?: string) => void;
+export type EdgeMutator = (
+  src: string,
+  tgt: string,
+  relation: string,
+  weight: number,
+  detail?: string,
+) => void;
 
 export interface GraphNode {
   id: string;
   label: string;
-  type: "memory" | "scene" | "tag" | "date";
+  type: 'memory' | 'scene' | 'tag' | 'date';
   snippet: string;
   score: number;
   degree: number;

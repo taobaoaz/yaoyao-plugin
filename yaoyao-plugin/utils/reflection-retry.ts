@@ -13,12 +13,12 @@ export interface RetryClassifierInput {
 export interface RetryClassifierResult {
   retryable: boolean;
   reason:
-    | "not_reflection_scope"
-    | "retry_already_used"
-    | "useful_output_present"
-    | "non_retry_error"
-    | "non_transient_error"
-    | "transient_upstream_failure";
+    | 'not_reflection_scope'
+    | 'retry_already_used'
+    | 'useful_output_present'
+    | 'non_retry_error'
+    | 'non_transient_error'
+    | 'transient_upstream_failure';
   normalizedError: string;
 }
 
@@ -27,11 +27,11 @@ export interface RetryState {
 }
 
 export interface RetryRunnerParams<T> {
-  scope: "reflection" | "distiller" | "embedding" | "llm";
-  runner: "embedded" | "cli" | "api";
+  scope: 'reflection' | 'distiller' | 'embedding' | 'llm';
+  runner: 'embedded' | 'cli' | 'api';
   retryState: RetryState;
   execute: () => Promise<T>;
-  onLog?: (level: "info" | "warn", message: string) => void;
+  onLog?: (level: 'info' | 'warn', message: string) => void;
   random?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -95,20 +95,20 @@ const DEFAULT_SLEEP = (ms: number) => new Promise<void>((resolve) => setTimeout(
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     const msg = `${error.name}: ${error.message}`.trim();
-    return msg || "Error";
+    return msg || 'Error';
   }
-  if (typeof error === "string") return error;
+  if (typeof error === 'string') return error;
   try {
     return JSON.stringify(error);
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
-      return String(error);
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
+    return String(error);
+  }
 }
 
 function clipSingleLine(text: string, maxLen = 260): string {
-  const oneLine = text.replace(/\s+/g, " ").trim();
+  const oneLine = text.replace(/\s+/g, ' ').trim();
   if (oneLine.length <= maxLen) return oneLine;
   return `${oneLine.slice(0, maxLen - 3)}...`;
 }
@@ -130,21 +130,21 @@ export function classifyRetry(input: RetryClassifierInput): RetryClassifierResul
   const normalizedError = clipSingleLine(toErrorMessage(input.error), 260);
 
   if (!input.inReflectionScope) {
-    return { retryable: false, reason: "not_reflection_scope", normalizedError };
+    return { retryable: false, reason: 'not_reflection_scope', normalizedError };
   }
   if (input.retryCount > 0) {
-    return { retryable: false, reason: "retry_already_used", normalizedError };
+    return { retryable: false, reason: 'retry_already_used', normalizedError };
   }
   if (input.usefulOutputChars > 0) {
-    return { retryable: false, reason: "useful_output_present", normalizedError };
+    return { retryable: false, reason: 'useful_output_present', normalizedError };
   }
   if (isNonRetryError(input.error)) {
-    return { retryable: false, reason: "non_retry_error", normalizedError };
+    return { retryable: false, reason: 'non_retry_error', normalizedError };
   }
   if (isTransientUpstreamError(input.error)) {
-    return { retryable: true, reason: "transient_upstream_failure", normalizedError };
+    return { retryable: true, reason: 'transient_upstream_failure', normalizedError };
   }
-  return { retryable: false, reason: "non_transient_error", normalizedError };
+  return { retryable: false, reason: 'non_transient_error', normalizedError };
 }
 
 /** Compute a random delay between 1000-3000ms. */
@@ -155,9 +155,7 @@ export function computeRetryDelayMs(random: () => number = Math.random): number 
 }
 
 /** Run an async function with one transient-retry attempt. */
-export async function runWithTransientRetryOnce<T>(
-  params: RetryRunnerParams<T>
-): Promise<T> {
+export async function runWithTransientRetryOnce<T>(params: RetryRunnerParams<T>): Promise<T> {
   try {
     return await params.execute();
   } catch (error) {
@@ -172,21 +170,21 @@ export async function runWithTransientRetryOnce<T>(
     const delayMs = computeRetryDelayMs(params.random);
     params.retryState.count += 1;
     params.onLog?.(
-      "warn",
+      'warn',
       `memory-${params.scope}: transient failure detected (${params.runner}); ` +
-      `retrying once in ${delayMs}ms (${decision.reason}). error=${decision.normalizedError}`
+        `retrying once in ${delayMs}ms (${decision.reason}). error=${decision.normalizedError}`,
     );
     await (params.sleep ?? DEFAULT_SLEEP)(delayMs);
 
     try {
       const result = await params.execute();
-      params.onLog?.("info", `memory-${params.scope}: retry succeeded (${params.runner})`);
+      params.onLog?.('info', `memory-${params.scope}: retry succeeded (${params.runner})`);
       return result;
     } catch (retryError) {
       params.onLog?.(
-        "warn",
+        'warn',
         `memory-${params.scope}: retry exhausted (${params.runner}). ` +
-        `error=${clipSingleLine(toErrorMessage(retryError), 260)}`
+          `error=${clipSingleLine(toErrorMessage(retryError), 260)}`,
       );
       throw retryError;
     }

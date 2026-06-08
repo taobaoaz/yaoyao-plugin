@@ -63,7 +63,7 @@ export function applyDiversitySampling(results, baseThreshold, minThreshold) {
             if (sim > maxSim)
                 maxSim = sim;
         }
-        const threshold = Math.max(minThreshold, baseThreshold - (out.length * 0.02));
+        const threshold = Math.max(minThreshold, baseThreshold - out.length * 0.02);
         if (maxSim < threshold)
             out.push(r);
     }
@@ -76,7 +76,7 @@ export function applyTimeDecay(results, halfLifeDays, mode) {
     return results.map((r) => {
         const ageMs = now - (r.timestamp || now);
         let decay;
-        if (mode === "logistic") {
+        if (mode === 'logistic') {
             const k = 10 / halfLifeMs;
             const t0 = halfLifeMs;
             decay = 1 / (1 + Math.exp(k * (ageMs - t0)));
@@ -116,14 +116,74 @@ export function filterByScope(results, scopeManager, agentId) {
 }
 /** Stopword set for query cleaning */
 const STOPWORDS = new Set([
-    "可以",
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "can", "could",
-    "shall", "should", "may", "might", "must", "i", "you", "he", "she", "it",
-    "we", "they", "me", "him", "her", "us", "them", "this", "that", "these",
-    "those", "and", "or", "but", "if", "because", "when", "where", "how",
-    "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
-    "at", "by", "from", "as", "into", "not", "no", "yes",
+    '可以',
+    'the',
+    'a',
+    'an',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'do',
+    'does',
+    'did',
+    'will',
+    'would',
+    'can',
+    'could',
+    'shall',
+    'should',
+    'may',
+    'might',
+    'must',
+    'i',
+    'you',
+    'he',
+    'she',
+    'it',
+    'we',
+    'they',
+    'me',
+    'him',
+    'her',
+    'us',
+    'them',
+    'this',
+    'that',
+    'these',
+    'those',
+    'and',
+    'or',
+    'but',
+    'if',
+    'because',
+    'when',
+    'where',
+    'how',
+    'what',
+    'which',
+    'who',
+    'whom',
+    'to',
+    'of',
+    'in',
+    'for',
+    'on',
+    'with',
+    'at',
+    'by',
+    'from',
+    'as',
+    'into',
+    'not',
+    'no',
+    'yes',
 ]);
 /** Filter stopwords from a word array */
 export function filterStopwords(words) {

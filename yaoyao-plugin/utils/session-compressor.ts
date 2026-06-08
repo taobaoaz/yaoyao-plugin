@@ -10,8 +10,8 @@ import {
   ACKNOWLEDGMENT_PATTERNS,
   MEMORY_INTENT,
   MEMORY_INTENT_CJK,
-} from "./compressor-indicators.ts";
-import { compressTexts } from "./compressor-core.ts";
+} from './compressor-indicators.ts';
+import { compressTexts } from './compressor-core.ts';
 
 export interface ScoredText {
   index: number;
@@ -32,45 +32,45 @@ export { compressTexts };
 export function scoreText(text: string, index: number): ScoredText {
   const trimmed = text.trim();
   if (trimmed.length === 0) {
-    return { index, text, score: 0.0, reason: "empty" };
+    return { index, text, score: 0.0, reason: 'empty' };
   }
 
   if (TOOL_CALL_INDICATORS.some((p) => p.test(trimmed))) {
-    return { index, text, score: 1.0, reason: "tool_call" };
+    return { index, text, score: 1.0, reason: 'tool_call' };
   }
 
   if (CORRECTION_INDICATORS.some((p) => p.test(trimmed))) {
-    return { index, text, score: 0.95, reason: "correction" };
+    return { index, text, score: 0.95, reason: 'correction' };
   }
 
   if (DECISION_INDICATORS.some((p) => p.test(trimmed))) {
-    return { index, text, score: 0.85, reason: "decision" };
+    return { index, text, score: 0.85, reason: 'decision' };
   }
 
   if (ACKNOWLEDGMENT_PATTERNS.some((p) => p.test(trimmed))) {
-    return { index, text, score: 0.1, reason: "acknowledgment" };
+    return { index, text, score: 0.1, reason: 'acknowledgment' };
   }
 
   const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(trimmed);
   const substantiveMinLength = hasCJK ? 30 : 80;
   if (trimmed.length > substantiveMinLength) {
     if (/^<[a-z-]+>/.test(trimmed) && /<\/[a-z-]+>\s*$/.test(trimmed)) {
-      return { index, text, score: 0.3, reason: "system_xml" };
+      return { index, text, score: 0.3, reason: 'system_xml' };
     }
-    return { index, text, score: 0.7, reason: "substantive" };
+    return { index, text, score: 0.7, reason: 'substantive' };
   }
 
-  if (trimmed.includes("?") || trimmed.includes("？")) {
-    return { index, text, score: 0.5, reason: "short_question" };
+  if (trimmed.includes('?') || trimmed.includes('？')) {
+    return { index, text, score: 0.5, reason: 'short_question' };
   }
 
-  return { index, text, score: 0.4, reason: "short_statement" };
+  return { index, text, score: 0.4, reason: 'short_statement' };
 }
 
 export function estimateConversationValue(texts: string[]): number {
   if (texts.length === 0) return 0;
   let value = 0;
-  const joined = texts.join(" ");
+  const joined = texts.join(' ');
 
   if (MEMORY_INTENT.test(joined) || MEMORY_INTENT_CJK.test(joined)) {
     value += 0.5;

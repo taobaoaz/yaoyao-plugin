@@ -33,7 +33,7 @@ export class FeatureRegistry {
             for (const id of pending) {
                 const feature = this.features.get(id);
                 // Check if all dependencies are already resolved
-                const depsReady = feature.dependencies.every(did => this.resolved.has(did));
+                const depsReady = feature.dependencies.every((did) => this.resolved.has(did));
                 if (!depsReady)
                     continue;
                 // Circular dependency guard
@@ -80,7 +80,7 @@ export class FeatureRegistry {
                 inProgress.delete(id);
                 progressed = true;
                 // Log result
-                const level = result.active ? "info" : "debug";
+                const level = result.active ? 'info' : 'debug';
                 api.logger[level]?.(`[yaoyao-memory:optional] ${result.message}`);
                 if (result.warning) {
                     api.logger.warn?.(`[yaoyao-memory:optional] ${feature.name}: ${result.warning}`);
@@ -88,7 +88,7 @@ export class FeatureRegistry {
             }
             if (!progressed && pending.size > 0) {
                 // Deadlock: remaining features have unresolved dependencies
-                const ids = [...pending].join(", ");
+                const ids = [...pending].join(', ');
                 api.logger.error?.(`[yaoyao-memory:optional] Dependency deadlock: ${ids} — skipping`);
                 for (const id of pending) {
                     const f = this.features.get(id);
@@ -122,12 +122,12 @@ export class FeatureRegistry {
 function isFeatureEnabled(feature, config) {
     if (!feature.configKey)
         return feature.defaultEnabled;
-    const parts = feature.configKey.split(".");
+    const parts = feature.configKey.split('.');
     let current = config;
     for (const part of parts) {
         if (current === null || current === undefined)
             return feature.defaultEnabled;
-        if (typeof current !== "object")
+        if (typeof current !== 'object')
             return feature.defaultEnabled;
         current = current[part];
     }

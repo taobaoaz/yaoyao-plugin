@@ -13,12 +13,12 @@ function isWordChar(char) {
 export function tokenizeText(value) {
     const normalized = value.toLowerCase().trim();
     const tokens = [];
-    let current = "";
+    let current = '';
     for (const char of normalized) {
         if (isHanChar(char)) {
             if (current) {
                 tokens.push(current);
-                current = "";
+                current = '';
             }
             tokens.push(char);
             continue;
@@ -29,7 +29,7 @@ export function tokenizeText(value) {
         }
         if (current) {
             tokens.push(current);
-            current = "";
+            current = '';
         }
     }
     if (current) {
@@ -100,7 +100,7 @@ export function scoreConfidenceSupport(candidateText, conversationText) {
     const supportedTokenCount = uniqueCandidateTokens.filter((token) => conversationTokens.has(token)).length;
     const coverage = uniqueCandidateTokens.length > 0 ? supportedTokenCount / uniqueCandidateTokens.length : 0;
     const unsupportedRatio = uniqueCandidateTokens.length > 0 ? 1 - coverage : 1;
-    const rawScore = (bestSupport * 0.7) + (coverage * 0.3) - (unsupportedRatio * 0.25);
+    const rawScore = bestSupport * 0.7 + coverage * 0.3 - unsupportedRatio * 0.25;
     const score = Math.min(1, Math.max(0, rawScore));
     return { score, bestSupport, coverage, unsupportedRatio };
 }

@@ -16,13 +16,13 @@ function isWordChar(char: string): boolean {
 export function tokenizeText(value: string): string[] {
   const normalized = value.toLowerCase().trim();
   const tokens: string[] = [];
-  let current = "";
+  let current = '';
 
   for (const char of normalized) {
     if (isHanChar(char)) {
       if (current) {
         tokens.push(current);
-        current = "";
+        current = '';
       }
       tokens.push(char);
       continue;
@@ -35,7 +35,7 @@ export function tokenizeText(value: string): string[] {
 
     if (current) {
       tokens.push(current);
-      current = "";
+      current = '';
     }
   }
 
@@ -49,9 +49,7 @@ export function tokenizeText(value: string): string[] {
 /** Longest common subsequence length */
 export function lcsLength(left: string[], right: string[]): number {
   if (left.length === 0 || right.length === 0) return 0;
-  const dp = Array.from({ length: left.length + 1 }, () =>
-    Array(right.length + 1).fill(0),
-  );
+  const dp = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
 
   for (let i = 1; i <= left.length; i++) {
     for (let j = 1; j <= right.length; j++) {
@@ -120,10 +118,13 @@ export function scoreConfidenceSupport(
   }
 
   const uniqueCandidateTokens = Array.from(new Set(candidateTokens));
-  const supportedTokenCount = uniqueCandidateTokens.filter((token) => conversationTokens.has(token)).length;
-  const coverage = uniqueCandidateTokens.length > 0 ? supportedTokenCount / uniqueCandidateTokens.length : 0;
+  const supportedTokenCount = uniqueCandidateTokens.filter((token) =>
+    conversationTokens.has(token),
+  ).length;
+  const coverage =
+    uniqueCandidateTokens.length > 0 ? supportedTokenCount / uniqueCandidateTokens.length : 0;
   const unsupportedRatio = uniqueCandidateTokens.length > 0 ? 1 - coverage : 1;
-  const rawScore = (bestSupport * 0.7) + (coverage * 0.3) - (unsupportedRatio * 0.25);
+  const rawScore = bestSupport * 0.7 + coverage * 0.3 - unsupportedRatio * 0.25;
   const score = Math.min(1, Math.max(0, rawScore));
 
   return { score, bestSupport, coverage, unsupportedRatio };

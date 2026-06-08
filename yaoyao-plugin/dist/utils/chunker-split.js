@@ -13,7 +13,7 @@ export function findSplitEnd(text, start, maxEnd, minEnd, config) {
         if (countLines(candidate) > config.maxLinesPerChunk) {
             let breaks = 0;
             for (let i = start; i < safeMaxEnd; i++) {
-                if (text[i] === "\n") {
+                if (text[i] === '\n') {
                     breaks++;
                     if (breaks >= config.maxLinesPerChunk) {
                         return Math.max(i + 1, safeMinEnd);
@@ -32,7 +32,7 @@ export function findSplitEnd(text, start, maxEnd, minEnd, config) {
             }
         }
         for (let i = safeMaxEnd - 1; i >= safeMinEnd; i--) {
-            if (text[i] === "\n")
+            if (text[i] === '\n')
                 return i + 1;
         }
     }

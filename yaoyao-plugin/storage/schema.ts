@@ -3,7 +3,7 @@
  *
  * Extracted from db-bridge.ts to isolate schema management.
  */
-import type { UnifiedDB } from "../platform/db/types.ts";
+import type { UnifiedDB } from '../platform/db/types.ts';
 
 /** All table creation SQLs, idempotent (IF NOT EXISTS). */
 const SCHEMA_SQLS = [
@@ -43,14 +43,16 @@ const SCHEMA_SQLS = [
 
 /** Run all CREATE TABLE statements. Safe to call multiple times. */
 export function ensureSchema(db: UnifiedDB): void {
-  db.exec("BEGIN TRANSACTION");
+  db.exec('BEGIN TRANSACTION');
   try {
     for (const sql of SCHEMA_SQLS) {
       db.exec(sql);
     }
-    db.exec("COMMIT");
+    db.exec('COMMIT');
   } catch (err: unknown) {
-    try { db.exec("ROLLBACK"); } catch (e: unknown) {
+    try {
+      db.exec('ROLLBACK');
+    } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory]  ignore : ${msg}`);
     }

@@ -4,14 +4,14 @@
  * Delegates sanitization + deduplication to markdown-helpers.ts.
  * Zero external dependencies.
  */
-import { MIN_ENTRY_LENGTH, dedupeEntries, maybeFlush, isSkippableLine, isHeader } from "./markdown-helpers.js";
+import { MIN_ENTRY_LENGTH, dedupeEntries, maybeFlush, isSkippableLine, isHeader, } from "./markdown-helpers.js";
 // ── Strategy: Dated ──────────────────────────────────────────────────────────
 /** Split on #/## YYYY-MM-DD headers, extract bullets from raw text. */
 function parseDated(content, source, fileDate) {
     const segments = [];
-    let buffer = "";
+    let buffer = '';
     let currentDate = fileDate;
-    for (const rawLine of content.split("\n")) {
+    for (const rawLine of content.split('\n')) {
         const trimmed = rawLine.trim();
         const dateMatch = trimmed.match(/^#{1,2}\s+(\d{4}-\d{2}-\d{2})/);
         if (dateMatch) {
@@ -19,12 +19,12 @@ function parseDated(content, source, fileDate) {
                 segments.push({ raw: buffer.trim(), date: currentDate });
             }
             currentDate = dateMatch[1];
-            buffer = "";
+            buffer = '';
             continue;
         }
         if (isSkippableLine(trimmed))
             continue;
-        buffer += rawLine + "\n";
+        buffer += rawLine + '\n';
     }
     if (buffer.trim().length >= MIN_ENTRY_LENGTH) {
         segments.push({ raw: buffer.trim(), date: currentDate });
@@ -42,19 +42,19 @@ function parseDated(content, source, fileDate) {
 /** Split on any header (# to ######). */
 function parseSectioned(content, source, fileDate) {
     const entries = [];
-    let buffer = "";
-    for (const rawLine of content.split("\n")) {
+    let buffer = '';
+    for (const rawLine of content.split('\n')) {
         const trimmed = rawLine.trim();
         if (isHeader(trimmed)) {
             const entry = maybeFlush(buffer, fileDate, `${source}:section`, 1);
             if (entry)
                 entries.push(entry);
-            buffer = "";
+            buffer = '';
             continue;
         }
         if (isSkippableLine(trimmed))
             continue;
-        buffer += rawLine + "\n";
+        buffer += rawLine + '\n';
     }
     const entry = maybeFlush(buffer, fileDate, `${source}:section`, 1);
     if (entry)
@@ -65,16 +65,16 @@ function parseSectioned(content, source, fileDate) {
 /** Extract each bullet / numbered item as its own entry. */
 export function extractBullets(text, date, meta) {
     const entries = [];
-    let buffer = "";
+    let buffer = '';
     function flush() {
         const entry = maybeFlush(buffer, date, meta, 2);
         if (entry)
             entries.push(entry);
-        buffer = "";
+        buffer = '';
     }
-    for (const line of text.split("\n")) {
+    for (const line of text.split('\n')) {
         const trimmed = line.trim();
-        if (isHeader(trimmed) || trimmed === "---") {
+        if (isHeader(trimmed) || trimmed === '---') {
             flush();
             continue;
         }
@@ -86,10 +86,10 @@ export function extractBullets(text, date, meta) {
         const isBullet = /^[-*+]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed);
         if (isBullet) {
             flush();
-            buffer = trimmed.replace(/^[-*+\d.]\s+/, "");
+            buffer = trimmed.replace(/^[-*+\d.]\s+/, '');
         }
         else if (buffer) {
-            buffer += " " + trimmed;
+            buffer += ' ' + trimmed;
         }
     }
     flush();
@@ -129,26 +129,32 @@ function parseMixed(content, source, fileDate) {
 function detectFileType(filename) {
     const lower = filename.toLowerCase();
     if (/^\d{4}-\d{2}-\d{2}/.test(lower))
-        return "dated";
-    if (lower.includes("memory") && lower.endsWith(".md"))
-        return "mixed";
-    if (lower === "user.md" || lower === "soul.md")
-        return "paragraph";
-    if (lower === "agents.md" || lower === "tools.md" || lower === "heartbeat.md")
-        return "sectioned";
-    if (lower === "dreams.md")
-        return "mixed";
-    return "mixed";
+        return 'dated';
+    if (lower.includes('memory') && lower.endsWith('.md'))
+        return 'mixed';
+    if (lower === 'user.md' || lower === 'soul.md')
+        return 'paragraph';
+    if (lower === 'agents.md' || lower === 'tools.md' || lower === 'heartbeat.md')
+        return 'sectioned';
+    if (lower === 'dreams.md')
+        return 'mixed';
+    return 'mixed';
 }
 /** Unified parser — selects strategy by file type. */
 export function parseFile(content, filename, fileDate) {
     const type = detectFileType(filename);
     switch (type) {
-        case "dated": return parseDated(content, filename, fileDate);
-        case "sectioned": return parseSectioned(content, filename, fileDate);
-        case "bullet": return parseBullet(content, filename, fileDate);
-        case "paragraph": return parseParagraph(content, filename, fileDate);
-        case "mixed": return parseMixed(content, filename, fileDate);
-        default: return parseMixed(content, filename, fileDate);
+        case 'dated':
+            return parseDated(content, filename, fileDate);
+        case 'sectioned':
+            return parseSectioned(content, filename, fileDate);
+        case 'bullet':
+            return parseBullet(content, filename, fileDate);
+        case 'paragraph':
+            return parseParagraph(content, filename, fileDate);
+        case 'mixed':
+            return parseMixed(content, filename, fileDate);
+        default:
+            return parseMixed(content, filename, fileDate);
     }
 }

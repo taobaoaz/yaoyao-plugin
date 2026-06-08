@@ -4,9 +4,9 @@
  * Replaces scattered `if (enabled)` / `try/catch` logic in entry/index.ts
  * and tools/index.ts with a declarative, dependency-aware system.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
-import type { OptionalFeature, FeatureResult, ResolvedFeatures } from "./types.ts";
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
+import type { OptionalFeature, FeatureResult, ResolvedFeatures } from './types.ts';
 
 export class FeatureRegistry {
   private features = new Map<string, OptionalFeature>();
@@ -51,13 +51,13 @@ export class FeatureRegistry {
         const feature = this.features.get(id)!;
 
         // Check if all dependencies are already resolved
-        const depsReady = feature.dependencies.every(did => this.resolved.has(did));
+        const depsReady = feature.dependencies.every((did) => this.resolved.has(did));
         if (!depsReady) continue;
 
         // Circular dependency guard
         if (inProgress.has(id)) {
           api.logger.warn?.(
-            `[yaoyao-memory:optional] Circular dependency detected: "${id}" — skipping`
+            `[yaoyao-memory:optional] Circular dependency detected: "${id}" — skipping`,
           );
           pending.delete(id);
           continue;
@@ -92,7 +92,7 @@ export class FeatureRegistry {
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           api.logger.warn?.(
-            `[yaoyao-memory:optional] ${feature.name} init failed: ${msg} — skipping`
+            `[yaoyao-memory:optional] ${feature.name} init failed: ${msg} — skipping`,
           );
           result = {
             active: false,
@@ -107,7 +107,7 @@ export class FeatureRegistry {
         progressed = true;
 
         // Log result
-        const level = result.active ? "info" : "debug";
+        const level = result.active ? 'info' : 'debug';
         api.logger[level]?.(`[yaoyao-memory:optional] ${result.message}`);
         if (result.warning) {
           api.logger.warn?.(`[yaoyao-memory:optional] ${feature.name}: ${result.warning}`);
@@ -116,10 +116,8 @@ export class FeatureRegistry {
 
       if (!progressed && pending.size > 0) {
         // Deadlock: remaining features have unresolved dependencies
-        const ids = [...pending].join(", ");
-        api.logger.error?.(
-          `[yaoyao-memory:optional] Dependency deadlock: ${ids} — skipping`
-        );
+        const ids = [...pending].join(', ');
+        api.logger.error?.(`[yaoyao-memory:optional] Dependency deadlock: ${ids} — skipping`);
         for (const id of pending) {
           const f = this.features.get(id)!;
           this.resolved.set(id, {
@@ -146,7 +144,7 @@ export class FeatureRegistry {
         api.logger.warn?.(
           `[yaoyao-memory:optional] ${feature.name} close failed: ${
             err instanceof Error ? err.message : String(err)
-          }`
+          }`,
         );
       }
     }
@@ -157,11 +155,11 @@ export class FeatureRegistry {
 function isFeatureEnabled(feature: OptionalFeature, config: YaoyaoMemoryConfig): boolean {
   if (!feature.configKey) return feature.defaultEnabled;
 
-  const parts = feature.configKey.split(".");
+  const parts = feature.configKey.split('.');
   let current: unknown = config;
   for (const part of parts) {
     if (current === null || current === undefined) return feature.defaultEnabled;
-    if (typeof current !== "object") return feature.defaultEnabled;
+    if (typeof current !== 'object') return feature.defaultEnabled;
     current = (current as Record<string, unknown>)[part];
   }
 

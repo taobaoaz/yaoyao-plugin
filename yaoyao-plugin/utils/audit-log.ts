@@ -7,9 +7,9 @@
  * v2: Async batch flush to avoid blocking the event loop.
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import fs from 'node:fs';
+import path from 'node:path';
+import type { PluginLogger } from 'openclaw/plugin-sdk/plugin-entry';
 
 export interface AuditEntry {
   component: string;
@@ -25,19 +25,15 @@ export interface AuditLogOptions {
   flushIntervalMs?: number;
 }
 
-export function createAuditLog(
-  baseDir: string,
-  logger?: PluginLogger,
-  opts: AuditLogOptions = {},
-) {
-  const auditDir = path.join(baseDir, "audit");
+export function createAuditLog(baseDir: string, logger?: PluginLogger, opts: AuditLogOptions = {}) {
+  const auditDir = path.join(baseDir, 'audit');
   const bufferSize = opts.bufferSize ?? 50;
   const flushIntervalMs = opts.flushIntervalMs ?? 5000;
 
-  let buffer: string[] = [];
+  const buffer: string[] = [];
   let flushTimer: NodeJS.Timeout | null = null;
   let flushing = false;
-  let headerEnsuredForDate = ""; // cache: which date's header has been written
+  let headerEnsuredForDate = ''; // cache: which date's header has been written
 
   function ensureDir() {
     if (!fs.existsSync(auditDir)) {
@@ -73,14 +69,14 @@ export function createAuditLog(
       ensureDir();
 
       // Ensure header only once per day
-      let header = "";
+      let header = '';
       if (headerEnsuredForDate !== date || !fs.existsSync(fp)) {
         header = buildHeader(date);
         headerEnsuredForDate = date;
       }
 
-      const content = header + batch.join("");
-      await fs.promises.appendFile(fp, content, "utf-8");
+      const content = header + batch.join('');
+      await fs.promises.appendFile(fp, content, 'utf-8');
     } catch (err) {
       logger?.debug?.(
         `[yaoyao-memory:audit] Flush failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -97,21 +93,18 @@ export function createAuditLog(
 
   function write(entry: AuditEntry): void {
     try {
-      const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
+      const ts = new Date().toISOString().slice(0, 19).replace('T', ' ');
       let lines = `\n## ${ts} [${entry.component}] ${entry.event}\n\n`;
       lines += `- **摘要**: ${entry.summary}\n`;
 
       if (entry.details && Object.keys(entry.details).length > 0) {
         for (const [k, v] of Object.entries(entry.details)) {
           if (v === undefined) continue;
-          const display =
-            typeof v === "object"
-              ? JSON.stringify(v).slice(0, 500)
-              : String(v);
+          const display = typeof v === 'object' ? JSON.stringify(v).slice(0, 500) : String(v);
           lines += `- **${k}**: ${display}\n`;
         }
       }
-      lines += "\n";
+      lines += '\n';
 
       buffer.push(lines);
 
@@ -129,7 +122,7 @@ export function createAuditLog(
 
   /** Record an audit event (alias for write). */
   function record(event: string, details?: Record<string, unknown>): void {
-    write({ component: "yaoyao-memory", event, summary: event, details });
+    write({ component: 'yaoyao-memory', event, summary: event, details });
   }
 
   /** Synchronous flush for graceful shutdown */
@@ -141,12 +134,12 @@ export function createAuditLog(
 
     try {
       ensureDir();
-      let header = "";
+      let header = '';
       if (headerEnsuredForDate !== date || !fs.existsSync(fp)) {
         header = buildHeader(date);
         headerEnsuredForDate = date;
       }
-      fs.appendFileSync(fp, header + batch.join(""), "utf-8");
+      fs.appendFileSync(fp, header + batch.join(''), 'utf-8');
     } catch (err) {
       logger?.error?.(
         `[yaoyao-memory:audit] Sync flush failed: ${err instanceof Error ? err.message : String(err)}`,

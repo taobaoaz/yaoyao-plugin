@@ -3,8 +3,8 @@
  */
 /** Compute Jaccard similarity on first N chars using bigrams */
 export function jaccardSnippet(a, b, chars = 100) {
-    if (typeof a !== "string" || typeof b !== "string")
-        throw new TypeError("jaccardSnippet: a and b must be strings");
+    if (typeof a !== 'string' || typeof b !== 'string')
+        throw new TypeError('jaccardSnippet: a and b must be strings');
     if (!Number.isFinite(chars) || chars < 1)
         chars = 100;
     const snippetA = a.slice(0, chars);
@@ -25,7 +25,7 @@ export function jaccardSnippet(a, b, chars = 100) {
 /** Find duplicate pairs with similarity > threshold */
 export function findDuplicates(results, threshold = 0.8) {
     if (!Array.isArray(results))
-        throw new TypeError("findDuplicates: results must be an array");
+        throw new TypeError('findDuplicates: results must be an array');
     if (!Number.isFinite(threshold) || threshold <= 0 || threshold > 1)
         threshold = 0.8;
     const duplicates = [];
@@ -41,18 +41,18 @@ export function findDuplicates(results, threshold = 0.8) {
 }
 export function computeDateStats(dailyFiles, totalMemories) {
     if (!Array.isArray(dailyFiles))
-        throw new TypeError("computeDateStats: dailyFiles must be an array");
+        throw new TypeError('computeDateStats: dailyFiles must be an array');
     if (!Number.isFinite(totalMemories) || totalMemories < 0)
         totalMemories = 0;
     const dates = dailyFiles
-        .map((f) => f.filename.replace(/\.md$/i, ""))
+        .map((f) => f.filename.replace(/\.md$/i, ''))
         .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
         .sort();
     let totalDays = 0;
     let dateCoverage = 0;
     if (dates.length > 0) {
-        const first = new Date(dates[0] + "T00:00:00");
-        const last = new Date(dates[dates.length - 1] + "T00:00:00");
+        const first = new Date(dates[0] + 'T00:00:00');
+        const last = new Date(dates[dates.length - 1] + 'T00:00:00');
         totalDays = Math.max(1, Math.ceil((last.getTime() - first.getTime()) / 86400000) + 1);
         dateCoverage = parseFloat(((dates.length / totalDays) * 100).toFixed(1));
     }
@@ -62,7 +62,7 @@ export function computeDateStats(dailyFiles, totalMemories) {
     const now = new Date();
     const msDay = 86400000;
     for (const d of dates) {
-        const diffDays = (now.getTime() - new Date(d + "T00:00:00").getTime()) / msDay;
+        const diffDays = (now.getTime() - new Date(d + 'T00:00:00').getTime()) / msDay;
         if (diffDays >= 0) {
             if (diffDays <= 7)
                 recent7Count++;
@@ -89,16 +89,16 @@ export function generateRecommendations(dateCoverage, totalDays, duplicationRati
         dailyFilesCount = 0;
     const recs = [];
     if (dateCoverage < 50 && totalDays > 7) {
-        recs.push("• 日期覆盖率偏低，建议增加记忆保存频率");
+        recs.push('• 日期覆盖率偏低，建议增加记忆保存频率');
     }
     if (duplicationRatio > 20) {
-        recs.push("• 重复度较高，建议运行 memory_quality(action:dedup) 检测具体重复项");
+        recs.push('• 重复度较高，建议运行 memory_quality(action:dedup) 检测具体重复项');
     }
     if (dbSizeKB > 0 && memoryDirSizeKB > 0 && dbSizeKB > memoryDirSizeKB * 0.5) {
-        recs.push("• 数据库文件相对较大，建议运行 memory_optimize 清理无用索引");
+        recs.push('• 数据库文件相对较大，建议运行 memory_optimize 清理无用索引');
     }
     if (recent7Count === 0 && dailyFilesCount > 0) {
-        recs.push("• 最近 7 天无新记忆，建议检查 auto-capture 是否正常运行");
+        recs.push('• 最近 7 天无新记忆，建议检查 auto-capture 是否正常运行');
     }
     return recs;
 }

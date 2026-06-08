@@ -4,8 +4,8 @@
  * Every optional capability (embedding, LLM, cloud sync, verify, etc.)
  * implements this interface so the registry can manage them uniformly.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
 
 /** Result of initializing a feature */
 export interface FeatureResult<T = unknown> {
@@ -43,7 +43,7 @@ export interface OptionalFeature<T = unknown> {
   init(
     api: OpenClawPluginApi,
     config: YaoyaoMemoryConfig,
-    deps: Map<string, FeatureResult>
+    deps: Map<string, FeatureResult>,
   ): FeatureResult<T>;
 
   /** Clean up resources when plugin stops */

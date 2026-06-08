@@ -6,16 +6,16 @@
  */
 
 const INBOUND_META_SENTINELS = [
-  "Conversation info (untrusted metadata):",
-  "Sender (untrusted metadata):",
-  "Thread starter (untrusted, for context):",
-  "Replied message (untrusted, for context):",
-  "Forwarded message context (untrusted metadata):",
-  "Chat history since last reply (untrusted, for context):",
+  'Conversation info (untrusted metadata):',
+  'Sender (untrusted metadata):',
+  'Thread starter (untrusted, for context):',
+  'Replied message (untrusted, for context):',
+  'Forwarded message context (untrusted metadata):',
+  'Chat history since last reply (untrusted, for context):',
 ] as const;
 
 const SESSION_RESET_PREFIX =
-  "A new session was started via /new or /reset. Execute your Session Startup sequence now";
+  'A new session was started via /new or /reset. Execute your Session Startup sequence now';
 
 const ADDRESSING_PREFIX_RE = /^(?:<@!?[0-9]+>|@[A-Za-z0-9_.-]+)\s*/;
 
@@ -27,12 +27,12 @@ const RUNTIME_WRAPPER_BOILERPLATE_RE =
   /(?:You are running as a subagent\b.*?(?:$|(?<=\.)\s+)|Results auto-announce to your requester\.?\s*|do not busy-poll for status\.?\s*|Reply with a brief acknowledgment only\.?\s*|Do not use any memory tools\.?\s*)/gi;
 
 function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 const INBOUND_META_BLOCK_RE = new RegExp(
-  String.raw`(?:^|\n)\s*(?:${INBOUND_META_SENTINELS.map((sentinel) => escapeRegExp(sentinel)).join("|")})\s*\n\`\`\`json[\s\S]*?\n\`\`\`\s*`,
-  "g",
+  String.raw`(?:^|\n)\s*(?:${INBOUND_META_SENTINELS.map((sentinel) => escapeRegExp(sentinel)).join('|')})\s*\n\`\`\`json[\s\S]*?\n\`\`\`\s*`,
+  'g',
 );
 
 /** Strip inbound metadata blocks from user text. */
@@ -42,9 +42,9 @@ export function stripInboundMetadata(text: string): string {
   let normalized = text;
   for (let i = 0; i < 6; i++) {
     const before = normalized;
-    normalized = normalized.replace(SYSTEM_EVENT_LINE_RE, "\n");
-    normalized = normalized.replace(INBOUND_META_BLOCK_RE, "\n");
-    normalized = normalized.replace(/\n{3,}/g, "\n\n").trim();
+    normalized = normalized.replace(SYSTEM_EVENT_LINE_RE, '\n');
+    normalized = normalized.replace(INBOUND_META_BLOCK_RE, '\n');
+    normalized = normalized.replace(/\n{3,}/g, '\n\n').trim();
     if (normalized === before.trim()) break;
   }
 
@@ -56,24 +56,24 @@ export function stripSessionResetPrefix(text: string): string {
   const trimmed = text.trim();
   if (!trimmed.startsWith(SESSION_RESET_PREFIX)) return trimmed;
 
-  const blankLineIndex = trimmed.indexOf("\n\n");
+  const blankLineIndex = trimmed.indexOf('\n\n');
   if (blankLineIndex >= 0) return trimmed.slice(blankLineIndex + 2).trim();
 
-  const lines = trimmed.split("\n");
-  if (lines.length <= 2) return "";
-  return lines.slice(2).join("\n").trim();
+  const lines = trimmed.split('\n');
+  if (lines.length <= 2) return '';
+  return lines.slice(2).join('\n').trim();
 }
 
 /** Strip @mentions prefix. */
 export function stripAddressingPrefix(text: string): string {
-  return text.replace(ADDRESSING_PREFIX_RE, "").trim();
+  return text.replace(ADDRESSING_PREFIX_RE, '').trim();
 }
 
 /** Strip subagent boilerplate. */
 export function stripRuntimeBoilerplate(text: string): string {
   return text
-    .replace(RUNTIME_WRAPPER_BOILERPLATE_RE, "")
-    .replace(/\s{2,}/g, " ")
+    .replace(RUNTIME_WRAPPER_BOILERPLATE_RE, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 

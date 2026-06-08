@@ -1,7 +1,7 @@
 /**
  * utils/fetch-helpers.ts — Fetch utilities with timeout and retry.
  */
-import { isTransientUpstreamError, isNonRetryError } from "./reflection-retry.ts";
+import { isTransientUpstreamError, isNonRetryError } from './reflection-retry.ts';
 
 /** Fetch with AbortSignal timeout */
 export async function fetchWithTimeout(
@@ -40,9 +40,9 @@ export async function fetchWithRetry(
       if (isLast) throw err;
       if (isNonRetryError(err)) throw err;
       if (
-        (err instanceof Error && (err.name === "AbortError" || err.message.startsWith("HTTP 5"))) ||
+        (err instanceof Error && (err.name === 'AbortError' || err.message.startsWith('HTTP 5'))) ||
         isTransientUpstreamError(err) ||
-        String(err).startsWith("HTTP 5")
+        String(err).startsWith('HTTP 5')
       ) {
         await new Promise((r) => setTimeout(r, backoffBaseMs * (attempt + 1)));
         continue;
@@ -50,5 +50,5 @@ export async function fetchWithRetry(
       throw err;
     }
   }
-  throw new Error("Unreachable");
+  throw new Error('Unreachable');
 }

@@ -12,7 +12,7 @@ export function createVectorStore(config, logger) {
             return vecEnabled;
         },
         get name() {
-            return backend?.name ?? "none";
+            return backend?.name ?? 'none';
         },
         /** Vector similarity search. */
         search(embedding, limit = 10) {
@@ -30,7 +30,9 @@ export function createVectorStore(config, logger) {
         dimensions() {
             if (backend?.getDimensions)
                 return backend.getDimensions();
-            return (config.embedding && typeof config.embedding === 'object' && 'dimensions' in config.embedding)
+            return config.embedding &&
+                typeof config.embedding === 'object' &&
+                'dimensions' in config.embedding
                 ? Number(config.embedding.dimensions ?? 0)
                 : 0;
         },

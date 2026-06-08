@@ -5,19 +5,19 @@
  *
  * All backends share the same contract so db-bridge.ts stays clean.
  */
-import type { UnifiedDB } from "../../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../memory-store.ts";
+import type { UnifiedDB } from '../../platform/db/compat.ts';
+import type { PluginLogger } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../memory-store.ts';
 
 export interface EmbeddedSearchResult {
   id: number;
   filename: string;
   snippet: string;
-  score: number;         // combined or FTS score
+  score: number; // combined or FTS score
   date: string;
   asst_text?: string;
-  vectorScore: number;   // pure vector similarity (0-1)
-  hybridScore: number;   // weighted combination
+  vectorScore: number; // pure vector similarity (0-1)
+  hybridScore: number; // weighted combination
 }
 
 export interface VectorBackend {

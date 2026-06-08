@@ -6,5 +6,5 @@
  *   lexicon.ts     → cn/en lexicons + emoji markers
  *   analysis.ts    → detectSentiment, summarizeMood
  */
-export type { SentimentResult, EmotionLabel } from "./types.ts";
-export { detectSentiment, summarizeMood } from "./analysis.ts";
+export type { SentimentResult, EmotionLabel } from './types.ts';
+export { detectSentiment, summarizeMood } from './analysis.ts';

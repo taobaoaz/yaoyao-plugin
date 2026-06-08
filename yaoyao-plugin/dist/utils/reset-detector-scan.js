@@ -2,8 +2,8 @@
  * utils/reset-detector-scan.ts — Main scanning orchestrator.
  * Delegates to reset-detector-config.ts and reset-detector-system.ts.
  */
-import path from "node:path";
-import { scanOpenClawConfig, scanMemorySlotConflict, scanYaoyaoConfig } from "./reset-detector-config.js";
+import path from 'node:path';
+import { scanOpenClawConfig, scanMemorySlotConflict, scanYaoyaoConfig, } from "./reset-detector-config.js";
 import { scanSystemCron, scanPluginConfigs } from "./reset-detector-system.js";
 /** Main entry: detect all scheduled reset risks */
 export function detectScheduledResetRisks(memoryDir, yaoyaoConfig) {

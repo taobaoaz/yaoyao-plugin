@@ -11,7 +11,9 @@ export async function runRecallFilter(candidates, query, cfg) {
     if (candidates.length === 0)
         return candidates;
     try {
-        const items = candidates.map((c, i) => `[${i}] ${(c.snippet || "").slice(0, cfg.recallFilterMaxItemChars)}`).join("\n");
+        const items = candidates
+            .map((c, i) => `[${i}] ${(c.snippet || '').slice(0, cfg.recallFilterMaxItemChars)}`)
+            .join('\n');
         const prompt = `Given this user query: "${query.slice(0, 200)}"
 
 Evaluate each memory item below. Respond with indices of items that are RELEVANT and USEFUL.
@@ -22,17 +24,20 @@ Items:\n${items}\n\nRelevant indices: [`;
         const timer = setTimeout(() => ac.abort(), cfg.recallFilterTimeoutMs);
         let response;
         try {
-            response = await fetch(cfg.recallFilterBaseUrl + "/chat/completions", {
-                method: "POST",
+            response = await fetch(cfg.recallFilterBaseUrl + '/chat/completions', {
+                method: 'POST',
                 headers: {
-                    "Content-Type": "application/json",
+                    'Content-Type': 'application/json',
                     ...(cfg.recallFilterApiKey ? { Authorization: `Bearer ${cfg.recallFilterApiKey}` } : {}),
                 },
                 body: JSON.stringify({
                     model: cfg.recallFilterModel,
                     messages: [
-                        { role: "system", content: "You are a relevance filter. Only keep items directly answering the query. Return indices as comma-separated numbers inside brackets." },
-                        { role: "user", content: prompt },
+                        {
+                            role: 'system',
+                            content: 'You are a relevance filter. Only keep items directly answering the query. Return indices as comma-separated numbers inside brackets.',
+                        },
+                        { role: 'user', content: prompt },
                     ],
                     temperature: 0.1,
                     max_tokens: 128,
@@ -48,12 +53,12 @@ Items:\n${items}\n\nRelevant indices: [`;
                 return candidates;
             return [];
         }
-        const data = await response.json();
-        const text = data?.choices?.[0]?.message?.content || "";
+        const data = (await response.json());
+        const text = data?.choices?.[0]?.message?.content || '';
         const indices = [];
         const match = text.match(/\[(.*?)\]/);
         const raw = match ? match[1] : text;
-        for (const part of raw.split(",")) {
+        for (const part of raw.split(',')) {
             const idx = parseInt(part.trim(), 10);
             if (!isNaN(idx) && idx >= 0 && idx < candidates.length) {
                 indices.push(idx);

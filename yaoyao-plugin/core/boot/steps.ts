@@ -4,25 +4,32 @@
  * Each step is a standalone function that takes (api, config, ...)
  * and returns its result. The orchestrator calls these in order.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
-import { createMemoryStore } from "../../utils/memory-store.ts";
-import { createStorage, type Storage } from "../../storage/bridge.ts";
-import { validateConfig, logValidationResults } from "../../utils/config-validator.ts";
-import { runInstallCheck, formatInstallCheck } from "../../utils/install-check.ts";
-import { initManifest } from "../../utils/manifest.ts";
-import { detectLegacy, cleanupOldSkills } from "../../entry/migration.ts";
-import { createMemoryCleaner, getNextCleanTimeMs, type CleanerConfig } from "../../utils/memory-cleaner.ts";
-import { SimpleScopeManager } from "../../utils/scope-manager.ts";
-import { resolveSessionSearchDirs, readCrossSessionMemories } from "../../utils/session-recovery.ts";
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../../utils/memory-store.ts';
+import { createMemoryStore } from '../../utils/memory-store.ts';
+import { createStorage, type Storage } from '../../storage/bridge.ts';
+import { validateConfig, logValidationResults } from '../../utils/config-validator.ts';
+import { runInstallCheck, formatInstallCheck } from '../../utils/install-check.ts';
+import { initManifest } from '../../utils/manifest.ts';
+import { detectLegacy, cleanupOldSkills } from '../../entry/migration.ts';
+import {
+  createMemoryCleaner,
+  getNextCleanTimeMs,
+  type CleanerConfig,
+} from '../../utils/memory-cleaner.ts';
+import { SimpleScopeManager } from '../../utils/scope-manager.ts';
+import {
+  resolveSessionSearchDirs,
+  readCrossSessionMemories,
+} from '../../utils/session-recovery.ts';
 
-export { stepImportExistingMemories } from "./import-memories.ts";
+export { stepImportExistingMemories } from './import-memories.ts';
 
 export interface BootContext {
   store: ReturnType<typeof createMemoryStore>;
   storage: Storage;
   scopeManager: SimpleScopeManager;
-  audit: import("../../utils/audit-log.ts").AuditLog | null;
+  audit: import('../../utils/audit-log.ts').AuditLog | null;
 }
 
 export function stepInstallCheck(api: OpenClawPluginApi, config: YaoyaoMemoryConfig): void {
@@ -34,8 +41,8 @@ export function stepInstallCheck(api: OpenClawPluginApi, config: YaoyaoMemoryCon
 export function stepConfigValidation(api: OpenClawPluginApi, config: YaoyaoMemoryConfig): void {
   const results = validateConfig(config);
   logValidationResults(results, api.logger);
-  if (results.some(r => r.level === "error")) {
-    api.logger.warn?.("[yaoyao-memory] Config has errors — some features may be disabled");
+  if (results.some((r) => r.level === 'error')) {
+    api.logger.warn?.('[yaoyao-memory] Config has errors — some features may be disabled');
   }
 }
 
@@ -52,16 +59,25 @@ export function stepManifest(storeBaseDir: string, pluginVersion: string): void 
 
 export function stepScopeManager(api: OpenClawPluginApi, scopeManager: SimpleScopeManager): void {
   const agentId = (api as unknown as Record<string, unknown>).agentId as string | undefined;
-  if (agentId) scopeManager.grantAccess(agentId, ["global", `agent:${agentId}`]);
+  if (agentId) scopeManager.grantAccess(agentId, ['global', `agent:${agentId}`]);
 }
 
-export function stepCrossSessionRecovery(api: OpenClawPluginApi, config: YaoyaoMemoryConfig, agentId?: string): void {
+export function stepCrossSessionRecovery(
+  api: OpenClawPluginApi,
+  config: YaoyaoMemoryConfig,
+  agentId?: string,
+): void {
   try {
     const searchDirs = resolveSessionSearchDirs({
-      context: ((api as unknown as Record<string, unknown>).context || {}) as Record<string, unknown>,
+      context: ((api as unknown as Record<string, unknown>).context || {}) as Record<
+        string,
+        unknown
+      >,
       cfg: api.pluginConfig || {},
-      workspaceDir: api.baseDir || ".",
-      currentSessionFile: (api as unknown as Record<string, unknown>).sessionFile as string | undefined,
+      workspaceDir: api.baseDir || '.',
+      currentSessionFile: (api as unknown as Record<string, unknown>).sessionFile as
+        | string
+        | undefined,
       sourceAgentId: agentId,
     });
     const memories = readCrossSessionMemories(searchDirs, {
@@ -73,14 +89,15 @@ export function stepCrossSessionRecovery(api: OpenClawPluginApi, config: YaoyaoM
       (api as unknown as Record<string, unknown>)._crossSessionContext = memories;
     }
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  best-effort : ${msg}`);
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory]  best-effort : ${msg}`);
+  }
 }
 
 export function stepMigration(api: OpenClawPluginApi, config: YaoyaoMemoryConfig): void {
-  const m = detectLegacy(config, api.baseDir || ".");
-  if (m.hasLegacy) m.bannerLines.forEach(l => api.logger.warn?.(`[yaoyao-memory:migration] ${l}`));
+  const m = detectLegacy(config, api.baseDir || '.');
+  if (m.hasLegacy)
+    m.bannerLines.forEach((l) => api.logger.warn?.(`[yaoyao-memory:migration] ${l}`));
   cleanupOldSkills(api.logger);
 }
 
@@ -92,12 +109,13 @@ export function stepCleanupScheduler(
   let timer: ReturnType<typeof setInterval> | null = null;
   let timeout: ReturnType<typeof setTimeout> | null = null;
   try {
-    const cfg = (typeof config.cleaner === "object" ? config.cleaner : {}) as CleanerConfig;
-    const baseDir = (config.memoryDir || ".") as string;
+    const cfg = (typeof config.cleaner === 'object' ? config.cleaner : {}) as CleanerConfig;
+    const baseDir = (config.memoryDir || '.') as string;
     const cleaner = createMemoryCleaner(baseDir, storage, cfg, api.logger);
     const warn = cleaner.validateConfig();
-    if (warn) { api.logger.warn?.(`[yaoyao-memory] Cleanup: ${warn}`); }
-    else {
+    if (warn) {
+      api.logger.warn?.(`[yaoyao-memory] Cleanup: ${warn}`);
+    } else {
       cleaner.cleanup();
       const delayMs = getNextCleanTimeMs(cfg.cleanTime as string);
       if (delayMs > 0) {
@@ -111,10 +129,13 @@ export function stepCleanupScheduler(
       }
     }
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  best-effort : ${msg}`);
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory]  best-effort : ${msg}`);
+  }
   return {
-    cleanupStop: () => { if (timeout) clearTimeout(timeout); if (timer) clearInterval(timer); },
+    cleanupStop: () => {
+      if (timeout) clearTimeout(timeout);
+      if (timer) clearInterval(timer);
+    },
   };
 }

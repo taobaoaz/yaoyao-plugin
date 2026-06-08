@@ -12,9 +12,9 @@ export function checkRepeatQuery(query, maxResults, minScore, recentQueries) {
     const dup = recentQueries.find((q) => q.query === normalized && q.maxResults === maxResults && q.minScore === minScore);
     if (dup) {
         if (dup.hitCount === 0) {
-            return "This exact query with the same parameters was already tried and returned 0 results. Try rephrasing.";
+            return 'This exact query with the same parameters was already tried and returned 0 results. Try rephrasing.';
         }
-        return "This exact query was already executed. Consider varying the query to get different results.";
+        return 'This exact query was already executed. Consider varying the query to get different results.';
     }
     return undefined;
 }

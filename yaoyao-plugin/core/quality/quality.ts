@@ -4,7 +4,8 @@
 
 /** Compute Jaccard similarity on first N chars using bigrams */
 export function jaccardSnippet(a: string, b: string, chars: number = 100): number {
-  if (typeof a !== "string" || typeof b !== "string") throw new TypeError("jaccardSnippet: a and b must be strings");
+  if (typeof a !== 'string' || typeof b !== 'string')
+    throw new TypeError('jaccardSnippet: a and b must be strings');
   if (!Number.isFinite(chars) || chars < 1) chars = 100;
   const snippetA = a.slice(0, chars);
   const snippetB = b.slice(0, chars);
@@ -36,8 +37,11 @@ export interface DuplicatePair {
 }
 
 /** Find duplicate pairs with similarity > threshold */
-export function findDuplicates(results: SearchResultLike[], threshold: number = 0.8): DuplicatePair[] {
-  if (!Array.isArray(results)) throw new TypeError("findDuplicates: results must be an array");
+export function findDuplicates(
+  results: SearchResultLike[],
+  threshold: number = 0.8,
+): DuplicatePair[] {
+  if (!Array.isArray(results)) throw new TypeError('findDuplicates: results must be an array');
   if (!Number.isFinite(threshold) || threshold <= 0 || threshold > 1) threshold = 0.8;
   const duplicates: DuplicatePair[] = [];
   for (let i = 0; i < results.length; i++) {
@@ -61,12 +65,13 @@ export interface DateStats {
 
 export function computeDateStats(
   dailyFiles: Array<{ filename: string }>,
-  totalMemories: number
+  totalMemories: number,
 ): DateStats {
-  if (!Array.isArray(dailyFiles)) throw new TypeError("computeDateStats: dailyFiles must be an array");
+  if (!Array.isArray(dailyFiles))
+    throw new TypeError('computeDateStats: dailyFiles must be an array');
   if (!Number.isFinite(totalMemories) || totalMemories < 0) totalMemories = 0;
   const dates = dailyFiles
-    .map((f) => f.filename.replace(/\.md$/i, ""))
+    .map((f) => f.filename.replace(/\.md$/i, ''))
     .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
     .sort();
 
@@ -74,8 +79,8 @@ export function computeDateStats(
   let dateCoverage = 0;
 
   if (dates.length > 0) {
-    const first = new Date(dates[0] + "T00:00:00");
-    const last = new Date(dates[dates.length - 1] + "T00:00:00");
+    const first = new Date(dates[0] + 'T00:00:00');
+    const last = new Date(dates[dates.length - 1] + 'T00:00:00');
     totalDays = Math.max(1, Math.ceil((last.getTime() - first.getTime()) / 86400000) + 1);
     dateCoverage = parseFloat(((dates.length / totalDays) * 100).toFixed(1));
   }
@@ -87,7 +92,7 @@ export function computeDateStats(
   const now = new Date();
   const msDay = 86400000;
   for (const d of dates) {
-    const diffDays = (now.getTime() - new Date(d + "T00:00:00").getTime()) / msDay;
+    const diffDays = (now.getTime() - new Date(d + 'T00:00:00').getTime()) / msDay;
     if (diffDays >= 0) {
       if (diffDays <= 7) recent7Count++;
       if (diffDays <= 30) recent30Count++;
@@ -108,7 +113,7 @@ export function generateRecommendations(
   dbSizeKB: number,
   memoryDirSizeKB: number,
   recent7Count: number,
-  dailyFilesCount: number
+  dailyFilesCount: number,
 ): string[] {
   if (!Number.isFinite(dateCoverage)) dateCoverage = 0;
   if (!Number.isFinite(totalDays)) totalDays = 0;
@@ -119,21 +124,21 @@ export function generateRecommendations(
   if (!Number.isFinite(dailyFilesCount)) dailyFilesCount = 0;
   const recs: string[] = [];
   if (dateCoverage < 50 && totalDays > 7) {
-    recs.push("• 日期覆盖率偏低，建议增加记忆保存频率");
+    recs.push('• 日期覆盖率偏低，建议增加记忆保存频率');
   }
   if (duplicationRatio > 20) {
-    recs.push("• 重复度较高，建议运行 memory_quality(action:dedup) 检测具体重复项");
+    recs.push('• 重复度较高，建议运行 memory_quality(action:dedup) 检测具体重复项');
   }
   if (dbSizeKB > 0 && memoryDirSizeKB > 0 && dbSizeKB > memoryDirSizeKB * 0.5) {
-    recs.push("• 数据库文件相对较大，建议运行 memory_optimize 清理无用索引");
+    recs.push('• 数据库文件相对较大，建议运行 memory_optimize 清理无用索引');
   }
   if (recent7Count === 0 && dailyFilesCount > 0) {
-    recs.push("• 最近 7 天无新记忆，建议检查 auto-capture 是否正常运行");
+    recs.push('• 最近 7 天无新记忆，建议检查 auto-capture 是否正常运行');
   }
   return recs;
 }
 
-import { formatQualityReport } from "./quality-report.ts";
-import { formatDedupReport } from "./quality-dedup.ts";
+import { formatQualityReport } from './quality-report.ts';
+import { formatDedupReport } from './quality-dedup.ts';
 
 export { formatQualityReport, formatDedupReport };

@@ -15,25 +15,25 @@ export interface ScopeConfig {
 }
 
 export const DEFAULT_SCOPE_CONFIG: ScopeConfig = {
-  default: "global",
+  default: 'global',
   definitions: {
-    global: { description: "Shared knowledge across all agents" },
+    global: { description: 'Shared knowledge across all agents' },
   },
   agentAccess: {},
 };
 
 const SCOPE_PATTERNS = {
-  GLOBAL: "global",
+  GLOBAL: 'global',
   AGENT: (agentId: string) => `agent:${agentId}`,
   CUSTOM: (name: string) => `custom:${name}`,
   PROJECT: (projectId: string) => `project:${projectId}`,
   USER: (userId: string) => `user:${userId}`,
 };
 
-const SYSTEM_BYPASS_IDS = new Set(["system", "undefined"]);
+const SYSTEM_BYPASS_IDS = new Set(['system', 'undefined']);
 
 export function isSystemBypassId(agentId?: string): boolean {
-  return typeof agentId === "string" && SYSTEM_BYPASS_IDS.has(agentId);
+  return typeof agentId === 'string' && SYSTEM_BYPASS_IDS.has(agentId);
 }
 
 /** Lightweight scope manager for memory isolation. */
@@ -51,11 +51,11 @@ export class SimpleScopeManager {
 
   /** Get accessible scopes for an agent. */
   getAccessibleScopes(agentId?: string): string[] {
-    const scopes = new Set<string>(["global"]);
+    const scopes = new Set<string>(['global']);
     if (agentId) {
       scopes.add(SCOPE_PATTERNS.AGENT(agentId));
     }
-    const allowed = this.config.agentAccess[agentId || ""];
+    const allowed = this.config.agentAccess[agentId || ''];
     if (Array.isArray(allowed)) {
       for (const s of allowed) scopes.add(s);
     }
@@ -78,7 +78,7 @@ export class SimpleScopeManager {
   /** Check if an agent can access a scope. */
   isAccessible(scope: string, agentId?: string): boolean {
     if (isSystemBypassId(agentId)) return true;
-    if (scope === "global") return true;
+    if (scope === 'global') return true;
     if (agentId && scope === SCOPE_PATTERNS.AGENT(agentId)) return true;
     const allowed = this.getAccessibleScopes(agentId);
     return allowed.includes(scope);
@@ -86,9 +86,9 @@ export class SimpleScopeManager {
 
   /** Validate scope syntax. */
   validateScope(scope: string): boolean {
-    if (!scope || typeof scope !== "string") return false;
-    if (scope === "global") return true;
-    const parts = scope.split(":");
+    if (!scope || typeof scope !== 'string') return false;
+    if (scope === 'global') return true;
+    const parts = scope.split(':');
     return parts.length >= 2 && parts[0].length > 0 && parts[1].length > 0;
   }
 
@@ -117,7 +117,7 @@ export class SimpleScopeManager {
     if (projectId) return SCOPE_PATTERNS.PROJECT(projectId);
     if (userId) return SCOPE_PATTERNS.USER(userId);
     if (agentId) return SCOPE_PATTERNS.AGENT(agentId);
-    return "global";
+    return 'global';
   }
 }
 
@@ -133,5 +133,5 @@ export function resolveMemoryScope(
   if (manager) {
     return manager.getDefaultScope(agentId);
   }
-  return agentId ? SCOPE_PATTERNS.AGENT(agentId) : "global";
+  return agentId ? SCOPE_PATTERNS.AGENT(agentId) : 'global';
 }

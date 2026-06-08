@@ -18,7 +18,11 @@ export interface ReflectionScoreInput {
  * Logistic decay: 1 / (1 + e^(k * (age - midpoint)))
  * Returns 1.0 when age=0, ~0.5 at age=midpoint, →0 as age→∞.
  */
-export function computeReflectionLogistic(ageDays: number, midpointDays: number, k: number): number {
+export function computeReflectionLogistic(
+  ageDays: number,
+  midpointDays: number,
+  k: number,
+): number {
   const safeAgeDays = Number.isFinite(ageDays) ? Math.max(0, ageDays) : 0;
   const safeMidpointDays = Number.isFinite(midpointDays) && midpointDays > 0 ? midpointDays : 1;
   const safeK = Number.isFinite(k) && k > 0 ? k : 0.1;
@@ -34,7 +38,8 @@ export function computeReflectionLogistic(ageDays: number, midpointDays: number,
  */
 export function computeReflectionScore(input: ReflectionScoreInput): number {
   const logistic = computeReflectionLogistic(input.ageDays, input.midpointDays, input.k);
-  const baseWeight = Number.isFinite(input.baseWeight) && input.baseWeight > 0 ? input.baseWeight : 1;
+  const baseWeight =
+    Number.isFinite(input.baseWeight) && input.baseWeight > 0 ? input.baseWeight : 1;
   const quality = Number.isFinite(input.quality) ? Math.max(0, Math.min(1, input.quality)) : 1;
   const fallbackFactor = input.usedFallback ? REFLECTION_FALLBACK_SCORE_FACTOR : 1;
   return logistic * baseWeight * quality * fallbackFactor;
@@ -42,10 +47,7 @@ export function computeReflectionScore(input: ReflectionScoreInput): number {
 
 /** Normalize a reflection line for aggregation/dedup. */
 export function normalizeReflectionLineForAggregation(line: string): string {
-  return String(line)
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+  return String(line).trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 /** Pre-configured decay defaults for different memory types. */

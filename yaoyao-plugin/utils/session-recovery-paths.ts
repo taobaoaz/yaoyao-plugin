@@ -3,7 +3,7 @@
  */
 
 export function deriveOpenClawHomeFromWorkspacePath(workspacePath: string): string | undefined {
-  const normalized = workspacePath.trim().replace(/[\\/]+$/, "");
+  const normalized = workspacePath.trim().replace(/[\\/]+$/, '');
   if (!normalized) return undefined;
   const matched = normalized.match(/^(.*?)[\\/]workspace(?:[\\/].*)?$/);
   if (!matched || !matched[1]) return undefined;

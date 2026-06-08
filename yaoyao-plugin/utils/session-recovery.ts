@@ -3,22 +3,22 @@
  * Zero external dependency. Scans other agents' memory files for shared context.
  */
 
-import { dirname, join } from "node:path";
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { dirname, join } from 'node:path';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 
 function asNonEmptyString(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
+  if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed.length ? trimmed : undefined;
 }
 
 /** Strip .reset. suffix from session file names. */
 export function stripResetSuffix(fileName: string): string {
-  const resetIndex = fileName.indexOf(".reset.");
+  const resetIndex = fileName.indexOf('.reset.');
   if (resetIndex === -1) return fileName;
   // Preserve file extension after the reset suffix
   const beforeReset = fileName.slice(0, resetIndex);
-  const afterReset = fileName.slice(resetIndex + ".reset.".length);
+  const afterReset = fileName.slice(resetIndex + '.reset.'.length);
   // afterReset may contain "123.json" — we want to append the extension part
   const extMatch = afterReset.match(/\.[^.]+$/);
   if (extMatch) {
@@ -27,11 +27,14 @@ export function stripResetSuffix(fileName: string): string {
   return beforeReset;
 }
 
-import { deriveOpenClawHomeFromWorkspacePath, deriveOpenClawHomeFromSessionFilePath } from "./session-recovery-paths.ts";
-import { readCrossSessionMemories } from "./session-recovery-read.ts";
+import {
+  deriveOpenClawHomeFromWorkspacePath,
+  deriveOpenClawHomeFromSessionFilePath,
+} from './session-recovery-paths.ts';
+import { readCrossSessionMemories } from './session-recovery-read.ts';
 
 export { readCrossSessionMemories };
-export type { CrossSessionMemory } from "./session-recovery-read.ts";
+export type { CrossSessionMemory } from './session-recovery-read.ts';
 
 function listConfiguredAgentIds(cfg: unknown): string[] {
   try {
@@ -42,16 +45,16 @@ function listConfiguredAgentIds(cfg: unknown): string[] {
 
     const ids: string[] = [];
     for (const item of list) {
-      if (!item || typeof item !== "object") continue;
+      if (!item || typeof item !== 'object') continue;
       const id = asNonEmptyString((item as Record<string, unknown>).id);
       if (id) ids.push(id);
     }
     return ids;
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:recovery] Operation failed: ${msg}`);
-      return [];
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:recovery] Operation failed: ${msg}`);
+    return [];
+  }
 }
 
 export interface SessionSearchParams {
@@ -82,11 +85,15 @@ export function resolveSessionSearchDirs(params: SessionSearchParams): string[] 
   };
   const addAgentId = (agentIds: string[], value: string | undefined) => {
     const agentId = asNonEmptyString(value);
-    if (!agentId || agentId.includes("/") || agentId.includes("\\") || agentIds.includes(agentId)) return;
+    if (!agentId || agentId.includes('/') || agentId.includes('\\') || agentIds.includes(agentId))
+      return;
     agentIds.push(agentId);
   };
 
-  const previousSessionEntry = (params.context.previousSessionEntry || {}) as Record<string, unknown>;
+  const previousSessionEntry = (params.context.previousSessionEntry || {}) as Record<
+    string,
+    unknown
+  >;
   const sessionEntry = (params.context.sessionEntry || {}) as Record<string, unknown>;
   const sessionEntries = [previousSessionEntry, sessionEntry];
 
@@ -97,7 +104,7 @@ export function resolveSessionSearchDirs(params: SessionSearchParams): string[] 
     addDir(asNonEmptyString(entry.sessionsDir));
     addDir(asNonEmptyString(entry.sessionDir));
   }
-  addDir(join(params.workspaceDir, "sessions"));
+  addDir(join(params.workspaceDir, 'sessions'));
 
   const openclawHomes: string[] = [];
   addHome(openclawHomes, asNonEmptyString(process.env.OPENCLAW_HOME));
@@ -114,20 +121,21 @@ export function resolveSessionSearchDirs(params: SessionSearchParams): string[] 
     const agents = root.agents as Record<string, unknown> | undefined;
     const defaults = agents?.defaults as Record<string, unknown> | undefined;
     const defaultWorkspace = asNonEmptyString(defaults?.workspace);
-    if (defaultWorkspace) addHome(openclawHomes, deriveOpenClawHomeFromWorkspacePath(defaultWorkspace));
+    if (defaultWorkspace)
+      addHome(openclawHomes, deriveOpenClawHomeFromWorkspacePath(defaultWorkspace));
 
     const list = agents?.list as unknown;
     if (Array.isArray(list)) {
       for (const item of list) {
-        if (!item || typeof item !== "object") continue;
+        if (!item || typeof item !== 'object') continue;
         const workspace = asNonEmptyString((item as Record<string, unknown>).workspace);
         if (workspace) addHome(openclawHomes, deriveOpenClawHomeFromWorkspacePath(workspace));
       }
     }
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory] ignore: ${msg}`);
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory] ignore: ${msg}`);
+  }
 
   const agentIds: string[] = [];
   addAgentId(agentIds, params.sourceAgentId);
@@ -138,11 +146,11 @@ export function resolveSessionSearchDirs(params: SessionSearchParams): string[] 
   for (const configuredId of listConfiguredAgentIds(params.cfg)) {
     addAgentId(agentIds, configuredId);
   }
-  addAgentId(agentIds, "main");
+  addAgentId(agentIds, 'main');
 
   for (const home of openclawHomes) {
     for (const agentId of agentIds) {
-      addDir(join(home, "agents", agentId, "sessions"));
+      addDir(join(home, 'agents', agentId, 'sessions'));
     }
   }
 

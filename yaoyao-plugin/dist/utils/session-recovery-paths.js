@@ -2,7 +2,7 @@
  * utils/session-recovery-paths.ts — Path derivation helpers for session recovery.
  */
 export function deriveOpenClawHomeFromWorkspacePath(workspacePath) {
-    const normalized = workspacePath.trim().replace(/[\\/]+$/, "");
+    const normalized = workspacePath.trim().replace(/[\\/]+$/, '');
     if (!normalized)
         return undefined;
     const matched = normalized.match(/^(.*?)[\\/]workspace(?:[\\/].*)?$/);

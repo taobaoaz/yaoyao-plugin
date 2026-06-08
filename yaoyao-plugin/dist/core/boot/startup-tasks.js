@@ -13,9 +13,13 @@ export function runStartupTasks(api, config, storage, store) {
             dryRun: config.compaction?.dryRun ?? false,
         };
         if (cfg.enabled && allEntries.length > 0) {
-            const result = runTextCompaction(allEntries.map(e => ({
-                id: String(e.id), text: e.filename, category: "general",
-                importance: 0.5, timestamp: Date.now(), scope: "global",
+            const result = runTextCompaction(allEntries.map((e) => ({
+                id: String(e.id),
+                text: e.filename,
+                category: 'general',
+                importance: 0.5,
+                timestamp: Date.now(),
+                scope: 'global',
             })), cfg);
             if (result.clustersFound > 0) {
                 api.logger.info?.(`[yaoyao-memory:compactor] ${result.clustersFound} clusters found`);
@@ -28,15 +32,19 @@ export function runStartupTasks(api, config, storage, store) {
     }
     try {
         const rawDb = storage.getRawDb();
-        const rows = rawDb.prepare("SELECT id, metadata, access_count, created_at FROM memory_meta WHERE metadata IS NOT NULL").all();
-        const tierable = rows.map(r => {
-            let tier = "working", importance = 0.5, accessCount = r.access_count ?? 0, createdAt = r.created_at ?? Date.now(), decayScore = 0.5;
+        const rows = rawDb
+            .prepare('SELECT id, metadata, access_count, created_at FROM memory_meta WHERE metadata IS NOT NULL')
+            .all();
+        const tierable = rows.map((r) => {
+            let tier = 'working', importance = 0.5, accessCount = r.access_count ?? 0, decayScore = 0.5;
+            const createdAt = r.created_at ?? Date.now();
             try {
-                const meta = JSON.parse(r.metadata || "{}");
-                tier = meta.tier || "working";
-                importance = typeof meta.importance === "number" ? meta.importance : 0.5;
-                accessCount = typeof meta.accessCount === "number" ? meta.accessCount : (r.access_count ?? 0);
-                decayScore = typeof meta.decayScore === "number" ? meta.decayScore : 0.5;
+                const meta = JSON.parse(r.metadata || '{}');
+                tier = meta.tier || 'working';
+                importance = typeof meta.importance === 'number' ? meta.importance : 0.5;
+                accessCount =
+                    typeof meta.accessCount === 'number' ? meta.accessCount : (r.access_count ?? 0);
+                decayScore = typeof meta.decayScore === 'number' ? meta.decayScore : 0.5;
             }
             catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);

@@ -4,19 +4,19 @@
  * Requires `hnswlib-node` to be installed manually (C++ addon).
  * Falls back to sqlite-vec if hnswlib-node is unavailable or crashes.
  */
-import path from "node:path";
-import fs from "node:fs";
-import { clampNum } from "../clamp.ts";
-import type { UnifiedDB } from "../../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../memory-store.ts";
-import type { VectorBackend, EmbeddedSearchResult } from "./types.ts";
-import type { HnswlibModule, HnswIndex } from "./hnswlib-types.ts";
-import { requireHnswlib } from "./hnswlib-loader.ts";
-import { createPersistManager } from "./hnswlib-persist.ts";
+import path from 'node:path';
+import fs from 'node:fs';
+import { clampNum } from '../clamp.ts';
+import type { UnifiedDB } from '../../platform/db/compat.ts';
+import type { PluginLogger } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../memory-store.ts';
+import type { VectorBackend, EmbeddedSearchResult } from './types.ts';
+import type { HnswlibModule, HnswIndex } from './hnswlib-types.ts';
+import { requireHnswlib } from './hnswlib-loader.ts';
+import { createPersistManager } from './hnswlib-persist.ts';
 
 export class HnswlibBackend implements VectorBackend {
-  name = "hnswlib";
+  name = 'hnswlib';
   isAvailable = false;
 
   private db: UnifiedDB | null = null;
@@ -24,20 +24,20 @@ export class HnswlibBackend implements VectorBackend {
   private logger?: PluginLogger;
   private index: HnswIndex | null = null;
   private hnswlib: HnswlibModule | null = null;
-  private indexDir = "";
-  private indexPath = "";
-  private metaPath = "";
+  private indexDir = '';
+  private indexPath = '';
+  private metaPath = '';
   private dimensions = 1024;
   private dim = 1024;
   private ef = 200;
-  private indexType = "hnsw";
+  private indexType = 'hnsw';
   private snippetMaxLen = 500;
   private searchMaxLimit = 100;
   private maxElements = 50000;
   private persist = createPersistManager({
     index: null,
-    indexPath: "",
-    metaPath: "",
+    indexPath: '',
+    metaPath: '',
     dimensions: 1024,
     config: {},
     logger: undefined,
@@ -52,10 +52,11 @@ export class HnswlibBackend implements VectorBackend {
     this.searchMaxLimit = Math.min(Math.max(config.searchMaxLimit ?? 100, 10), 1000);
     this.maxElements = clampNum(config.embedding?.hnswMaxElements, 50000, 1000, 500000);
 
-    const memoryDir = config.memoryDir || path.join(process.env.HOME || ".", ".openclaw", "workspace", "memory");
-    this.indexDir = path.join(memoryDir, ".hnsw");
-    this.indexPath = path.join(this.indexDir, "index.bin");
-    this.metaPath = path.join(this.indexDir, "meta.json");
+    const memoryDir =
+      config.memoryDir || path.join(process.env.HOME || '.', '.openclaw', 'workspace', 'memory');
+    this.indexDir = path.join(memoryDir, '.hnsw');
+    this.indexPath = path.join(this.indexDir, 'index.bin');
+    this.metaPath = path.join(this.indexDir, 'meta.json');
 
     this.persist = createPersistManager({
       index: this.index,
@@ -69,40 +70,58 @@ export class HnswlibBackend implements VectorBackend {
     try {
       this.hnswlib = requireHnswlib();
       if (!this.hnswlib) {
-        logger?.warn?.("[yaoyao-memory:vec] hnswlib-node not installed — install with: npm install hnswlib-node");
+        logger?.warn?.(
+          '[yaoyao-memory:vec] hnswlib-node not installed — install with: npm install hnswlib-node',
+        );
         return false;
       }
 
-      this.index = new this.hnswlib.HierarchicalNSW("cosine", this.dimensions);
+      this.index = new this.hnswlib.HierarchicalNSW('cosine', this.dimensions);
 
       if (!fs.existsSync(this.indexDir)) {
         fs.mkdirSync(this.indexDir, { recursive: true, mode: 0o700 });
       }
 
       if (fs.existsSync(this.indexPath) && fs.existsSync(this.metaPath)) {
-        let meta: import("./hnswlib-types.ts").HnswMeta;
+        let meta: import('./hnswlib-types.ts').HnswMeta;
         try {
-          meta = JSON.parse(fs.readFileSync(this.metaPath, "utf-8"));
+          meta = JSON.parse(fs.readFileSync(this.metaPath, 'utf-8'));
         } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:vec] Operation failed: ${msg}`);
-      meta = { dim: this.dim, ef_construction: this.ef, max_elements: this.maxElements, indexType: this.indexType, dimensions: this.dimensions, count: 0, space: "cosine" };
-    }
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:vec] Operation failed: ${msg}`);
+          meta = {
+            dim: this.dim,
+            ef_construction: this.ef,
+            max_elements: this.maxElements,
+            indexType: this.indexType,
+            dimensions: this.dimensions,
+            count: 0,
+            space: 'cosine',
+          };
+        }
         if (meta.dimensions === this.dimensions) {
           this.index.readIndexSync(this.indexPath);
           this.isAvailable = true;
-          logger?.info?.(`[yaoyao-memory:vec] hnswlib backend loaded: ${meta.count} vectors, dim=${meta.dimensions}`);
+          logger?.info?.(
+            `[yaoyao-memory:vec] hnswlib backend loaded: ${meta.count} vectors, dim=${meta.dimensions}`,
+          );
           return true;
         }
-        logger?.warn?.(`[yaoyao-memory:vec] HNSW dimensions changed (${meta.dimensions} → ${this.dimensions}), rebuilding...`);
+        logger?.warn?.(
+          `[yaoyao-memory:vec] HNSW dimensions changed (${meta.dimensions} → ${this.dimensions}), rebuilding...`,
+        );
       }
 
       this.index.initIndex({ maxElements: this.maxElements, allowReplaceDeleted: true });
       this.isAvailable = true;
-      logger?.info?.(`[yaoyao-memory:vec] hnswlib backend initialized (maxElements=${this.maxElements}, dim=${this.dimensions})`);
+      logger?.info?.(
+        `[yaoyao-memory:vec] hnswlib backend initialized (maxElements=${this.maxElements}, dim=${this.dimensions})`,
+      );
       return true;
     } catch (e: unknown) {
-      logger?.warn?.(`[yaoyao-memory:vec] hnswlib init failed: ${e instanceof Error ? e.message : String(e)}`);
+      logger?.warn?.(
+        `[yaoyao-memory:vec] hnswlib init failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
       this.isAvailable = false;
       return false;
     }
@@ -116,7 +135,9 @@ export class HnswlibBackend implements VectorBackend {
       this.persist.markDirty();
       return true;
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger?.warn?.(
+        `[yaoyao-memory:vec] storeVector error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return false;
     }
   }
@@ -130,13 +151,18 @@ export class HnswlibBackend implements VectorBackend {
 
       if (!result.neighbors.length) return [];
 
-      const placeholders = result.neighbors.map(() => "?").join(",");
+      const placeholders = result.neighbors.map(() => '?').join(',');
       const stmt = this.db.prepare(
-        `SELECT id, date, user_text, asst_text FROM memory_meta WHERE id IN (${placeholders})`
+        `SELECT id, date, user_text, asst_text FROM memory_meta WHERE id IN (${placeholders})`,
       );
-      const rows = stmt.all(...result.neighbors) as Array<{ id: number; date: string; user_text: string; asst_text: string }>;
+      const rows = stmt.all(...result.neighbors) as Array<{
+        id: number;
+        date: string;
+        user_text: string;
+        asst_text: string;
+      }>;
 
-      const rowMap = new Map(rows.map(r => [r.id, r]));
+      const rowMap = new Map(rows.map((r) => [r.id, r]));
       const results: EmbeddedSearchResult[] = [];
 
       for (let i = 0; i < result.neighbors.length; i++) {
@@ -146,14 +172,14 @@ export class HnswlibBackend implements VectorBackend {
         if (!row) continue;
 
         const similarity = 1 - distance;
-        const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
+        const snippet = `${row.user_text || ''} ${row.asst_text || ''}`.trim();
         results.push({
           id,
-          filename: row.date ? `${row.date}.md` : "memory.db",
+          filename: row.date ? `${row.date}.md` : 'memory.db',
           snippet: snippet.slice(0, this.snippetMaxLen),
           score: Math.max(0, similarity),
-          date: row.date || "",
-          asst_text: (row.asst_text || "").slice(0, this.snippetMaxLen),
+          date: row.date || '',
+          asst_text: (row.asst_text || '').slice(0, this.snippetMaxLen),
           vectorScore: Math.max(0, similarity),
           hybridScore: Math.max(0, similarity),
         });
@@ -161,7 +187,9 @@ export class HnswlibBackend implements VectorBackend {
 
       return results;
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] vectorSearch error: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger?.warn?.(
+        `[yaoyao-memory:vec] vectorSearch error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return [];
     }
   }
@@ -177,10 +205,12 @@ export class HnswlibBackend implements VectorBackend {
   deleteOrphans(): void {
     if (!this.isAvailable || !this.index || !this.db) return;
     try {
-      const rows = this.db.prepare("SELECT id FROM memory_meta").all() as Array<{ id: number }>;
-      const validIds = new Set(rows.map(r => r.id));
+      const rows = this.db.prepare('SELECT id FROM memory_meta').all() as Array<{ id: number }>;
+      const validIds = new Set(rows.map((r) => r.id));
       const count = this.index.getCurrentCount?.() ?? 0;
-      this.logger?.debug?.("[yaoyao-memory:vec] HNSW deleteOrphans: no-op (filtered at search time)");
+      this.logger?.debug?.(
+        '[yaoyao-memory:vec] HNSW deleteOrphans: no-op (filtered at search time)',
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory]  best effort : ${msg}`);

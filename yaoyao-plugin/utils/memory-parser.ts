@@ -5,18 +5,24 @@
  * Zero external dependencies.
  */
 
-import type { ParsedEntry } from "./markdown-helpers.ts";
-import { MIN_ENTRY_LENGTH, dedupeEntries, maybeFlush, isSkippableLine, isHeader } from "./markdown-helpers.ts";
+import type { ParsedEntry } from './markdown-helpers.ts';
+import {
+  MIN_ENTRY_LENGTH,
+  dedupeEntries,
+  maybeFlush,
+  isSkippableLine,
+  isHeader,
+} from './markdown-helpers.ts';
 
 // ── Strategy: Dated ──────────────────────────────────────────────────────────
 
 /** Split on #/## YYYY-MM-DD headers, extract bullets from raw text. */
 function parseDated(content: string, source: string, fileDate: string): ParsedEntry[] {
   const segments: Array<{ raw: string; date: string }> = [];
-  let buffer = "";
+  let buffer = '';
   let currentDate = fileDate;
 
-  for (const rawLine of content.split("\n")) {
+  for (const rawLine of content.split('\n')) {
     const trimmed = rawLine.trim();
     const dateMatch = trimmed.match(/^#{1,2}\s+(\d{4}-\d{2}-\d{2})/);
     if (dateMatch) {
@@ -24,11 +30,11 @@ function parseDated(content: string, source: string, fileDate: string): ParsedEn
         segments.push({ raw: buffer.trim(), date: currentDate });
       }
       currentDate = dateMatch[1];
-      buffer = "";
+      buffer = '';
       continue;
     }
     if (isSkippableLine(trimmed)) continue;
-    buffer += rawLine + "\n";
+    buffer += rawLine + '\n';
   }
   if (buffer.trim().length >= MIN_ENTRY_LENGTH) {
     segments.push({ raw: buffer.trim(), date: currentDate });
@@ -48,18 +54,18 @@ function parseDated(content: string, source: string, fileDate: string): ParsedEn
 /** Split on any header (# to ######). */
 function parseSectioned(content: string, source: string, fileDate: string): ParsedEntry[] {
   const entries: ParsedEntry[] = [];
-  let buffer = "";
+  let buffer = '';
 
-  for (const rawLine of content.split("\n")) {
+  for (const rawLine of content.split('\n')) {
     const trimmed = rawLine.trim();
     if (isHeader(trimmed)) {
       const entry = maybeFlush(buffer, fileDate, `${source}:section`, 1);
       if (entry) entries.push(entry);
-      buffer = "";
+      buffer = '';
       continue;
     }
     if (isSkippableLine(trimmed)) continue;
-    buffer += rawLine + "\n";
+    buffer += rawLine + '\n';
   }
   const entry = maybeFlush(buffer, fileDate, `${source}:section`, 1);
   if (entry) entries.push(entry);
@@ -71,25 +77,31 @@ function parseSectioned(content: string, source: string, fileDate: string): Pars
 /** Extract each bullet / numbered item as its own entry. */
 export function extractBullets(text: string, date: string, meta: string): ParsedEntry[] {
   const entries: ParsedEntry[] = [];
-  let buffer = "";
+  let buffer = '';
 
   function flush(): void {
     const entry = maybeFlush(buffer, date, meta, 2);
     if (entry) entries.push(entry);
-    buffer = "";
+    buffer = '';
   }
 
-  for (const line of text.split("\n")) {
+  for (const line of text.split('\n')) {
     const trimmed = line.trim();
-    if (isHeader(trimmed) || trimmed === "---") { flush(); continue; }
-    if (isSkippableLine(trimmed)) { if (buffer) flush(); continue; }
+    if (isHeader(trimmed) || trimmed === '---') {
+      flush();
+      continue;
+    }
+    if (isSkippableLine(trimmed)) {
+      if (buffer) flush();
+      continue;
+    }
 
     const isBullet = /^[-*+]\s+/.test(trimmed) || /^\d+\.\s+/.test(trimmed);
     if (isBullet) {
       flush();
-      buffer = trimmed.replace(/^[-*+\d.]\s+/, "");
+      buffer = trimmed.replace(/^[-*+\d.]\s+/, '');
     } else if (buffer) {
-      buffer += " " + trimmed;
+      buffer += ' ' + trimmed;
     }
   }
   flush();
@@ -130,25 +142,33 @@ function parseMixed(content: string, source: string, fileDate: string): ParsedEn
 
 // ── File Type Detection ──────────────────────────────────────────────────────
 
-function detectFileType(filename: string): "dated" | "sectioned" | "bullet" | "paragraph" | "mixed" {
+function detectFileType(
+  filename: string,
+): 'dated' | 'sectioned' | 'bullet' | 'paragraph' | 'mixed' {
   const lower = filename.toLowerCase();
-  if (/^\d{4}-\d{2}-\d{2}/.test(lower)) return "dated";
-  if (lower.includes("memory") && lower.endsWith(".md")) return "mixed";
-  if (lower === "user.md" || lower === "soul.md") return "paragraph";
-  if (lower === "agents.md" || lower === "tools.md" || lower === "heartbeat.md") return "sectioned";
-  if (lower === "dreams.md") return "mixed";
-  return "mixed";
+  if (/^\d{4}-\d{2}-\d{2}/.test(lower)) return 'dated';
+  if (lower.includes('memory') && lower.endsWith('.md')) return 'mixed';
+  if (lower === 'user.md' || lower === 'soul.md') return 'paragraph';
+  if (lower === 'agents.md' || lower === 'tools.md' || lower === 'heartbeat.md') return 'sectioned';
+  if (lower === 'dreams.md') return 'mixed';
+  return 'mixed';
 }
 
 /** Unified parser — selects strategy by file type. */
 export function parseFile(content: string, filename: string, fileDate: string): ParsedEntry[] {
   const type = detectFileType(filename);
   switch (type) {
-    case "dated": return parseDated(content, filename, fileDate);
-    case "sectioned": return parseSectioned(content, filename, fileDate);
-    case "bullet": return parseBullet(content, filename, fileDate);
-    case "paragraph": return parseParagraph(content, filename, fileDate);
-    case "mixed": return parseMixed(content, filename, fileDate);
-    default: return parseMixed(content, filename, fileDate);
+    case 'dated':
+      return parseDated(content, filename, fileDate);
+    case 'sectioned':
+      return parseSectioned(content, filename, fileDate);
+    case 'bullet':
+      return parseBullet(content, filename, fileDate);
+    case 'paragraph':
+      return parseParagraph(content, filename, fileDate);
+    case 'mixed':
+      return parseMixed(content, filename, fileDate);
+    default:
+      return parseMixed(content, filename, fileDate);
   }
 }

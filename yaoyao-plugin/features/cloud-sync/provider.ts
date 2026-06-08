@@ -4,6 +4,12 @@
  * Kept for backward compatibility with existing imports.
  * New code should import from the specific submodule.
  */
-export { loadSyncState, saveSyncState, remotePath, markSynced } from "./state.ts";
-export { doUpload, doDownload, doBidirectional, type SyncOptions, type SyncResult } from "./sync-ops.ts";
-export { TEMPLATE } from "./template.ts";
+export { loadSyncState, saveSyncState, remotePath, markSynced } from './state.ts';
+export {
+  doUpload,
+  doDownload,
+  doBidirectional,
+  type SyncOptions,
+  type SyncResult,
+} from './sync-ops.ts';
+export { TEMPLATE } from './template.ts';

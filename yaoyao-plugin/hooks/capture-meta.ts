@@ -6,17 +6,17 @@
  * upgrader, L1 extraction, chunker, memory-types.
  */
 
-import { clampNum } from "../utils/clamp.ts";
-import { classifyTemporal, inferExpiry } from "../utils/temporal-classifier.ts";
-import { detectSpeculative, detectCorrection } from "../core/verify/verify.ts";
-import { extractIdentityCandidates } from "../utils/identity-addressing.ts";
-import { enrichMetadata } from "../core/upgrader/index.ts";
-import { extractFacts, type L1Logger } from "../utils/l1-extractor.ts";
-import { classifyMemoryType, type MemoryTag } from "../core/memory-types.ts";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
-import type { DBBridge } from "../utils/db-bridge.ts";
-import { isDuplicateOfRecent } from "../utils/batch-dedup.ts";
-import type { CaptureConfig } from "./capture-pipeline.ts";
+import { clampNum } from '../utils/clamp.ts';
+import { classifyTemporal, inferExpiry } from '../utils/temporal-classifier.ts';
+import { detectSpeculative, detectCorrection } from '../core/verify/verify.ts';
+import { extractIdentityCandidates } from '../utils/identity-addressing.ts';
+import { enrichMetadata } from '../core/upgrader/index.ts';
+import { extractFacts, type L1Logger } from '../utils/l1-extractor.ts';
+import { classifyMemoryType, type MemoryTag } from '../core/memory-types.ts';
+import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
+import type { DBBridge } from '../utils/db-bridge.ts';
+import { isDuplicateOfRecent } from '../utils/batch-dedup.ts';
+import type { CaptureConfig } from './capture-pipeline.ts';
 
 export interface AntiHallucinationResult {
   riskTag: string;
@@ -24,9 +24,17 @@ export interface AntiHallucinationResult {
   corrCheck: ReturnType<typeof detectCorrection>;
 }
 
-export function runAntiHallucination(userContent: string, asstContent: string, verifyActive: boolean): AntiHallucinationResult {
-  let riskTag = "";
-  let specCheck: ReturnType<typeof detectSpeculative> = { isSpeculative: false, markers: [], confidence: "high" };
+export function runAntiHallucination(
+  userContent: string,
+  asstContent: string,
+  verifyActive: boolean,
+): AntiHallucinationResult {
+  let riskTag = '';
+  let specCheck: ReturnType<typeof detectSpeculative> = {
+    isSpeculative: false,
+    markers: [],
+    confidence: 'high',
+  };
   let corrCheck: ReturnType<typeof detectCorrection> = { isCorrection: false, markers: [] };
   if (verifyActive) {
     try {
@@ -37,7 +45,7 @@ export function runAntiHallucination(userContent: string, asstContent: string, v
       console.warn(`[yaoyao-memory:capture] Meta parse failed: ${msg}`);
     }
   }
-  if (specCheck.isSpeculative) riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(", ")}]`;
+  if (specCheck.isSpeculative) riskTag = ` [⚠️ 推测性: ${specCheck.markers.join(', ')}]`;
   if (corrCheck.isCorrection) riskTag += ` [🚫 用户纠正]`;
   return { riskTag, specCheck, corrCheck };
 }
@@ -45,30 +53,38 @@ export function runAntiHallucination(userContent: string, asstContent: string, v
 export async function buildMetaObj(
   userContent: string,
   asstContent: string,
-  scopeManager: import("../utils/scope-manager.ts").SimpleScopeManager | undefined,
+  scopeManager: import('../utils/scope-manager.ts').SimpleScopeManager | undefined,
   agentId: string | undefined,
   specCheck: ReturnType<typeof detectSpeculative>,
   corrCheck: ReturnType<typeof detectCorrection>,
   enableL1: boolean,
   skipL1: boolean,
-  brainMode: "lite" | "full",
-  llmClient: import("../utils/llm-client.ts").LLMClient | null,
+  brainMode: 'lite' | 'full',
+  llmClient: import('../utils/llm-client.ts').LLMClient | null,
   logger: L1Logger,
   maxMemories: number,
   config: YaoyaoMemoryConfig,
 ): Promise<{ metaObj: Record<string, unknown>; meta: string | undefined; memoryTag?: MemoryTag }> {
-  const temporalType = classifyTemporal(userContent + " " + asstContent);
-  const expiryAt = temporalType === "dynamic" ? inferExpiry(userContent + " " + asstContent) : undefined;
+  const temporalType = classifyTemporal(userContent + ' ' + asstContent);
+  const expiryAt =
+    temporalType === 'dynamic' ? inferExpiry(userContent + ' ' + asstContent) : undefined;
   const memoryTag = classifyMemoryType(userContent, asstContent);
   const metaObj: Record<string, unknown> = { temporal: temporalType, memoryType: memoryTag.type };
 
   if (scopeManager) metaObj.scope = scopeManager.getDefaultScope(agentId);
-  const identities = extractIdentityCandidates(userContent + " " + asstContent);
+  const identities = extractIdentityCandidates(userContent + ' ' + asstContent);
   if (identities.length > 0) metaObj.identities = identities;
   if (expiryAt) metaObj.expiryAt = expiryAt;
-  if (specCheck.isSpeculative) { metaObj.speculative = true; metaObj.confidence = specCheck.confidence; }
-  if (corrCheck.isCorrection) { metaObj.correction = true; }
-  if (memoryTag.tags.length > 0) { metaObj.tags = memoryTag.tags; }
+  if (specCheck.isSpeculative) {
+    metaObj.speculative = true;
+    metaObj.confidence = specCheck.confidence;
+  }
+  if (corrCheck.isCorrection) {
+    metaObj.correction = true;
+  }
+  if (memoryTag.tags.length > 0) {
+    metaObj.tags = memoryTag.tags;
+  }
 
   if (enableL1 && !skipL1) {
     try {
@@ -80,7 +96,7 @@ export async function buildMetaObj(
     }
   }
 
-  enrichMetadata(metaObj, userContent + " " + asstContent);
+  enrichMetadata(metaObj, userContent + ' ' + asstContent);
   const meta = Object.keys(metaObj).length > 1 ? JSON.stringify(metaObj) : undefined;
   return { metaObj, meta, memoryTag };
 }

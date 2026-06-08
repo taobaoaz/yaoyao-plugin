@@ -4,12 +4,12 @@
  * Thin wrapper around the pluggable vector backend.
  * Extracted from db-bridge.ts.
  */
-import type { UnifiedDB } from "../platform/db/types.ts";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import { createVectorBackend } from "../utils/vector/index.ts";
-import type { VectorBackend } from "../utils/vector/types.ts";
-import type { EmbeddedSearchResult } from "./types.ts";
+import type { UnifiedDB } from '../platform/db/types.ts';
+import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
+import type { PluginLogger } from 'openclaw/plugin-sdk/plugin-entry';
+import { createVectorBackend } from '../utils/vector/index.ts';
+import type { VectorBackend } from '../utils/vector/types.ts';
+import type { EmbeddedSearchResult } from './types.ts';
 
 export function createVectorStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   let backend: VectorBackend | null = null;
@@ -27,7 +27,7 @@ export function createVectorStore(config: YaoyaoMemoryConfig, logger?: PluginLog
     },
 
     get name(): string {
-      return backend?.name ?? "none";
+      return backend?.name ?? 'none';
     },
 
     /** Vector similarity search. */
@@ -48,17 +48,21 @@ export function createVectorStore(config: YaoyaoMemoryConfig, logger?: PluginLog
     /** Get dimensions. */
     dimensions(): number {
       if (backend?.getDimensions) return backend.getDimensions();
-      return (config.embedding && typeof config.embedding === 'object' && 'dimensions' in config.embedding)
+      return config.embedding &&
+        typeof config.embedding === 'object' &&
+        'dimensions' in config.embedding
         ? Number((config.embedding as Record<string, unknown>).dimensions ?? 0)
         : 0;
     },
 
     /** Clean up orphaned vectors. */
     deleteOrphans(): void {
-      try { backend?.deleteOrphans?.(); } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  best effort : ${msg}`);
-    }
+      try {
+        backend?.deleteOrphans?.();
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory]  best effort : ${msg}`);
+      }
     },
 
     /** Close backend. */

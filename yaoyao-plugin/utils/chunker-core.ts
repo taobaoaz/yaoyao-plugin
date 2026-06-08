@@ -1,10 +1,14 @@
 /**
  * utils/chunker-core.ts — Core chunking algorithm.
  */
-import type { ChunkerConfig, ChunkMetadata, ChunkResult } from "./chunker.ts";
-import { findSplitEnd, clamp } from "./chunker-split.ts";
+import type { ChunkerConfig, ChunkMetadata, ChunkResult } from './chunker.ts';
+import { findSplitEnd, clamp } from './chunker-split.ts';
 
-function sliceTrimWithIndices(text: string, start: number, end: number): { chunk: string; meta: ChunkMetadata } {
+function sliceTrimWithIndices(
+  text: string,
+  start: number,
+  end: number,
+): { chunk: string; meta: ChunkMetadata } {
   const raw = text.slice(start, end);
   const leading = raw.match(/^\s*/)?.[0]?.length ?? 0;
   const trailing = raw.match(/\s*$/)?.[0]?.length ?? 0;
@@ -33,7 +37,10 @@ export function chunkDocumentImpl(text: string, config: ChunkerConfig): ChunkRes
   const metadatas: ChunkMetadata[] = [];
 
   let pos = 0;
-  const maxGuard = Math.max(4, Math.ceil(text.length / Math.max(1, config.maxChunkSize - config.overlapSize)) + 5);
+  const maxGuard = Math.max(
+    4,
+    Math.ceil(text.length / Math.max(1, config.maxChunkSize - config.overlapSize)) + 5,
+  );
   let guard = 0;
 
   while (pos < text.length && guard < maxGuard) {

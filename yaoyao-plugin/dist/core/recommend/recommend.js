@@ -6,11 +6,11 @@
  */
 export function diversifiedSelect(pool, limit, scenes, diversity, sceneDiversity) {
     if (!Array.isArray(pool))
-        throw new TypeError("diversifiedSelect: pool must be an array");
+        throw new TypeError('diversifiedSelect: pool must be an array');
     if (!Number.isFinite(limit) || limit < 1)
         limit = 10;
     if (!(scenes instanceof Map))
-        throw new TypeError("diversifiedSelect: scenes must be a Map");
+        throw new TypeError('diversifiedSelect: scenes must be a Map');
     if (!Number.isFinite(diversity) || diversity < 0 || diversity > 1)
         diversity = 0.5;
     const selected = [];
@@ -22,13 +22,13 @@ export function diversifiedSelect(pool, limit, scenes, diversity, sceneDiversity
             let foundDiverse = false;
             for (let i = 0; i < workPool.length; i++) {
                 const memId = workPool[i].id;
-                const memScenes = scenes.get(memId) || scenes.get(memId.replace(".md", ""));
+                const memScenes = scenes.get(memId) || scenes.get(memId.replace('.md', ''));
                 if (!memScenes || memScenes.size === 0) {
                     pickIdx = i;
                     foundDiverse = true;
                     break;
                 }
-                const fresh = [...memScenes].some(s => !selectedScenes.has(s));
+                const fresh = [...memScenes].some((s) => !selectedScenes.has(s));
                 if (fresh) {
                     pickIdx = i;
                     foundDiverse = true;
@@ -53,11 +53,11 @@ export function diversifiedSelect(pool, limit, scenes, diversity, sceneDiversity
 }
 export function formatRecommendations(selected, context, diversity) {
     if (!Array.isArray(selected))
-        throw new TypeError("formatRecommendations: selected must be an array");
-    if (typeof context !== "string")
-        context = "";
+        throw new TypeError('formatRecommendations: selected must be an array');
+    if (typeof context !== 'string')
+        context = '';
     const lines = selected.map((r, i) => {
-        const scoreBar = "█".repeat(Math.round(r.score * 10));
+        const scoreBar = '█'.repeat(Math.round(r.score * 10));
         return `${i + 1}. [${r.date}] ${r.user_text}  ${scoreBar}`;
     });
     return [
@@ -66,5 +66,5 @@ export function formatRecommendations(selected, context, diversity) {
         `多样化: ${(diversity * 100).toFixed(0)}%`,
         ``,
         ...lines,
-    ].join("\n");
+    ].join('\n');
 }

@@ -11,26 +11,26 @@
 
 /** Query intent classification */
 export type MemoryCallIntent =
-  | "factual"      // Seeking concrete information
-  | "emotional"    // Feelings, preferences, sentiment
-  | "procedural"   // How-to, steps, workflows
-  | "exploratory"; // Browsing, discovering connections
+  | 'factual' // Seeking concrete information
+  | 'emotional' // Feelings, preferences, sentiment
+  | 'procedural' // How-to, steps, workflows
+  | 'exploratory'; // Browsing, discovering connections
 
 /** Time range filter */
 export interface MemoryCallTimeRange {
-  relative?: "today" | "yesterday" | "last_week" | "last_month" | "recent";
+  relative?: 'today' | 'yesterday' | 'last_week' | 'last_month' | 'recent';
   startDate?: string; // ISO date (YYYY-MM-DD)
-  endDate?: string;   // ISO date (YYYY-MM-DD)
+  endDate?: string; // ISO date (YYYY-MM-DD)
 }
 
 /** Structured memory query style */
 export interface MemoryCall {
-  query: string;           // Core search terms
+  query: string; // Core search terms
   intent?: MemoryCallIntent;
   timeRange?: MemoryCallTimeRange;
   participants?: string[]; // Mentioned people/entities
-  topics?: string[];       // Topic tags to filter
-  memoryType?: import("../core/memory-types.ts").MemoryType; // Filter by memory type
+  topics?: string[]; // Topic tags to filter
+  memoryType?: import('../core/memory-types.ts').MemoryType; // Filter by memory type
   maxResults?: number;
   minScore?: number;
 }
@@ -38,20 +38,32 @@ export interface MemoryCall {
 // ── Intent detection patterns ──
 
 const INTENT_PATTERNS: Record<MemoryCallIntent, RegExp[]> = {
-  factual: [/什么|多少|哪里|谁|什么时候|为什么|如何|怎么|怎样|是什么|有哪些/i, /what|how many|where|who|when|why|how to/i],
-  emotional: [/感觉|觉得|喜欢|讨厌|开心|难过|担心|希望|失望|满意|不满/i, /feel|like|love|hate|happy|sad|worried|hope/i],
-  procedural: [/步骤|流程|怎么做|如何操作|教程|指南|第一步/i, /step|guide|tutorial|how do|procedure|process/i],
-  exploratory: [/看看|了解一下|探索|发现|相关|连接|趋势/i, /explore|discover|related|connection|trend|overview/i],
+  factual: [
+    /什么|多少|哪里|谁|什么时候|为什么|如何|怎么|怎样|是什么|有哪些/i,
+    /what|how many|where|who|when|why|how to/i,
+  ],
+  emotional: [
+    /感觉|觉得|喜欢|讨厌|开心|难过|担心|希望|失望|满意|不满/i,
+    /feel|like|love|hate|happy|sad|worried|hope/i,
+  ],
+  procedural: [
+    /步骤|流程|怎么做|如何操作|教程|指南|第一步/i,
+    /step|guide|tutorial|how do|procedure|process/i,
+  ],
+  exploratory: [
+    /看看|了解一下|探索|发现|相关|连接|趋势/i,
+    /explore|discover|related|connection|trend|overview/i,
+  ],
 };
 
 // ── Time range detection ──
 
-const RELATIVE_TIME_PATTERNS: Array<{ pattern: RegExp; value: MemoryCallTimeRange["relative"] }> = [
-  { pattern: /今天|today/i, value: "today" },
-  { pattern: /昨天|yesterday/i, value: "yesterday" },
-  { pattern: /上周|上星期|last week/i, value: "last_week" },
-  { pattern: /上个月|last month/i, value: "last_month" },
-  { pattern: /最近|recently|lately/i, value: "recent" },
+const RELATIVE_TIME_PATTERNS: Array<{ pattern: RegExp; value: MemoryCallTimeRange['relative'] }> = [
+  { pattern: /今天|today/i, value: 'today' },
+  { pattern: /昨天|yesterday/i, value: 'yesterday' },
+  { pattern: /上周|上星期|last week/i, value: 'last_week' },
+  { pattern: /上个月|last month/i, value: 'last_month' },
+  { pattern: /最近|recently|lately/i, value: 'recent' },
 ];
 
 // ── Public API ──
@@ -61,21 +73,21 @@ const RELATIVE_TIME_PATTERNS: Array<{ pattern: RegExp; value: MemoryCallTimeRang
  * Rule-based — zero LLM calls, zero external deps.
  */
 export function parseMemoryCall(input: string): MemoryCall {
-  if (!input || input.trim().length < 2) return { query: input || "" };
+  if (!input || input.trim().length < 2) return { query: input || '' };
 
   const lower = input.toLowerCase();
 
   // Detect intent
   let intent: MemoryCallIntent | undefined;
   for (const [key, patterns] of Object.entries(INTENT_PATTERNS) as [MemoryCallIntent, RegExp[]][]) {
-    if (patterns.some(p => p.test(input))) {
+    if (patterns.some((p) => p.test(input))) {
       intent = key;
       break;
     }
   }
   // Default: factual for questions, exploratory for open-ended
   if (!intent) {
-    intent = /[?？]/.test(input) ? "factual" : "exploratory";
+    intent = /[?？]/.test(input) ? 'factual' : 'exploratory';
   }
 
   // Detect time range
@@ -95,9 +107,12 @@ export function parseMemoryCall(input: string): MemoryCall {
   // Clean query: remove time phrases and intent markers to get core terms
   let query = input;
   for (const { pattern } of RELATIVE_TIME_PATTERNS) {
-    query = query.replace(pattern, "");
+    query = query.replace(pattern, '');
   }
-  query = query.replace(/[?？!！.,，。]/g, " ").replace(/\s+/g, " ").trim();
+  query = query
+    .replace(/[?？!！.,，。]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   return {
     query: query || input,
@@ -116,12 +131,12 @@ export function buildSearchQuery(call: MemoryCall): string {
 
   // Append participants for broader matching
   if (call.participants) {
-    q += " " + call.participants.join(" ");
+    q += ' ' + call.participants.join(' ');
   }
 
   // Append topics
   if (call.topics) {
-    q += " " + call.topics.join(" ");
+    q += ' ' + call.topics.join(' ');
   }
 
   return q.trim();
@@ -133,48 +148,48 @@ export function buildSearchQuery(call: MemoryCall): string {
  */
 export function buildDateFilter(
   timeRange: MemoryCallTimeRange | undefined,
-  tz = "Asia/Shanghai",
+  tz = 'Asia/Shanghai',
 ): { clause: string; params: string[] } | null {
   if (!timeRange) return null;
 
   const now = new Date();
-  const fmt = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: tz });
+  const fmt = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: tz });
 
   if (timeRange.relative) {
     switch (timeRange.relative) {
-      case "today": {
+      case 'today': {
         const d = fmt(now);
-        return { clause: "date = ?", params: [d] };
+        return { clause: 'date = ?', params: [d] };
       }
-      case "yesterday": {
+      case 'yesterday': {
         const d = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        return { clause: "date = ?", params: [fmt(d)] };
+        return { clause: 'date = ?', params: [fmt(d)] };
       }
-      case "last_week": {
+      case 'last_week': {
         const end = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const start = new Date(end.getTime() - 6 * 24 * 60 * 60 * 1000);
-        return { clause: "date >= ? AND date <= ?", params: [fmt(start), fmt(end)] };
+        return { clause: 'date >= ? AND date <= ?', params: [fmt(start), fmt(end)] };
       }
-      case "last_month": {
+      case 'last_month': {
         const end = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         const start = new Date(end.getTime() - 29 * 24 * 60 * 60 * 1000);
-        return { clause: "date >= ? AND date <= ?", params: [fmt(start), fmt(end)] };
+        return { clause: 'date >= ? AND date <= ?', params: [fmt(start), fmt(end)] };
       }
-      case "recent": {
+      case 'recent': {
         const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return { clause: "date >= ?", params: [fmt(start)] };
+        return { clause: 'date >= ?', params: [fmt(start)] };
       }
     }
   }
 
   if (timeRange.startDate && timeRange.endDate) {
-    return { clause: "date >= ? AND date <= ?", params: [timeRange.startDate, timeRange.endDate] };
+    return { clause: 'date >= ? AND date <= ?', params: [timeRange.startDate, timeRange.endDate] };
   }
   if (timeRange.startDate) {
-    return { clause: "date >= ?", params: [timeRange.startDate] };
+    return { clause: 'date >= ?', params: [timeRange.startDate] };
   }
   if (timeRange.endDate) {
-    return { clause: "date <= ?", params: [timeRange.endDate] };
+    return { clause: 'date <= ?', params: [timeRange.endDate] };
   }
 
   return null;

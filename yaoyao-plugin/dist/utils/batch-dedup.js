@@ -6,7 +6,7 @@
 function trigramJaccard(a, b) {
     const trigrams = (s) => {
         const set = new Set();
-        const norm = s.toLowerCase().replace(/\s+/g, " ").trim();
+        const norm = s.toLowerCase().replace(/\s+/g, ' ').trim();
         for (let i = 0; i <= norm.length - 3; i++) {
             set.add(norm.slice(i, i + 3));
         }
@@ -84,12 +84,8 @@ export function batchDedup(texts, threshold = 0.85) {
             }
         }
     }
-    const survivingIndices = candidates
-        .filter((c) => !c.isBatchDuplicate)
-        .map((c) => c.index);
-    const duplicateIndices = candidates
-        .filter((c) => c.isBatchDuplicate)
-        .map((c) => c.index);
+    const survivingIndices = candidates.filter((c) => !c.isBatchDuplicate).map((c) => c.index);
+    const duplicateIndices = candidates.filter((c) => c.isBatchDuplicate).map((c) => c.index);
     return {
         survivingIndices,
         duplicateIndices,

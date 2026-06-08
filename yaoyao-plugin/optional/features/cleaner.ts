@@ -1,17 +1,17 @@
 /**
  * Cleaner feature — optional daily memory cleanup.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
-import type { OptionalFeature, FeatureResult } from "../types.ts";
-import { createMemoryCleaner, type CleanerConfig } from "../../utils/memory-cleaner.ts";
-import type { DBBridge } from "../../utils/db-bridge.ts";
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../../utils/memory-store.ts';
+import type { OptionalFeature, FeatureResult } from '../types.ts';
+import { createMemoryCleaner, type CleanerConfig } from '../../utils/memory-cleaner.ts';
+import type { DBBridge } from '../../utils/db-bridge.ts';
 
 export const cleanerFeature: OptionalFeature<CleanerConfig> = {
-  id: "cleaner",
-  name: "Memory Cleaner",
+  id: 'cleaner',
+  name: 'Memory Cleaner',
   dependencies: [],
-  configKey: "cleanup.enabled",
+  configKey: 'cleanup.enabled',
   defaultEnabled: true,
 
   init(api, config) {
@@ -19,7 +19,7 @@ export const cleanerFeature: OptionalFeature<CleanerConfig> = {
       return {
         active: false,
         service: null,
-        message: "Memory cleaner disabled",
+        message: 'Memory cleaner disabled',
       };
     }
 
@@ -29,7 +29,7 @@ export const cleanerFeature: OptionalFeature<CleanerConfig> = {
         l0l1RetentionDays: config.cleanup?.l0l1RetentionDays,
         allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup,
       } as CleanerConfig,
-      message: "Memory cleaner available",
+      message: 'Memory cleaner available',
     };
   },
 };

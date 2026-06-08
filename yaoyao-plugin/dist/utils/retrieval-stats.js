@@ -13,7 +13,7 @@ export class RetrievalStatsCollector {
         this._maxRecords = maxRecords;
         this._records = new Array(maxRecords);
     }
-    recordQuery(trace, source = "auto-recall") {
+    recordQuery(trace, source = 'auto-recall') {
         this._records[this._head] = { trace, source };
         this._head = (this._head + 1) % this._maxRecords;
         if (this._count < this._maxRecords) {

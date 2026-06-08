@@ -13,13 +13,12 @@ export function rankToScore(rank) {
 /** Sanitize query for FTS5 MATCH syntax. */
 export function sanitizeFTSQuery(query) {
     let s = query
-        .replace(/["^`()~]/g, "")
-        .replace(/\s+/g, " ")
+        .replace(/["^`()~]/g, '')
+        .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 200);
     if (!s)
-        return "";
-    s = s.replace(/(^|\s)\*+(?=\s|$)/g, "$1")
-        .replace(/\*{2,}/g, "*");
+        return '';
+    s = s.replace(/(^|\s)\*+(?=\s|$)/g, '$1').replace(/\*{2,}/g, '*');
     return s.trim();
 }

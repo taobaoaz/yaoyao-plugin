@@ -25,7 +25,7 @@ function clampAccessCount(value: number): number {
  * Always returns a valid AccessMetadata.
  */
 export function parseAccessMetadata(metadata: string | undefined): AccessMetadata {
-  if (metadata === undefined || metadata === "") {
+  if (metadata === undefined || metadata === '') {
     return { accessCount: 0, lastAccessedAt: 0 };
   }
 
@@ -33,19 +33,19 @@ export function parseAccessMetadata(metadata: string | undefined): AccessMetadat
   try {
     parsed = JSON.parse(metadata);
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:access] Operation failed: ${msg}`);
-      return { accessCount: 0, lastAccessedAt: 0 };
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:access] Operation failed: ${msg}`);
+    return { accessCount: 0, lastAccessedAt: 0 };
+  }
 
-  if (typeof parsed !== "object" || parsed === null) {
+  if (typeof parsed !== 'object' || parsed === null) {
     return { accessCount: 0, lastAccessedAt: 0 };
   }
 
   const obj = parsed as Record<string, unknown>;
 
-  const rawCount = typeof obj.accessCount === "number" ? obj.accessCount : 0;
-  const rawLastAccessed = typeof obj.lastAccessedAt === "number" ? obj.lastAccessedAt : 0;
+  const rawCount = typeof obj.accessCount === 'number' ? obj.accessCount : 0;
+  const rawLastAccessed = typeof obj.lastAccessedAt === 'number' ? obj.lastAccessedAt : 0;
 
   return {
     accessCount: clampAccessCount(rawCount),
@@ -57,13 +57,16 @@ export function parseAccessMetadata(metadata: string | undefined): AccessMetadat
  * Merge an access-count increment into existing metadata JSON.
  * Preserves ALL existing fields.
  */
-export function buildUpdatedMetadata(existingMetadata: string | undefined, accessDelta: number): string {
+export function buildUpdatedMetadata(
+  existingMetadata: string | undefined,
+  accessDelta: number,
+): string {
   let existing: Record<string, unknown> = {};
 
-  if (existingMetadata !== undefined && existingMetadata !== "") {
+  if (existingMetadata !== undefined && existingMetadata !== '') {
     try {
       const parsed = JSON.parse(existingMetadata);
-      if (typeof parsed === "object" && parsed !== null) {
+      if (typeof parsed === 'object' && parsed !== null) {
         existing = { ...parsed };
       }
     } catch (e: unknown) {

@@ -24,11 +24,11 @@ const DENIAL_PATTERNS = [
 ];
 // User-side meta-question patterns (about memory itself, not content)
 const META_QUESTION_PATTERNS = [
-    /do you (remember|recall|know about)/i,
-    /can you (remember|recall)/i,
-    /did i (tell|mention|say|share)/i,
-    /have i (told|mentioned|said)/i,
-    /what did i (tell|say|mention)/i,
+    /\bdo you (remember|recall|know about)\b/i,
+    /\bcan you (remember|recall)\b/i,
+    /\bdid i (tell|mention|say|share)\b/i,
+    /\bhave i (told|mentioned|said)\b/i,
+    /\bwhat did i (tell|say|mention)\b/i,
     /你(还)?记得吗/,
     /你(还)?记不记得/,
     /你知道我(说过|提过|告诉|提到).*吗/,
@@ -67,8 +67,7 @@ export function isNoise(text, options = {}) {
         return true;
     if (opts.filterDenials && DENIAL_PATTERNS.some((p) => p.test(trimmed)))
         return true;
-    if (opts.filterMetaQuestions &&
-        META_QUESTION_PATTERNS.some((p) => p.test(trimmed)))
+    if (opts.filterMetaQuestions && META_QUESTION_PATTERNS.some((p) => p.test(trimmed)))
         return true;
     if (opts.filterBoilerplate) {
         if (BOILERPLATE_PATTERNS.some((p) => p.test(trimmed)))
@@ -87,6 +86,6 @@ export function filterNoise(items, getText, options) {
 /** Clean noise and return valid text or empty string */
 export function cleanNoise(text) {
     if (isNoise(text))
-        return "";
+        return '';
     return text.trim();
 }

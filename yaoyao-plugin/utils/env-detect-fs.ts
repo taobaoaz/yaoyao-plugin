@@ -5,10 +5,10 @@
  * Zero external deps.
  */
 
-import { existsSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
-export type ClawEnvironment = "openclaw" | "xiaoyi-claw" | "unknown";
+export type ClawEnvironment = 'openclaw' | 'xiaoyi-claw' | 'unknown';
 
 /** Detect environment by file system signatures. */
 export function detectByFileSystem(): { env: ClawEnvironment; signals: string[] } {
@@ -21,27 +21,29 @@ export function detectByFileSystem(): { env: ClawEnvironment; signals: string[] 
   ].filter(Boolean) as string[];
 
   for (const root of possibleRoots) {
-    const extDir = join(root, "extensions");
+    const extDir = join(root, 'extensions');
     if (existsSync(extDir)) {
       try {
         const entries = readdirSync(extDir);
-        if (entries.includes("claw-core") || entries.includes("xiaoyi-channel")) {
+        if (entries.includes('claw-core') || entries.includes('xiaoyi-channel')) {
           signals.push(`found xiaoyi extensions in ${extDir}`);
-          return { env: "xiaoyi-claw", signals };
+          return { env: 'xiaoyi-claw', signals };
         }
-        if (entries.includes("openclaw-better-gateway")) {
+        if (entries.includes('openclaw-better-gateway')) {
           signals.push(`found xiaoyi-specific gateway in ${extDir}`);
-          return { env: "xiaoyi-claw", signals };
+          return { env: 'xiaoyi-claw', signals };
         }
-      } catch { /* ignore read errors */ }
+      } catch {
+        /* ignore read errors */
+      }
     }
 
-    const ocExtDir = join(root, ".openclaw", "extensions");
+    const ocExtDir = join(root, '.openclaw', 'extensions');
     if (existsSync(ocExtDir)) {
       signals.push(`found openclaw extensions in ${ocExtDir}`);
-      return { env: "openclaw", signals };
+      return { env: 'openclaw', signals };
     }
   }
 
-  return { env: "unknown", signals };
+  return { env: 'unknown', signals };
 }

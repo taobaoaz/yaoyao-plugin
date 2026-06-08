@@ -1,15 +1,15 @@
 export const cleanerFeature = {
-    id: "cleaner",
-    name: "Memory Cleaner",
+    id: 'cleaner',
+    name: 'Memory Cleaner',
     dependencies: [],
-    configKey: "cleanup.enabled",
+    configKey: 'cleanup.enabled',
     defaultEnabled: true,
     init(api, config) {
         if (config.cleanup?.enabled === false) {
             return {
                 active: false,
                 service: null,
-                message: "Memory cleaner disabled",
+                message: 'Memory cleaner disabled',
             };
         }
         return {
@@ -18,7 +18,7 @@ export const cleanerFeature = {
                 l0l1RetentionDays: config.cleanup?.l0l1RetentionDays,
                 allowAggressiveCleanup: config.cleanup?.allowAggressiveCleanup,
             },
-            message: "Memory cleaner available",
+            message: 'Memory cleaner available',
         };
     },
 };

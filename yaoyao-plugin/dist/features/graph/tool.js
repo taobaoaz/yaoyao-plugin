@@ -2,14 +2,14 @@
 // v1.1: scene cache added to avoid re-reading scene_blocks on every call.
 import { clampNum } from "../../utils/clamp.js";
 import { withErrorHandling } from "../../tools/common.js";
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 import { buildGraph, formatGraph } from "../../core/graph/graph.js";
 /** Scene cache — invalidated when scene_blocks mtime changes */
 let _sceneCache = null;
 let _sceneCacheMtime = 0;
 function loadScenesCached(memoryDir) {
-    const sceneDir = path.join(memoryDir, "scene_blocks");
+    const sceneDir = path.join(memoryDir, 'scene_blocks');
     let currentMtime = 0;
     try {
         if (fs.existsSync(sceneDir)) {
@@ -28,17 +28,17 @@ function loadScenesCached(memoryDir) {
         if (!fs.existsSync(sceneDir))
             return scenes;
         for (const file of fs.readdirSync(sceneDir)) {
-            if (!file.endsWith(".md"))
+            if (!file.endsWith('.md'))
                 continue;
-            const content = fs.readFileSync(path.join(sceneDir, file), "utf-8");
+            const content = fs.readFileSync(path.join(sceneDir, file), 'utf-8');
             const nameMatch = content.match(/^#\s*(.+)$/m);
-            const name = nameMatch?.[1]?.trim() || file.replace(".md", "");
+            const name = nameMatch?.[1]?.trim() || file.replace('.md', '');
             const memories = [];
-            for (const line of content.split("\n")) {
+            for (const line of content.split('\n')) {
                 const t = line.trim();
-                if (t.startsWith("- ") || t.startsWith("* ")) {
+                if (t.startsWith('- ') || t.startsWith('* ')) {
                     const raw = t.slice(2).trim();
-                    const normalized = raw.endsWith(".md") ? raw : `${raw}.md`;
+                    const normalized = raw.endsWith('.md') ? raw : `${raw}.md`;
                     memories.push(normalized);
                 }
             }
@@ -85,49 +85,65 @@ function buildFilenameToIdMap(db) {
 }
 export function createGraphTool(db, _dbPath, memoryDir, embedding) {
     return {
-        id: "memory_graph",
-        name: "memory_graph",
-        label: "Memory Graph (Knowledge)",
-        description: "构建记忆关联图谱。以某个关键词或记忆条目为切入点，多维度发现关联 - 标签关联、场景关联、关键词关联、时间关联、向量语义关联（需配置embedding）。",
+        id: 'memory_graph',
+        name: 'memory_graph',
+        label: 'Memory Graph (Knowledge)',
+        description: '构建记忆关联图谱。以某个关键词或记忆条目为切入点，多维度发现关联 - 标签关联、场景关联、关键词关联、时间关联、向量语义关联（需配置embedding）。',
         parameters: {
-            type: "object",
+            type: 'object',
             properties: {
                 query: {
-                    type: "string",
+                    type: 'string',
                     description: "切入点关键词，如'项目A'、'用户张三'、'2026-03-15'等",
                 },
                 depth: {
-                    type: "number",
-                    description: "关联深度（1-3），越大探索越广但也可能引入噪音",
+                    type: 'number',
+                    description: '关联深度（1-3），越大探索越广但也可能引入噪音',
                     default: 2,
                 },
                 format: {
-                    type: "string",
-                    enum: ["text", "json"],
-                    description: "输出格式：text 返回可读描述，json 返回结构化数据",
-                    default: "text",
+                    type: 'string',
+                    enum: ['text', 'json'],
+                    description: '输出格式：text 返回可读描述，json 返回结构化数据',
+                    default: 'text',
                 },
-                tagWeight: { type: "number", description: "标签节点权重（0-1，默认 0.7）", default: 0.7 },
-                tagEdgeWeight: { type: "number", description: "标签边权重（0-1，默认 0.8）", default: 0.8 },
-                sceneWeight: { type: "number", description: "场景节点权重（0-1，默认 0.8）", default: 0.8 },
-                sceneEdgeWeight: { type: "number", description: "场景边权重（0-1，默认 0.9）", default: 0.9 },
-                sceneInnerWeight: { type: "number", description: "场景内边权重（0-1，默认 0.5）", default: 0.5 },
-                dateWeight: { type: "number", description: "日期边权重（0-1，默认 0.3）", default: 0.3 },
-                orphanWeight: { type: "number", description: "孤立节点权重（0-1，默认 0.6）", default: 0.6 },
-                unseenWeight: { type: "number", description: "未访问节点权重（0-1，默认 0.7）", default: 0.7 },
-                nodeLimitMul: { type: "number", description: "节点数上限倍数（默认 15）", default: 15 },
-                edgeLimitMul: { type: "number", description: "边数上限倍数（默认 30）", default: 30 },
-                nodeLimitMax: { type: "number", description: "节点数绝对上限（默认 200）", default: 200 },
-                edgeLimitMax: { type: "number", description: "边数绝对上限（默认 400）", default: 400 },
+                tagWeight: { type: 'number', description: '标签节点权重（0-1，默认 0.7）', default: 0.7 },
+                tagEdgeWeight: { type: 'number', description: '标签边权重（0-1，默认 0.8）', default: 0.8 },
+                sceneWeight: { type: 'number', description: '场景节点权重（0-1，默认 0.8）', default: 0.8 },
+                sceneEdgeWeight: {
+                    type: 'number',
+                    description: '场景边权重（0-1，默认 0.9）',
+                    default: 0.9,
+                },
+                sceneInnerWeight: {
+                    type: 'number',
+                    description: '场景内边权重（0-1，默认 0.5）',
+                    default: 0.5,
+                },
+                dateWeight: { type: 'number', description: '日期边权重（0-1，默认 0.3）', default: 0.3 },
+                orphanWeight: {
+                    type: 'number',
+                    description: '孤立节点权重（0-1，默认 0.6）',
+                    default: 0.6,
+                },
+                unseenWeight: {
+                    type: 'number',
+                    description: '未访问节点权重（0-1，默认 0.7）',
+                    default: 0.7,
+                },
+                nodeLimitMul: { type: 'number', description: '节点数上限倍数（默认 15）', default: 15 },
+                edgeLimitMul: { type: 'number', description: '边数上限倍数（默认 30）', default: 30 },
+                nodeLimitMax: { type: 'number', description: '节点数绝对上限（默认 200）', default: 200 },
+                edgeLimitMax: { type: 'number', description: '边数绝对上限（默认 400）', default: 400 },
             },
-            required: ["query"],
+            required: ['query'],
         },
         execute: withErrorHandling(async (_id, params) => {
-            const query = String(params.query || "").trim();
+            const query = String(params.query || '').trim();
             const depth = clampNum(params.depth, 2, 1, 3);
-            const format = String(params.format || "text");
+            const format = String(params.format || 'text');
             if (!query)
-                return { content: [{ type: "text", text: "请输入搜索关键词。" }] };
+                return { content: [{ type: 'text', text: '请输入搜索关键词。' }] };
             const scenes = loadScenesCached(memoryDir);
             const tags = loadTagsFromMeta(db);
             let queryVec = null;
@@ -158,10 +174,10 @@ export function createGraphTool(db, _dbPath, memoryDir, embedding) {
             const initialResults = db.search(query, ftsLimit);
             const memFilenameMap = buildFilenameToIdMap(db);
             const graph = buildGraph(query, initialResults, scenes, tags, memFilenameMap, weights);
-            if (format === "json") {
-                return { content: [{ type: "text", text: JSON.stringify(graph, null, 2) }] };
+            if (format === 'json') {
+                return { content: [{ type: 'text', text: JSON.stringify(graph, null, 2) }] };
             }
-            return { content: [{ type: "text", text: formatGraph(graph) }] };
+            return { content: [{ type: 'text', text: formatGraph(graph) }] };
         }),
     };
 }

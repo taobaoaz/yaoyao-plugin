@@ -11,7 +11,7 @@ import { INTENT_WEIGHTS } from "./intent.js";
  * Returns scored, filtered, and intent-re-ranked results.
  */
 export async function executeMemoryCall(call, opts) {
-    const { storage, embedding, tz = "Asia/Shanghai" } = opts;
+    const { storage, embedding, tz = 'Asia/Shanghai' } = opts;
     // Build search string from structured call
     const query = buildSearchQuery(call);
     if (!query || query.trim().length < 2)
@@ -19,7 +19,7 @@ export async function executeMemoryCall(call, opts) {
     const maxResults = call.maxResults ?? 10;
     const minScore = call.minScore ?? 0.3;
     // ── Search: hybrid (FTS + vector) ──
-    let results = [];
+    let results;
     if (embedding?.isAvailable) {
         try {
             const vec = await embedding.embed(query);
@@ -47,24 +47,25 @@ export async function executeMemoryCall(call, opts) {
             if (!r.date)
                 return true;
             // Simple date range check: parse date filter clause
-            if (call.timeRange?.relative === "today") {
-                const today = new Date().toLocaleDateString("sv-SE", { timeZone: tz });
+            if (call.timeRange?.relative === 'today') {
+                const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
                 return r.date === today;
             }
-            if (call.timeRange?.relative === "yesterday") {
+            if (call.timeRange?.relative === 'yesterday') {
                 const y = new Date(Date.now() - 24 * 60 * 60 * 1000);
-                return r.date === y.toLocaleDateString("sv-SE", { timeZone: tz });
+                return r.date === y.toLocaleDateString('sv-SE', { timeZone: tz });
             }
-            if (call.timeRange?.relative === "recent") {
+            if (call.timeRange?.relative === 'recent') {
                 const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-                return r.date >= weekAgo.toLocaleDateString("sv-SE", { timeZone: tz });
+                return r.date >= weekAgo.toLocaleDateString('sv-SE', { timeZone: tz });
             }
             return true;
         });
     }
     // ── Intent-aware re-ranking ──
-    if (call.intent && INTENT_WEIGHTS[call.intent]) {
-        const weights = INTENT_WEIGHTS[call.intent];
+    const intentKey = call.intent;
+    if (call.intent && INTENT_WEIGHTS[intentKey]) {
+        const weights = INTENT_WEIGHTS[intentKey];
         for (const r of results) {
             const vecScore = r.vectorScore ?? r.score;
             const ts = r.timestamp;

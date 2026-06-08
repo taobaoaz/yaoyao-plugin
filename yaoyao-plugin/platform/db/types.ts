@@ -24,7 +24,7 @@ export interface UnifiedStatement {
   get(...args: unknown[]): SQLiteRow | undefined;
 }
 
-export type DBBackend = "node-sqlite" | "better-sqlite3" | "file-db";
+export type DBBackend = 'node-sqlite' | 'better-sqlite3' | 'file-db';
 
 export interface DBCompatResult {
   db: UnifiedDB;

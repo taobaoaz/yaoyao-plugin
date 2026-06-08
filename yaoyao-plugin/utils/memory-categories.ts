@@ -12,37 +12,34 @@
  */
 
 export const MEMORY_CATEGORIES = [
-  "profile",
-  "preferences",
-  "entities",
-  "events",
-  "cases",
-  "patterns",
+  'profile',
+  'preferences',
+  'entities',
+  'events',
+  'cases',
+  'patterns',
 ] as const;
 
 export type MemoryCategory = (typeof MEMORY_CATEGORIES)[number];
 
 /** Categories that always merge (skip dedup entirely). */
-export const ALWAYS_MERGE_CATEGORIES = new Set<MemoryCategory>(["profile"]);
+export const ALWAYS_MERGE_CATEGORIES = new Set<MemoryCategory>(['profile']);
 
 /** Categories that support MERGE decision from dedup. */
 export const MERGE_SUPPORTED_CATEGORIES = new Set<MemoryCategory>([
-  "preferences",
-  "entities",
-  "patterns",
+  'preferences',
+  'entities',
+  'patterns',
 ]);
 
 /** Categories whose facts can be replaced over time without deleting history. */
-export const TEMPORAL_VERSIONED_CATEGORIES = new Set<MemoryCategory>([
-  "preferences",
-  "entities",
-]);
+export const TEMPORAL_VERSIONED_CATEGORIES = new Set<MemoryCategory>(['preferences', 'entities']);
 
 /** Categories that are append-only (CREATE or SKIP only, no MERGE). */
-export const APPEND_ONLY_CATEGORIES = new Set<MemoryCategory>(["events", "cases"]);
+export const APPEND_ONLY_CATEGORIES = new Set<MemoryCategory>(['events', 'cases']);
 
 /** Memory tier levels for lifecycle management. */
-export type MemoryTier = "core" | "working" | "peripheral";
+export type MemoryTier = 'core' | 'working' | 'peripheral';
 
 /** Validate and normalize a category string. */
 export function normalizeCategory(raw: string): MemoryCategory | null {
@@ -57,24 +54,21 @@ export function normalizeCategory(raw: string): MemoryCategory | null {
  * Map legacy 5-category (preference/fact/decision/entity/other/reflection)
  * to new 6-category system.
  */
-export function legacyToNewCategory(
-  old: string,
-  text?: string,
-): MemoryCategory {
+export function legacyToNewCategory(old: string, text?: string): MemoryCategory {
   switch (old.toLowerCase()) {
-    case "preference":
-      return "preferences";
-    case "entity":
-      return "entities";
-    case "decision":
-      return text && text.length > 80 ? "cases" : "events";
-    case "reflection":
-      return "patterns";
-    case "other":
-    case "fact":
+    case 'preference':
+      return 'preferences';
+    case 'entity':
+      return 'entities';
+    case 'decision':
+      return text && text.length > 80 ? 'cases' : 'events';
+    case 'reflection':
+      return 'patterns';
+    case 'other':
+    case 'fact':
     default:
       // Heuristic: short text → profile, long text → patterns
-      if (text && text.length < 60) return "profile";
-      return "patterns";
+      if (text && text.length < 60) return 'profile';
+      return 'patterns';
   }
 }

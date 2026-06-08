@@ -3,10 +3,10 @@
  *
  * Encapsulates all read-only and config query methods.
  */
-import type { UnifiedDB } from "../platform/db/compat.ts";
-import type { VectorStore } from "./vector-store.ts";
-import type { DBStats, SearchResult } from "./types.ts";
-import * as queryHelpers from "./query-helpers.ts";
+import type { UnifiedDB } from '../platform/db/compat.ts';
+import type { VectorStore } from './vector-store.ts';
+import type { DBStats, SearchResult } from './types.ts';
+import * as queryHelpers from './query-helpers.ts';
 
 export interface QueryApi {
   getStats(): DBStats;
@@ -17,21 +17,37 @@ export interface QueryApi {
   updateMetadata(id: number, metadata: string): void;
   incrementAccessCount(id: number): void;
   getMemoryMeta(id: number): string | null;
-  searchByMetaRelations(limit: number): Array<{ id: number; date: string; user_text: string | null; meta: string }>;
+  searchByMetaRelations(
+    limit: number,
+  ): Array<{ id: number; date: string; user_text: string | null; meta: string }>;
   countTags(): { total: number; unique: number };
-  getRecentRawMemories(limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }>;
-  searchByLike(query: string, limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }>;
+  getRecentRawMemories(
+    limit: number,
+  ): Array<{ id: number; user_text: string; asst_text: string; date: string }>;
+  searchByLike(
+    query: string,
+    limit: number,
+  ): Array<{ id: number; user_text: string; asst_text: string; date: string }>;
   batchSetConfig(entries: Array<{ key: string; value: string }>): void;
 }
 
 export function createQueryApi(ensureDB: () => UnifiedDB, vector: VectorStore | null): QueryApi {
   return {
     getStats(): DBStats {
-      try { return queryHelpers.getStats(ensureDB(), vector); } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:storage] Operation failed: ${msg}`);
-      return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
-    }
+      try {
+        return queryHelpers.getStats(ensureDB(), vector);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:storage] Operation failed: ${msg}`);
+        return {
+          totalMemories: 0,
+          datesSummary: [],
+          ftsEnabled: false,
+          vecEnabled: false,
+          totalVectors: 0,
+          dimensions: 0,
+        };
+      }
     },
     getAllTags(): Array<{ tag: string; memory_id: number }> {
       return queryHelpers.getAllTags(ensureDB());
@@ -54,16 +70,23 @@ export function createQueryApi(ensureDB: () => UnifiedDB, vector: VectorStore | 
     getMemoryMeta(id: number): string | null {
       return queryHelpers.getMemoryMeta(ensureDB(), id);
     },
-    searchByMetaRelations(limit: number): Array<{ id: number; date: string; user_text: string | null; meta: string }> {
+    searchByMetaRelations(
+      limit: number,
+    ): Array<{ id: number; date: string; user_text: string | null; meta: string }> {
       return queryHelpers.searchByMetaRelations(ensureDB(), limit);
     },
     countTags(): { total: number; unique: number } {
       return queryHelpers.countTags(ensureDB());
     },
-    getRecentRawMemories(limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }> {
+    getRecentRawMemories(
+      limit: number,
+    ): Array<{ id: number; user_text: string; asst_text: string; date: string }> {
       return queryHelpers.getRecentRawMemories(ensureDB(), limit);
     },
-    searchByLike(query: string, limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }> {
+    searchByLike(
+      query: string,
+      limit: number,
+    ): Array<{ id: number; user_text: string; asst_text: string; date: string }> {
       return queryHelpers.searchByLike(ensureDB(), query, limit);
     },
     batchSetConfig(entries: Array<{ key: string; value: string }>): void {

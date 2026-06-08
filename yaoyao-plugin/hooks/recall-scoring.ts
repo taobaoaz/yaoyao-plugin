@@ -6,7 +6,7 @@
  *
  * v1.8.0: Added MMR re-ranking (Maximal Marginal Relevance).
  */
-import type { SearchResult } from "../storage/types.ts";
+import type { SearchResult } from '../storage/types.ts';
 
 /** Jaccard similarity between two strings (word-based) */
 export function jaccard(a: string, b: string): number {
@@ -86,7 +86,7 @@ export function applyDiversitySampling(
       const sim = jaccard(r.snippet, o.snippet);
       if (sim > maxSim) maxSim = sim;
     }
-    const threshold = Math.max(minThreshold, baseThreshold - (out.length * 0.02));
+    const threshold = Math.max(minThreshold, baseThreshold - out.length * 0.02);
     if (maxSim < threshold) out.push(r);
   }
   return out;
@@ -96,14 +96,14 @@ export function applyDiversitySampling(
 export function applyTimeDecay(
   results: SearchResult[],
   halfLifeDays: number,
-  mode: "weibull" | "logistic",
+  mode: 'weibull' | 'logistic',
 ): SearchResult[] {
   const now = Date.now();
   const halfLifeMs = halfLifeDays * 24 * 60 * 60 * 1000;
   return results.map((r) => {
     const ageMs = now - (r.timestamp || now);
     let decay: number;
-    if (mode === "logistic") {
+    if (mode === 'logistic') {
       const k = 10 / halfLifeMs;
       const t0 = halfLifeMs;
       decay = 1 / (1 + Math.exp(k * (ageMs - t0)));
@@ -140,7 +140,7 @@ export function applyScoring(results: SearchResult[], _userMessage?: string): Se
 /** Filter results by access scope */
 export function filterByScope(
   results: SearchResult[],
-  scopeManager?: import("../utils/scope-manager.ts").SimpleScopeManager,
+  scopeManager?: import('../utils/scope-manager.ts').SimpleScopeManager,
   agentId?: string,
 ): SearchResult[] {
   if (!scopeManager || !agentId) return results;
@@ -150,14 +150,74 @@ export function filterByScope(
 
 /** Stopword set for query cleaning */
 const STOPWORDS = new Set([
-  "可以",
-  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "can", "could",
-  "shall", "should", "may", "might", "must", "i", "you", "he", "she", "it",
-  "we", "they", "me", "him", "her", "us", "them", "this", "that", "these",
-  "those", "and", "or", "but", "if", "because", "when", "where", "how",
-  "what", "which", "who", "whom", "to", "of", "in", "for", "on", "with",
-  "at", "by", "from", "as", "into", "not", "no", "yes",
+  '可以',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'have',
+  'has',
+  'had',
+  'do',
+  'does',
+  'did',
+  'will',
+  'would',
+  'can',
+  'could',
+  'shall',
+  'should',
+  'may',
+  'might',
+  'must',
+  'i',
+  'you',
+  'he',
+  'she',
+  'it',
+  'we',
+  'they',
+  'me',
+  'him',
+  'her',
+  'us',
+  'them',
+  'this',
+  'that',
+  'these',
+  'those',
+  'and',
+  'or',
+  'but',
+  'if',
+  'because',
+  'when',
+  'where',
+  'how',
+  'what',
+  'which',
+  'who',
+  'whom',
+  'to',
+  'of',
+  'in',
+  'for',
+  'on',
+  'with',
+  'at',
+  'by',
+  'from',
+  'as',
+  'into',
+  'not',
+  'no',
+  'yes',
 ]);
 
 /** Filter stopwords from a word array */

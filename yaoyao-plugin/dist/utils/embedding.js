@@ -9,26 +9,26 @@ import { isForbiddenHost } from "./ssrf-guard.js";
 import { fetchWithRetry } from "./fetch-helpers.js";
 /** Provider → default embedding model mapping (overridable via config.providerModels) */
 const DEFAULT_EMBED_MODELS = {
-    openai: "text-embedding-3-small",
-    deepseek: "text-embedding",
-    gitee: "text-embedding",
-    siliconflow: "BAAI/bge-m3",
-    azure: "text-embedding-3-small",
-    ollama: "nomic-embed-text",
-    anthropic: "claude-embed",
-    google: "text-embedding-004",
-    groq: "text-embedding",
-    mistral: "mistral-embed",
-    fireworks: "nomic-embed-text-v1.5",
+    openai: 'text-embedding-3-small',
+    deepseek: 'text-embedding',
+    gitee: 'text-embedding',
+    siliconflow: 'BAAI/bge-m3',
+    azure: 'text-embedding-3-small',
+    ollama: 'nomic-embed-text',
+    anthropic: 'claude-embed',
+    google: 'text-embedding-004',
+    groq: 'text-embedding',
+    mistral: 'mistral-embed',
+    fireworks: 'nomic-embed-text-v1.5',
 };
 export function detectEmbedModel(provider, customMap) {
     const p = provider.toLowerCase().trim();
     if (customMap && customMap[p])
         return customMap[p];
-    return DEFAULT_EMBED_MODELS[p] || "";
+    return DEFAULT_EMBED_MODELS[p] || '';
 }
 export function createEmbeddingService(config) {
-    const baseUrl = config.baseUrl.replace(/\/$/, "");
+    const baseUrl = config.baseUrl.replace(/\/$/, '');
     if (isForbiddenHost(baseUrl)) {
         throw new Error(`Embedding baseUrl "${baseUrl}" is forbidden (SSRF protection)`);
     }
@@ -64,14 +64,14 @@ export function createEmbeddingService(config) {
         let t0 = 0;
         try {
             t0 = performance.now();
-            const path = baseUrl.endsWith("/v1") ? "" : "/v1";
+            const path = baseUrl.endsWith('/v1') ? '' : '/v1';
             const url = `${baseUrl}${path}/embeddings`;
             const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
             const res = await fetchWithRetry(url, {
-                method: "POST",
+                method: 'POST',
                 headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${config.apiKey}`,
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${config.apiKey}`,
                 },
                 body: JSON.stringify({
                     input: text.slice(0, maxInputChars),
@@ -80,13 +80,13 @@ export function createEmbeddingService(config) {
                 timeoutMs: effectiveTimeout,
             }, retries, backoffBaseMs, timeoutMs);
             if (!res.ok) {
-                const errText = await res.text().catch(() => "unknown");
+                const errText = await res.text().catch(() => 'unknown');
                 throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
             }
-            const data = await res.json();
+            const data = (await res.json());
             const embedding = data.data?.[0]?.embedding;
             if (!embedding || !Array.isArray(embedding)) {
-                throw new Error("Invalid embedding response");
+                throw new Error('Invalid embedding response');
             }
             const elapsed = Math.round(performance.now() - t0);
             config.logger?.info?.(`[embed] /embeddings ${elapsed}ms (${text.length} chars)`);
@@ -95,8 +95,8 @@ export function createEmbeddingService(config) {
         catch (err) {
             const elapsed = Math.round(performance.now() - t0);
             config.logger?.debug?.(`[embed] /embeddings failed after ${elapsed}ms`);
-            if (err instanceof Error && err.name === "AbortError") {
-                throw new Error("Embedding request timed out");
+            if (err instanceof Error && err.name === 'AbortError') {
+                throw new Error('Embedding request timed out', { cause: err });
             }
             throw err;
         }
@@ -112,18 +112,18 @@ export function createEmbeddingService(config) {
         await acquire();
         try {
             const results = [];
-            const path = baseUrl.endsWith("/v1") ? "" : "/v1";
+            const path = baseUrl.endsWith('/v1') ? '' : '/v1';
             const url = `${baseUrl}${path}/embeddings`;
             const effectiveTimeout = overrideTimeoutMs ?? timeoutMs;
             for (let i = 0; i < texts.length; i += batchSize) {
                 const t0 = performance.now();
-                const chunk = texts.slice(i, i + batchSize).map(t => t.slice(0, maxInputChars));
+                const chunk = texts.slice(i, i + batchSize).map((t) => t.slice(0, maxInputChars));
                 try {
                     const res = await fetchWithRetry(url, {
-                        method: "POST",
+                        method: 'POST',
                         headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${config.apiKey}`,
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${config.apiKey}`,
                         },
                         body: JSON.stringify({
                             input: chunk,
@@ -132,13 +132,13 @@ export function createEmbeddingService(config) {
                         timeoutMs: effectiveTimeout,
                     }, retries, backoffBaseMs, timeoutMs);
                     if (!res.ok) {
-                        const errText = await res.text().catch(() => "unknown");
+                        const errText = await res.text().catch(() => 'unknown');
                         throw new Error(`Embedding API error ${res.status}: ${errText.slice(0, 200)}`);
                     }
-                    const data = await res.json();
+                    const data = (await res.json());
                     const dataArr = data.data;
                     if (!dataArr || !Array.isArray(dataArr)) {
-                        throw new Error("Invalid embedding batch response");
+                        throw new Error('Invalid embedding batch response');
                     }
                     results.push(...dataArr.map((d) => new Float32Array(d.embedding)));
                     const elapsed = Math.round(performance.now() - t0);
@@ -147,8 +147,8 @@ export function createEmbeddingService(config) {
                 catch (err) {
                     const elapsed = Math.round(performance.now() - t0);
                     config.logger?.debug?.(`[embedBatch] /embeddings failed after ${elapsed}ms (batch ${i / batchSize + 1})`);
-                    if (err instanceof Error && err.name === "AbortError") {
-                        throw new Error("Embedding batch request timed out");
+                    if (err instanceof Error && err.name === 'AbortError') {
+                        throw new Error('Embedding batch request timed out', { cause: err });
                     }
                     throw err;
                 }
@@ -159,5 +159,12 @@ export function createEmbeddingService(config) {
             release();
         }
     }
-    return { embed, embedBatch, config, recallTimeoutMs: config.recallTimeoutMs, captureTimeoutMs: config.captureTimeoutMs, isAvailable: true };
+    return {
+        embed,
+        embedBatch,
+        config,
+        recallTimeoutMs: config.recallTimeoutMs,
+        captureTimeoutMs: config.captureTimeoutMs,
+        isAvailable: true,
+    };
 }

@@ -3,11 +3,11 @@
  *
  * File I/O for boost records and important tags.
  */
-import fs from "node:fs";
-import path from "node:path";
-const PIPELINE_DIR = ".pipeline";
-const BOOST_FILE = ".retain-boost.jsonl";
-const IMPORTANT_FILE = ".important-tags.json";
+import fs from 'node:fs';
+import path from 'node:path';
+const PIPELINE_DIR = '.pipeline';
+const BOOST_FILE = '.retain-boost.jsonl';
+const IMPORTANT_FILE = '.important-tags.json';
 function boostFilePath(baseDir) {
     return path.join(baseDir, PIPELINE_DIR, BOOST_FILE);
 }
@@ -25,8 +25,8 @@ export function loadBoostRecords(baseDir) {
     try {
         if (!fs.existsSync(fp))
             return records;
-        const raw = fs.readFileSync(fp, "utf-8");
-        for (const line of raw.split("\n").filter(Boolean)) {
+        const raw = fs.readFileSync(fp, 'utf-8');
+        for (const line of raw.split('\n').filter(Boolean)) {
             try {
                 records.push(JSON.parse(line));
             }
@@ -45,14 +45,14 @@ export function loadBoostRecords(baseDir) {
 export function appendBoostRecord(baseDir, record) {
     ensurePipelineDir(baseDir);
     const fp = boostFilePath(baseDir);
-    fs.appendFileSync(fp, JSON.stringify(record) + "\n", "utf-8");
+    fs.appendFileSync(fp, JSON.stringify(record) + '\n', 'utf-8');
 }
 export function loadImportantTags(baseDir) {
     const fp = importantTagsFilePath(baseDir);
     try {
         if (!fs.existsSync(fp))
             return [];
-        return JSON.parse(fs.readFileSync(fp, "utf-8"));
+        return JSON.parse(fs.readFileSync(fp, 'utf-8'));
     }
     catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -63,5 +63,5 @@ export function loadImportantTags(baseDir) {
 export function saveImportantTags(baseDir, tags) {
     ensurePipelineDir(baseDir);
     const fp = importantTagsFilePath(baseDir);
-    fs.writeFileSync(fp, JSON.stringify(tags, null, 2), "utf-8");
+    fs.writeFileSync(fp, JSON.stringify(tags, null, 2), 'utf-8');
 }

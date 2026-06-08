@@ -29,10 +29,7 @@ export function computeReflectionScore(input) {
 }
 /** Normalize a reflection line for aggregation/dedup. */
 export function normalizeReflectionLineForAggregation(line) {
-    return String(line)
-        .trim()
-        .replace(/\s+/g, " ")
-        .toLowerCase();
+    return String(line).trim().replace(/\s+/g, ' ').toLowerCase();
 }
 /** Pre-configured decay defaults for different memory types. */
 export const MEMORY_DECAY_DEFAULTS = {

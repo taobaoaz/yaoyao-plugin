@@ -45,8 +45,8 @@ export function additiveScoreAndRank(query, candidates, config = {}) {
     // 2. BM25 scoring (if enabled)
     const bm25Scores = new Map();
     if (cfg.useBM25) {
-        const texts = candidates.map(c => c.snippet);
-        const ids = candidates.map(c => String(c.id));
+        const texts = candidates.map((c) => c.snippet);
+        const ids = candidates.map((c) => String(c.id));
         const bm25Index = buildBM25Index(texts, ids);
         const bm25Params = getBM25SigmoidParams(query);
         const scored = scoreBM25(bm25Index, query);
@@ -99,29 +99,28 @@ export function additiveScoreAndRank(query, candidates, config = {}) {
  */
 export function formatAdditiveResults(results, query) {
     if (results.length === 0)
-        return "没有找到相关记忆。";
+        return '没有找到相关记忆。';
     const lines = [
         `## 搜索结果（Additive Scoring）`,
         `查询: ${query}`,
         `融合: 语义 + BM25 + 实体增强`,
-        "",
+        '',
     ];
     for (const r of results) {
         const signalParts = [
             `语义:${(r.signals.semantic * 100).toFixed(0)}%`,
-            r.signals.bm25 > 0 ? `BM25:${(r.signals.bm25 * 100).toFixed(0)}%` : "",
-            r.signals.entityBoost > 0 ? `实体:×${(1 + r.signals.entityBoost * 0.5).toFixed(2)}` : "",
-        ].filter(Boolean).join(" ");
-        const meta = [
-            (r.score * 100).toFixed(0) + "%",
-            r.date,
-            r.filename || `id:${r.id}`,
-            signalParts,
-        ].filter(Boolean).join(" · ");
+            r.signals.bm25 > 0 ? `BM25:${(r.signals.bm25 * 100).toFixed(0)}%` : '',
+            r.signals.entityBoost > 0 ? `实体:×${(1 + r.signals.entityBoost * 0.5).toFixed(2)}` : '',
+        ]
+            .filter(Boolean)
+            .join(' ');
+        const meta = [(r.score * 100).toFixed(0) + '%', r.date, r.filename || `id:${r.id}`, signalParts]
+            .filter(Boolean)
+            .join(' · ');
         lines.push(`**${meta}**`);
         lines.push(`${r.snippet.slice(0, 300)}`);
-        lines.push("");
+        lines.push('');
     }
     lines.push(`---\n共 ${results.length} 条结果（Additive Scoring 融合）`);
-    return lines.join("\n");
+    return lines.join('\n');
 }

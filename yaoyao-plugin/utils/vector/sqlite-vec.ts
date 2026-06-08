@@ -2,16 +2,16 @@
  * SqliteVecBackend — default vector search using sqlite-vec extension.
  * Zero external dependencies beyond the sqlite-vec npm package.
  */
-import { createRequire } from "node:module";
-import type { UnifiedDB } from "../../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../memory-store.ts";
-import type { VectorBackend, EmbeddedSearchResult } from "./types.ts";
+import { createRequire } from 'node:module';
+import type { UnifiedDB } from '../../platform/db/compat.ts';
+import type { PluginLogger } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../memory-store.ts';
+import type { VectorBackend, EmbeddedSearchResult } from './types.ts';
 
 const _require = createRequire(import.meta.url);
 
 export class SqliteVecBackend implements VectorBackend {
-  name = "sqlite-vec";
+  name = 'sqlite-vec';
   isAvailable = false;
 
   private db: UnifiedDB | null = null;
@@ -40,39 +40,43 @@ export class SqliteVecBackend implements VectorBackend {
     }
 
     if (!this.supportsExtensions) {
-      logger?.warn?.("[yaoyao-memory:vec] SQLite extensions not supported — vector search disabled");
+      logger?.warn?.(
+        '[yaoyao-memory:vec] SQLite extensions not supported — vector search disabled',
+      );
       this.isAvailable = false;
       return false;
     }
 
     try {
-      const sqliteVec = _require("sqlite-vec") as Record<string, unknown>;
+      const sqliteVec = _require('sqlite-vec') as Record<string, unknown>;
       if (db.enableLoadExtension) {
         db.enableLoadExtension(true);
         (sqliteVec.load as (raw: unknown) => void)(db._raw || db);
       }
 
       db.exec(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
+        'CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(' +
           `embedding float[${this.dimensions}]` +
-        ")"
+          ')',
       );
 
       db.exec(
-        "CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
-          "id INTEGER PRIMARY KEY, " +
-          "meta_id INTEGER, " +
-          "model TEXT, " +
+        'CREATE TABLE IF NOT EXISTS memory_vec_meta (' +
+          'id INTEGER PRIMARY KEY, ' +
+          'meta_id INTEGER, ' +
+          'model TEXT, ' +
           `dimensions INTEGER DEFAULT ${this.dimensions}, ` +
           "created_at TEXT DEFAULT (datetime('now'))" +
-        ")"
+          ')',
       );
 
       this.isAvailable = true;
-      logger?.info?.("[yaoyao-memory:vec] sqlite-vec backend initialized");
+      logger?.info?.('[yaoyao-memory:vec] sqlite-vec backend initialized');
       return true;
     } catch (e: unknown) {
-      logger?.warn?.(`[yaoyao-memory:vec] sqlite-vec not available: ${e instanceof Error ? e.message : String(e)}`);
+      logger?.warn?.(
+        `[yaoyao-memory:vec] sqlite-vec not available: ${e instanceof Error ? e.message : String(e)}`,
+      );
       this.isAvailable = false;
       return false;
     }
@@ -87,19 +91,24 @@ export class SqliteVecBackend implements VectorBackend {
         norm += embedding[i] * embedding[i];
       }
       norm = Math.sqrt(norm);
-      const normalized = norm === 0
-        ? new Float32Array(embedding.length)
-        : new Float32Array(embedding.map(v => v / norm));
+      const normalized =
+        norm === 0
+          ? new Float32Array(embedding.length)
+          : new Float32Array(embedding.map((v) => v / norm));
 
-      const jsonArr = "[" + Array.from(normalized).join(",") + "]";
+      const jsonArr = '[' + Array.from(normalized).join(',') + ']';
 
-      this.db.exec("BEGIN");
+      this.db.exec('BEGIN');
       try {
-        this.db.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
-        this.db.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
-        this.db.exec("COMMIT");
+        this.db.prepare('DELETE FROM memory_vec WHERE rowid = ?').run(metaId);
+        this.db
+          .prepare('INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)')
+          .run(metaId, jsonArr);
+        this.db.exec('COMMIT');
       } catch (txErr: unknown) {
-        try { this.db.exec("ROLLBACK"); } catch (e: unknown) {
+        try {
+          this.db.exec('ROLLBACK');
+        } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
           this.logger?.warn?.(`[yaoyao-memory:vec] ROLLBACK failed: ${msg}`);
         }
@@ -107,7 +116,9 @@ export class SqliteVecBackend implements VectorBackend {
       }
       return true;
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] storeVector error: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger?.warn?.(
+        `[yaoyao-memory:vec] storeVector error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return false;
     }
   }
@@ -115,32 +126,42 @@ export class SqliteVecBackend implements VectorBackend {
   vectorSearch(embedding: Float32Array, limit: number = 10): EmbeddedSearchResult[] {
     if (!this.isAvailable || !this.db) return [];
     try {
-      const jsonArr = "[" + Array.from(embedding).join(",") + "]";
+      const jsonArr = '[' + Array.from(embedding).join(',') + ']';
       const stmt = this.db.prepare(
-        "SELECT v.rowid, m.date, m.user_text, m.asst_text, v.distance " +
-        "FROM memory_vec v " +
-        "JOIN memory_meta m ON v.rowid = m.id " +
-        "WHERE v.embedding MATCH ? AND k = ?"
+        'SELECT v.rowid, m.date, m.user_text, m.asst_text, v.distance ' +
+          'FROM memory_vec v ' +
+          'JOIN memory_meta m ON v.rowid = m.id ' +
+          'WHERE v.embedding MATCH ? AND k = ?',
       );
       const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), this.searchMaxLimit));
 
-      return (rows as Array<{ rowid: number; date: string; user_text: string; asst_text: string; distance: number }>).map(row => {
+      return (
+        rows as Array<{
+          rowid: number;
+          date: string;
+          user_text: string;
+          asst_text: string;
+          distance: number;
+        }>
+      ).map((row) => {
         // vec0 uses L2 distance. For unit-normalized vectors: cosine ≈ 1 - (L2^2 / 2)
         const cosineSim = 1 - (row.distance || 0) / 2;
-        const snippet = `${row.user_text || ""} ${row.asst_text || ""}`.trim();
+        const snippet = `${row.user_text || ''} ${row.asst_text || ''}`.trim();
         return {
           id: row.rowid,
-          filename: row.date ? `${row.date}.md` : "memory.db",
+          filename: row.date ? `${row.date}.md` : 'memory.db',
           snippet: snippet.slice(0, this.snippetMaxLen),
           score: Math.max(0, cosineSim),
-          date: row.date || "",
-          asst_text: (row.asst_text || "").slice(0, this.snippetMaxLen),
+          date: row.date || '',
+          asst_text: (row.asst_text || '').slice(0, this.snippetMaxLen),
           vectorScore: Math.max(0, cosineSim),
           hybridScore: Math.max(0, cosineSim),
         };
       });
     } catch (err: unknown) {
-      this.logger?.warn?.(`[yaoyao-memory:vec] vectorSearch error: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger?.warn?.(
+        `[yaoyao-memory:vec] vectorSearch error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       return [];
     }
   }
@@ -150,7 +171,7 @@ export class SqliteVecBackend implements VectorBackend {
     if (!this.isAvailable || !this.db) return;
     try {
       this.db.exec(
-        "DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)"
+        'DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)',
       );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -161,7 +182,9 @@ export class SqliteVecBackend implements VectorBackend {
   getVectorCount(): number {
     if (!this.isAvailable || !this.db) return 0;
     try {
-      const row = this.db.prepare("SELECT COUNT(*) as c FROM memory_vec").get() as { c: number } | undefined;
+      const row = this.db.prepare('SELECT COUNT(*) as c FROM memory_vec').get() as
+        | { c: number }
+        | undefined;
       return row?.c ?? 0;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -173,7 +196,9 @@ export class SqliteVecBackend implements VectorBackend {
   getDimensions(): number {
     if (!this.isAvailable || !this.db) return 0;
     try {
-      const row = this.db.prepare("SELECT dimensions FROM memory_vec_meta LIMIT 1").get() as { dimensions: number } | undefined;
+      const row = this.db.prepare('SELECT dimensions FROM memory_vec_meta LIMIT 1').get() as
+        | { dimensions: number }
+        | undefined;
       return row?.dimensions ?? this.dimensions;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

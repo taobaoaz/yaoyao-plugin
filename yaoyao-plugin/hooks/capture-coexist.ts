@@ -4,9 +4,9 @@
  * Pure factory, returns read-only coexist context for capture.
  */
 
-import { getCoexistState } from "../utils/coexistence.ts";
-import { createClawBridge, type ClawBridge } from "../utils/claw-bridge.ts";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import { getCoexistState } from '../utils/coexistence.ts';
+import { createClawBridge, type ClawBridge } from '../utils/claw-bridge.ts';
+import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
 
 export interface CoexistContext {
   skipLocalIndexing: boolean;
@@ -23,8 +23,8 @@ export function createCoexistContext(_config: YaoyaoMemoryConfig): CoexistContex
   const clawBridge: ClawBridge | null = forwardCapture ? (createClawBridge() ?? null) : null;
 
   const parts: string[] = [];
-  if (skipLocalIndexing) parts.push("[coexist: L1/L2 skipped]");
-  if (forwardCapture) parts.push("[coexist: forwarding to claw-core]");
+  if (skipLocalIndexing) parts.push('[coexist: L1/L2 skipped]');
+  if (forwardCapture) parts.push('[coexist: forwarding to claw-core]');
 
-  return { skipLocalIndexing, forwardCapture, clawBridge, logSuffix: parts.join("") };
+  return { skipLocalIndexing, forwardCapture, clawBridge, logSuffix: parts.join('') };
 }

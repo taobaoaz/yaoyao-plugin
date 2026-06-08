@@ -4,15 +4,15 @@
  * Encapsulates raw SQL queries against the OpenClaw native memory DB
  * (~/.openclaw/memory/main.sqlite) so features/ layers don't write SQL.
  */
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { createCompatDB } from "../platform/db/compat.js";
 function getOpenClawMemoryDir() {
-    return path.join(os.homedir(), ".openclaw", "memory");
+    return path.join(os.homedir(), '.openclaw', 'memory');
 }
 export function queryOpenClawDB(sql, params) {
-    const dbPath = path.join(getOpenClawMemoryDir(), "main.sqlite");
+    const dbPath = path.join(getOpenClawMemoryDir(), 'main.sqlite');
     try {
         if (!fs.existsSync(dbPath))
             return null;

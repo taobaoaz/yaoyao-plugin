@@ -1,7 +1,7 @@
 /**
  * core/graph/mutators.ts — Graph mutation helpers.
  */
-import type { GraphNode, GraphEdge } from "./types.ts";
+import type { GraphNode, GraphEdge } from './types.ts';
 
 export function createNodeMutator(nodes: Map<string, GraphNode>, nodeOrder: string[]) {
   return function addNode(id: string, node: GraphNode) {
@@ -13,8 +13,14 @@ export function createNodeMutator(nodes: Map<string, GraphNode>, nodeOrder: stri
 }
 
 export function createEdgeMutator(edges: Map<string, GraphEdge>) {
-  return function addEdge(src: string, tgt: string, relation: string, weight: number, detail?: string) {
-    const key = [src, tgt].sort().join("|");
+  return function addEdge(
+    src: string,
+    tgt: string,
+    relation: string,
+    weight: number,
+    detail?: string,
+  ) {
+    const key = [src, tgt].sort().join('|');
     const existing = edges.get(key);
     if (!existing || existing.weight < weight) {
       edges.set(key, { source: src, target: tgt, relation, weight, detail });

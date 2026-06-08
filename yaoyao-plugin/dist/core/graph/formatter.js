@@ -1,6 +1,6 @@
 export function formatGraph(graph) {
-    if (!graph || typeof graph !== "object")
-        throw new TypeError("formatGraph: graph must be an object");
+    if (!graph || typeof graph !== 'object')
+        throw new TypeError('formatGraph: graph must be an object');
     const lines = [
         `## 记忆关联图谱`,
         `查询: "${graph.query}"`,
@@ -18,9 +18,9 @@ export function formatGraph(graph) {
         lines.push(`### 关联关系 (前 20 条)`);
         for (let i = 0; i < 20 && i < graph.edges.length; i++) {
             const e = graph.edges[i];
-            const srcLabel = graph.nodes.find(n => n.id === e.source)?.label || e.source;
-            const tgtLabel = graph.nodes.find(n => n.id === e.target)?.label || e.target;
-            const detail = e.detail ? ` (${e.detail})` : "";
+            const srcLabel = graph.nodes.find((n) => n.id === e.source)?.label || e.source;
+            const tgtLabel = graph.nodes.find((n) => n.id === e.target)?.label || e.target;
+            const detail = e.detail ? ` (${e.detail})` : '';
             lines.push(`- **${srcLabel}** → **${tgtLabel}** [${e.relation}] ${detail}`);
         }
     }
@@ -28,9 +28,9 @@ export function formatGraph(graph) {
     if (graph.nodes.length > 0) {
         lines.push(`### 重要节点 (按关联度)`);
         for (const node of graph.nodes.slice(0, 10)) {
-            const emoji = node.type === "scene" ? "📂" : node.type === "tag" ? "🏷️" : "📝";
+            const emoji = node.type === 'scene' ? '📂' : node.type === 'tag' ? '🏷️' : '📝';
             lines.push(`- ${emoji} **${node.label}** (度: ${node.degree})`);
         }
     }
-    return lines.join("\n");
+    return lines.join('\n');
 }

@@ -1,8 +1,8 @@
 /**
  * utils/backup-restore.ts — Backup restore logic.
  */
-import path from "node:path";
-import fs from "node:fs";
+import path from 'node:path';
+import fs from 'node:fs';
 
 type Logger = { info?: (s: string) => void; error?: (s: string) => void };
 
@@ -22,7 +22,9 @@ export function restoreBackup(
     }
 
     let files: string[];
-    try { files = fs.readdirSync(backupPath); } catch (e: unknown) {
+    try {
+      files = fs.readdirSync(backupPath);
+    } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory:backup] Read backup path failed: ${msg}`);
       files = [];
@@ -40,7 +42,9 @@ export function restoreBackup(
         fs.mkdirSync(destDir, { recursive: true });
         fs.mkdirSync(path.join(preDir, f), { recursive: true });
         let subs: string[];
-        try { subs = fs.readdirSync(backupSrc); } catch (e: unknown) {
+        try {
+          subs = fs.readdirSync(backupSrc);
+        } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
           console.warn(`[yaoyao-memory:backup] Read backup source failed: ${msg}`);
           subs = [];
@@ -59,7 +63,9 @@ export function restoreBackup(
     log(`Restored from ${backupName} (snapshot: ${preDir})`);
     return true;
   } catch (err: unknown) {
-    logger?.error?.(`[yaoyao-memory:backup] Restore failed: ${err instanceof Error ? err.message : String(err)}`);
+    logger?.error?.(
+      `[yaoyao-memory:backup] Restore failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return false;
   }
 }

@@ -4,8 +4,8 @@
 
 // ── Stop word lists ──
 
-import { CHINESE_STOP, ENGLISH_STOP } from "./trends-stopwords.ts";
-import { formatTrendsReport } from "./trends-formatter.ts";
+import { CHINESE_STOP, ENGLISH_STOP } from './trends-stopwords.ts';
+import { formatTrendsReport } from './trends-formatter.ts';
 
 export { formatTrendsReport };
 
@@ -19,7 +19,7 @@ export function isStopWord(word: string): boolean {
 
 /** Extract meaningful tokens from text — English words + Chinese bigrams */
 export function extractTokens(text: string): string[] {
-  if (typeof text !== "string") throw new TypeError("extractTokens: text must be a string");
+  if (typeof text !== 'string') throw new TypeError('extractTokens: text must be a string');
   const tokens: string[] = [];
 
   const englishWords = text.match(/[a-zA-Z]{2,}/g) || [];
@@ -41,7 +41,7 @@ export function extractTokens(text: string): string[] {
 
 /** Count word frequencies */
 export function countFrequencies(tokens: string[]): Map<string, number> {
-  if (!Array.isArray(tokens)) throw new TypeError("countFrequencies: tokens must be an array");
+  if (!Array.isArray(tokens)) throw new TypeError('countFrequencies: tokens must be an array');
   const freq = new Map<string, number>();
   for (const t of tokens) {
     freq.set(t, (freq.get(t) || 0) + 1);
@@ -54,7 +54,7 @@ export function daysAgo(days: number): string {
   if (!Number.isFinite(days) || days < 0) days = 0;
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toLocaleDateString("sv-SE");
+  return d.toLocaleDateString('sv-SE');
 }
 
 export interface TrendItem {
@@ -71,15 +71,13 @@ export function computeTrends(
   allFreq: Map<string, number>,
   earlyFreq: Map<string, number>,
   lateFreq: Map<string, number>,
-  topN: number
+  topN: number,
 ): TrendItem[] {
-  if (!(allFreq instanceof Map)) throw new TypeError("computeTrends: allFreq must be a Map");
-  if (!(earlyFreq instanceof Map)) throw new TypeError("computeTrends: earlyFreq must be a Map");
-  if (!(lateFreq instanceof Map)) throw new TypeError("computeTrends: lateFreq must be a Map");
+  if (!(allFreq instanceof Map)) throw new TypeError('computeTrends: allFreq must be a Map');
+  if (!(earlyFreq instanceof Map)) throw new TypeError('computeTrends: earlyFreq must be a Map');
+  if (!(lateFreq instanceof Map)) throw new TypeError('computeTrends: lateFreq must be a Map');
   if (!Number.isFinite(topN) || topN < 1) topN = 10;
-  const sorted = [...allFreq.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, topN);
+  const sorted = [...allFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, topN);
 
   return sorted.map(([word, count]) => {
     const early = earlyFreq.get(word) || 0;
@@ -89,26 +87,26 @@ export function computeTrends(
     let direction: string;
 
     if (early === 0 && late > 0) {
-      emoji = "🆕";
-      direction = "新增话题";
+      emoji = '🆕';
+      direction = '新增话题';
     } else if (late === 0 && early > 0) {
-      emoji = "📉";
-      direction = "已消失";
+      emoji = '📉';
+      direction = '已消失';
     } else if (late > early * 1.5) {
-      emoji = "📈";
-      direction = "快速上升";
+      emoji = '📈';
+      direction = '快速上升';
     } else if (late > early * 1.2) {
-      emoji = "↗️";
-      direction = "缓慢上升";
+      emoji = '↗️';
+      direction = '缓慢上升';
     } else if (early > late * 1.5) {
-      emoji = "📉";
-      direction = "快速下降";
+      emoji = '📉';
+      direction = '快速下降';
     } else if (early > late * 1.2) {
-      emoji = "↘️";
-      direction = "缓慢下降";
+      emoji = '↘️';
+      direction = '缓慢下降';
     } else {
-      emoji = "➡️";
-      direction = "基本稳定";
+      emoji = '➡️';
+      direction = '基本稳定';
     }
 
     return { word, count, emoji, direction, earlyCount: early, lateCount: late };

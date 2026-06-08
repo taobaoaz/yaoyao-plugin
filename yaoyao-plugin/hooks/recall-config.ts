@@ -5,14 +5,14 @@
  *
  * v1.7.0: Added per-agent overrides, query prefix, and recall filter support.
  */
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
+import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
 
 export interface PerAgentRecallOverride {
   maxResults?: number;
   minScore?: number;
   halfLife?: number;
-  decayMode?: "weibull" | "logistic";
-  position?: "append" | "prepend";
+  decayMode?: 'weibull' | 'logistic';
+  position?: 'append' | 'prepend';
   maxChars?: number;
   timeoutMs?: number;
   queryPrefix?: string;
@@ -30,9 +30,9 @@ export interface RecallThresholds {
   maxSessions: number;
   maxContextKeywords: number;
   maxResults: number;
-  decayMode: "weibull" | "logistic";
+  decayMode: 'weibull' | 'logistic';
   /** Recall position: "append" = after system prompt (default), "prepend" = before user message (cache-friendly) */
-  position: "append" | "prepend";
+  position: 'append' | 'prepend';
   /** Max recall time in ms before skipping injection without blocking */
   timeoutMs: number;
   /** Exclude memories created within this many ms ago (0 = disabled). Prevents circular recall. */
@@ -86,19 +86,19 @@ export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
     maxSessions: (r.maxSessions as number) ?? 1000,
     maxContextKeywords: (r.maxContextKeywords as number) ?? 20,
     maxResults: (r.maxResults as number) ?? 3,
-    decayMode: (r.decayMode as "weibull" | "logistic") ?? "weibull",
-    position: (r.position as "append" | "prepend") ?? "append",
+    decayMode: (r.decayMode as 'weibull' | 'logistic') ?? 'weibull',
+    position: (r.position as 'append' | 'prepend') ?? 'append',
     timeoutMs: (r.timeoutMs as number) ?? 800,
     excludeRecentMS: (r.excludeRecentMS as number) ?? 0,
     minResults: (r.minResults as number) ?? 0,
     maxChars: (r.maxChars as number) ?? 1200,
     scoreThreshold: (r.minScore as number) ?? 0.5,
-    queryPrefix: (r.queryPrefix as string) ?? "",
+    queryPrefix: (r.queryPrefix as string) ?? '',
     perAgentOverrides: (r.perAgentOverrides ?? {}) as Record<string, PerAgentRecallOverride>,
     enableRecallFilter: (r.enableRecallFilter as boolean) ?? false,
-    recallFilterBaseUrl: (r.recallFilterBaseUrl as string) ?? "",
-    recallFilterApiKey: (r.recallFilterApiKey as string) ?? "",
-    recallFilterModel: (r.recallFilterModel as string) ?? "",
+    recallFilterBaseUrl: (r.recallFilterBaseUrl as string) ?? '',
+    recallFilterApiKey: (r.recallFilterApiKey as string) ?? '',
+    recallFilterModel: (r.recallFilterModel as string) ?? '',
     recallFilterTimeoutMs: (r.recallFilterTimeoutMs as number) ?? 30000,
     recallFilterRetries: (r.recallFilterRetries as number) ?? 1,
     recallFilterCandidateLimit: (r.recallFilterCandidateLimit as number) ?? 30,

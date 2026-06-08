@@ -1,16 +1,16 @@
 export function createSessionFilter(config) {
     const internalLabels = new Set([
-        "system",
-        "admin",
-        "cron",
-        "cronjob",
-        "heartbeat",
-        "healthcheck",
-        "internal",
-        "plugin",
-        "test",
-        "debug",
-        "monitor",
+        'system',
+        'admin',
+        'cron',
+        'cronjob',
+        'heartbeat',
+        'healthcheck',
+        'internal',
+        'plugin',
+        'test',
+        'debug',
+        'monitor',
     ]);
     const cfg = {
         blockInternal: config?.blockInternal !== false,
@@ -30,7 +30,7 @@ export function createSessionFilter(config) {
         // Explicit allowlist: only process matching sessions
         if (cfg.allowLabels.length > 0) {
             const sessionLabel = context?.label || sessionKey;
-            return cfg.allowLabels.some(label => sessionLabel.toLowerCase().includes(label.toLowerCase()));
+            return cfg.allowLabels.some((label) => sessionLabel.toLowerCase().includes(label.toLowerCase()));
         }
         // Block specific labels
         if (cfg.blockLabels.length > 0) {

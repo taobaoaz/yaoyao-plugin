@@ -8,7 +8,7 @@ export const TOOL_CALL_INDICATORS = [
     /\b(memory_store|memory_recall|memory_forget|memory_update)\b/i,
 ];
 export const CORRECTION_INDICATORS = [
-    /^no[,\.\s]/i,
+    /^no[,.\s]/i,
     /\bactually\b/i,
     /\binstead\b/i,
     /\bwrong\b/i,

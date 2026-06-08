@@ -6,7 +6,7 @@ export class ClawBridgeError extends Error {
     cause;
     constructor(message, classification, cause) {
         super(message);
-        this.name = "ClawBridgeError";
+        this.name = 'ClawBridgeError';
         this.classification = classification;
         this.cause = cause;
     }

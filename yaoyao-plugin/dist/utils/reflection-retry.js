@@ -58,9 +58,9 @@ const DEFAULT_SLEEP = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function toErrorMessage(error) {
     if (error instanceof Error) {
         const msg = `${error.name}: ${error.message}`.trim();
-        return msg || "Error";
+        return msg || 'Error';
     }
-    if (typeof error === "string")
+    if (typeof error === 'string')
         return error;
     try {
         return JSON.stringify(error);
@@ -72,7 +72,7 @@ function toErrorMessage(error) {
     }
 }
 function clipSingleLine(text, maxLen = 260) {
-    const oneLine = text.replace(/\s+/g, " ").trim();
+    const oneLine = text.replace(/\s+/g, ' ').trim();
     if (oneLine.length <= maxLen)
         return oneLine;
     return `${oneLine.slice(0, maxLen - 3)}...`;
@@ -91,21 +91,21 @@ export function isNonRetryError(error) {
 export function classifyRetry(input) {
     const normalizedError = clipSingleLine(toErrorMessage(input.error), 260);
     if (!input.inReflectionScope) {
-        return { retryable: false, reason: "not_reflection_scope", normalizedError };
+        return { retryable: false, reason: 'not_reflection_scope', normalizedError };
     }
     if (input.retryCount > 0) {
-        return { retryable: false, reason: "retry_already_used", normalizedError };
+        return { retryable: false, reason: 'retry_already_used', normalizedError };
     }
     if (input.usefulOutputChars > 0) {
-        return { retryable: false, reason: "useful_output_present", normalizedError };
+        return { retryable: false, reason: 'useful_output_present', normalizedError };
     }
     if (isNonRetryError(input.error)) {
-        return { retryable: false, reason: "non_retry_error", normalizedError };
+        return { retryable: false, reason: 'non_retry_error', normalizedError };
     }
     if (isTransientUpstreamError(input.error)) {
-        return { retryable: true, reason: "transient_upstream_failure", normalizedError };
+        return { retryable: true, reason: 'transient_upstream_failure', normalizedError };
     }
-    return { retryable: false, reason: "non_transient_error", normalizedError };
+    return { retryable: false, reason: 'non_transient_error', normalizedError };
 }
 /** Compute a random delay between 1000-3000ms. */
 export function computeRetryDelayMs(random = Math.random) {
@@ -129,16 +129,16 @@ export async function runWithTransientRetryOnce(params) {
             throw error;
         const delayMs = computeRetryDelayMs(params.random);
         params.retryState.count += 1;
-        params.onLog?.("warn", `memory-${params.scope}: transient failure detected (${params.runner}); ` +
+        params.onLog?.('warn', `memory-${params.scope}: transient failure detected (${params.runner}); ` +
             `retrying once in ${delayMs}ms (${decision.reason}). error=${decision.normalizedError}`);
         await (params.sleep ?? DEFAULT_SLEEP)(delayMs);
         try {
             const result = await params.execute();
-            params.onLog?.("info", `memory-${params.scope}: retry succeeded (${params.runner})`);
+            params.onLog?.('info', `memory-${params.scope}: retry succeeded (${params.runner})`);
             return result;
         }
         catch (retryError) {
-            params.onLog?.("warn", `memory-${params.scope}: retry exhausted (${params.runner}). ` +
+            params.onLog?.('warn', `memory-${params.scope}: retry exhausted (${params.runner}). ` +
                 `error=${clipSingleLine(toErrorMessage(retryError), 260)}`);
             throw retryError;
         }

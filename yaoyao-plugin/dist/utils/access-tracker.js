@@ -17,7 +17,7 @@ function clampAccessCount(value) {
  * Always returns a valid AccessMetadata.
  */
 export function parseAccessMetadata(metadata) {
-    if (metadata === undefined || metadata === "") {
+    if (metadata === undefined || metadata === '') {
         return { accessCount: 0, lastAccessedAt: 0 };
     }
     let parsed;
@@ -29,12 +29,12 @@ export function parseAccessMetadata(metadata) {
         console.warn(`[yaoyao-memory:access] Operation failed: ${msg}`);
         return { accessCount: 0, lastAccessedAt: 0 };
     }
-    if (typeof parsed !== "object" || parsed === null) {
+    if (typeof parsed !== 'object' || parsed === null) {
         return { accessCount: 0, lastAccessedAt: 0 };
     }
     const obj = parsed;
-    const rawCount = typeof obj.accessCount === "number" ? obj.accessCount : 0;
-    const rawLastAccessed = typeof obj.lastAccessedAt === "number" ? obj.lastAccessedAt : 0;
+    const rawCount = typeof obj.accessCount === 'number' ? obj.accessCount : 0;
+    const rawLastAccessed = typeof obj.lastAccessedAt === 'number' ? obj.lastAccessedAt : 0;
     return {
         accessCount: clampAccessCount(rawCount),
         lastAccessedAt: Number.isFinite(rawLastAccessed) && rawLastAccessed >= 0 ? rawLastAccessed : 0,
@@ -46,10 +46,10 @@ export function parseAccessMetadata(metadata) {
  */
 export function buildUpdatedMetadata(existingMetadata, accessDelta) {
     let existing = {};
-    if (existingMetadata !== undefined && existingMetadata !== "") {
+    if (existingMetadata !== undefined && existingMetadata !== '') {
         try {
             const parsed = JSON.parse(existingMetadata);
-            if (typeof parsed === "object" && parsed !== null) {
+            if (typeof parsed === 'object' && parsed !== null) {
                 existing = { ...parsed };
             }
         }

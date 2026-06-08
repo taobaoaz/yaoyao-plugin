@@ -8,7 +8,7 @@
  * - Peripheral (decay floor 0.5): Low-priority or aging memories
  */
 
-export type MemoryTier = "core" | "working" | "peripheral";
+export type MemoryTier = 'core' | 'working' | 'peripheral';
 
 export interface TierConfig {
   /** Minimum access count for Core promotion (default: 10) */
@@ -61,21 +61,21 @@ export function evaluateTier(
   const ageDays = (now - memory.createdAt) / 86400000;
 
   // Promotion checks (high decay + high access + high importance)
-  if (memory.tier === "peripheral") {
+  if (memory.tier === 'peripheral') {
     if (
       memory.accessCount >= cfg.workingAccessThreshold &&
       memory.decayScore >= cfg.workingDecayThreshold
     ) {
       return {
         memoryId: memory.id,
-        fromTier: "peripheral",
-        toTier: "working",
+        fromTier: 'peripheral',
+        toTier: 'working',
         reason: `access=${memory.accessCount}, decay=${memory.decayScore.toFixed(2)}`,
       };
     }
   }
 
-  if (memory.tier === "working") {
+  if (memory.tier === 'working') {
     if (
       memory.accessCount >= cfg.coreAccessThreshold &&
       memory.decayScore >= cfg.coreDecayThreshold &&
@@ -83,37 +83,37 @@ export function evaluateTier(
     ) {
       return {
         memoryId: memory.id,
-        fromTier: "working",
-        toTier: "core",
+        fromTier: 'working',
+        toTier: 'core',
         reason: `access=${memory.accessCount}, decay=${memory.decayScore.toFixed(2)}, importance=${memory.importance}`,
       };
     }
   }
 
   // Demotion checks (low decay or old age)
-  if (memory.tier === "core") {
+  if (memory.tier === 'core') {
     if (
       memory.decayScore < cfg.coreDecayThreshold ||
       (ageDays > cfg.peripheralAgeDays && memory.accessCount < cfg.coreAccessThreshold / 2)
     ) {
       return {
         memoryId: memory.id,
-        fromTier: "core",
-        toTier: "working",
+        fromTier: 'core',
+        toTier: 'working',
         reason: `decay=${memory.decayScore.toFixed(2)} or age=${ageDays.toFixed(0)}d`,
       };
     }
   }
 
-  if (memory.tier === "working") {
+  if (memory.tier === 'working') {
     if (
       memory.decayScore < cfg.peripheralDecayThreshold ||
       (ageDays > cfg.peripheralAgeDays && memory.accessCount < cfg.workingAccessThreshold)
     ) {
       return {
         memoryId: memory.id,
-        fromTier: "working",
-        toTier: "peripheral",
+        fromTier: 'working',
+        toTier: 'peripheral',
         reason: `decay=${memory.decayScore.toFixed(2)} or age=${ageDays.toFixed(0)}d`,
       };
     }

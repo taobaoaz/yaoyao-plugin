@@ -5,11 +5,11 @@
  * and produces a capability matrix for adaptive feature registration.
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { EmbeddingSource } from "./env-scan-embed.ts";
-import { scanEmbeddingSources, generateSetupGuide } from "./env-scan-embed.ts";
+import fs from 'node:fs';
+import path from 'node:path';
+import type { PluginLogger } from 'openclaw/plugin-sdk/plugin-entry';
+import type { EmbeddingSource } from './env-scan-embed.ts';
+import { scanEmbeddingSources, generateSetupGuide } from './env-scan-embed.ts';
 
 export interface CapabilityMatrix {
   fts5: boolean;
@@ -25,11 +25,11 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
   const platform = process.platform;
 
   // FTS5: check if sqlite3 was compiled with FTS5
-  let fts5 = false;
+  let fts5: boolean;
   try {
-    const sqlite3 = require("sqlite3");
-    const db = new sqlite3.Database(":memory:");
-    db.exec("CREATE VIRTUAL TABLE test USING fts5(a)");
+    const sqlite3 = require('sqlite3');
+    const db = new sqlite3.Database(':memory:');
+    db.exec('CREATE VIRTUAL TABLE test USING fts5(a)');
     db.close();
     fts5 = true;
   } catch {
@@ -37,13 +37,13 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
   }
 
   // Vector: check for sqlite-vec or hnswlib availability
-  let vector = false;
+  let vector: boolean;
   try {
-    require("sqlite-vec");
+    require('sqlite-vec');
     vector = true;
   } catch {
     try {
-      require("hnswlib-node");
+      require('hnswlib-node');
       vector = true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -53,19 +53,19 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
   }
 
   // LLM: check for openai or compatible client
-  let llm = false;
+  let llm: boolean;
   try {
-    require("openai");
+    require('openai');
     llm = true;
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:env] Operation failed: ${msg}`);
-      llm = false;
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:env] Operation failed: ${msg}`);
+    llm = false;
+  }
 
   // Cloud sync: check for common cloud SDKs
   let cloudSync = false;
-  const cloudModules = ["aws-sdk", "@aws-sdk/client-s3", "webdav", "ssh2", "smb2"];
+  const cloudModules = ['aws-sdk', '@aws-sdk/client-s3', 'webdav', 'ssh2', 'smb2'];
   for (const mod of cloudModules) {
     try {
       require(mod);
@@ -86,7 +86,7 @@ export function scanEnvironment(logger?: PluginLogger): CapabilityMatrix {
   };
 
   logger?.info?.(
-    `[yaoyao-memory:env] Capability matrix — FTS5:${fts5 ? "✅" : "❌"} Vec:${vector ? "✅" : "❌"} LLM:${llm ? "✅" : "❌"} Cloud:${cloudSync ? "✅" : "❌"} Node:${nodeVersion} Platform:${platform}`,
+    `[yaoyao-memory:env] Capability matrix — FTS5:${fts5 ? '✅' : '❌'} Vec:${vector ? '✅' : '❌'} LLM:${llm ? '✅' : '❌'} Cloud:${cloudSync ? '✅' : '❌'} Node:${nodeVersion} Platform:${platform}`,
   );
 
   return matrix;
@@ -101,9 +101,7 @@ export function shouldRegisterFeature(
 ): boolean {
   const missing = required.filter((cap) => !matrix[cap]);
   if (missing.length > 0) {
-    logger?.warn?.(
-      `[yaoyao-memory:env] Skipping ${featureName} — missing: ${missing.join(", ")}`,
-    );
+    logger?.warn?.(`[yaoyao-memory:env] Skipping ${featureName} — missing: ${missing.join(', ')}`);
     return false;
   }
   return true;
@@ -111,10 +109,10 @@ export function shouldRegisterFeature(
 
 /** Check if this appears to be the first install (no .yaoyao.db yet). */
 export function isFirstInstall(baseDir: string): boolean {
-  const dbPath = path.join(baseDir, ".yaoyao.db");
+  const dbPath = path.join(baseDir, '.yaoyao.db');
   return !fs.existsSync(dbPath);
 }
 
 // Re-export embedding scan utilities
-export type { EmbeddingSource } from "./env-scan-embed.ts";
-export { scanEmbeddingSources, generateSetupGuide } from "./env-scan-embed.ts";
+export type { EmbeddingSource } from './env-scan-embed.ts';
+export { scanEmbeddingSources, generateSetupGuide } from './env-scan-embed.ts';

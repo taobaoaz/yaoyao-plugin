@@ -26,7 +26,7 @@ export function createHybridSearch(config) {
                 if (merged.has(key)) {
                     const existing = merged.get(key);
                     existing.vectorScore = r.vectorScore;
-                    existing.hybridScore = (existing.score * 0.6) + (r.vectorScore * 0.4);
+                    existing.hybridScore = existing.score * 0.6 + r.vectorScore * 0.4;
                 }
                 else {
                     merged.set(key, {
@@ -36,9 +36,7 @@ export function createHybridSearch(config) {
                     });
                 }
             }
-            return [...merged.values()]
-                .sort((a, b) => b.hybridScore - a.hybridScore)
-                .slice(0, limit);
+            return [...merged.values()].sort((a, b) => b.hybridScore - a.hybridScore).slice(0, limit);
         },
         /**
          * RRF (Reciprocal Rank Fusion) hybrid search.
@@ -49,12 +47,12 @@ export function createHybridSearch(config) {
                 return [];
             const ftsRanked = ftsResults.map((r, i) => ({
                 id: `${r.date}|${r.snippet}|${r.id || i}`,
-                doc: { ...r, source: "fts" },
+                doc: { ...r, source: 'fts' },
                 originalScore: r.score,
             }));
             const vecRanked = vecResults.map((r, i) => ({
                 id: `${r.date}|${r.snippet}|${r.id || i}`,
-                doc: { ...r, source: "vec" },
+                doc: { ...r, source: 'vec' },
                 originalScore: r.vectorScore,
             }));
             const fused = reciprocalRankFusion([ftsRanked, vecRanked], cfg.rrfK);
@@ -63,10 +61,10 @@ export function createHybridSearch(config) {
                 const doc = f.doc;
                 results.push({
                     id: doc.id,
-                    filename: String(doc.filename || ""),
-                    snippet: String(doc.snippet || ""),
+                    filename: String(doc.filename || ''),
+                    snippet: String(doc.snippet || ''),
                     score: Number(doc.originalScore || 0),
-                    date: String(doc.date || ""),
+                    date: String(doc.date || ''),
                     vectorScore: f.ranks[1] >= 0 ? Number(doc.originalScore || 0) : 0,
                     hybridScore: f.rrfScore,
                 });

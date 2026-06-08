@@ -6,14 +6,16 @@
  *   - Constructor wrapped in try/catch for missing native bindings / read-only fs
  *   - Returns null on failure so compat.ts can cascade to next backend
  */
-import { createRequire } from "node:module";
+import { createRequire } from 'node:module';
 export function createNpmDB(dbPath) {
     try {
         const _require = createRequire(import.meta.url);
-        const Database = _require("better-sqlite3");
+        const Database = _require('better-sqlite3');
         const rawDb = new Database(dbPath);
         return {
-            exec(sql) { rawDb.exec(sql); },
+            exec(sql) {
+                rawDb.exec(sql);
+            },
             prepare(sql) {
                 const stmt = rawDb.prepare(sql);
                 return {
@@ -21,11 +23,17 @@ export function createNpmDB(dbPath) {
                         const info = stmt.run(...args);
                         return { lastInsertRowid: info?.lastInsertRowid, changes: info?.changes };
                     },
-                    all(...args) { return stmt.all(...args); },
-                    get(...args) { return stmt.get(...args); },
+                    all(...args) {
+                        return stmt.all(...args);
+                    },
+                    get(...args) {
+                        return stmt.get(...args);
+                    },
                 };
             },
-            close() { rawDb.close(); },
+            close() {
+                rawDb.close();
+            },
             // better-sqlite3 extension loading differs; leave undefined
             _raw: rawDb,
         };
@@ -39,7 +47,7 @@ export function createNpmDB(dbPath) {
 export function isNpmAvailable() {
     try {
         const _require = createRequire(import.meta.url);
-        _require("better-sqlite3");
+        _require('better-sqlite3');
         return true;
     }
     catch (e) {

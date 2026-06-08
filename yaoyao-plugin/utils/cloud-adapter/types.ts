@@ -31,5 +31,5 @@ export interface AdapterFactoryOpts {
 
 /** Samba / Windows CMD argument sanitizer — strips shell metacharacters */
 export function escShellArg(s: string): string {
-  return s.replace(/[&|^$%`;]/g, "").replace(/"/g, '""');
+  return s.replace(/[&|^$%`;]/g, '').replace(/"/g, '""');
 }

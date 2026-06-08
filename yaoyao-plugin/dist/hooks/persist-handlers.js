@@ -21,7 +21,7 @@ export function createPersistHandlers(api, db, store, embedding) {
             }
             if (rows.length > 0 && embedding) {
                 try {
-                    const vectors = await embedding.embedBatch(rows.map(r => r.text));
+                    const vectors = await embedding.embedBatch(rows.map((r) => r.text));
                     for (let i = 0; i < rows.length; i++) {
                         if (vectors && vectors[i])
                             db.storeVector(rows[i].rowId, vectors[i]);

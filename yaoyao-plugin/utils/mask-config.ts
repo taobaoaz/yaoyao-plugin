@@ -4,10 +4,22 @@
  */
 
 const SENSITIVE_KEYS = new Set([
-  "apiKey", "api_key", "apikey", "api-secret", "secret",
-  "password", "passwd", "pass", "token", "auth_token",
-  "accessKey", "secretKey", "privateKey", "key",
-  "SSHPASS", "bearer",
+  'apiKey',
+  'api_key',
+  'apikey',
+  'api-secret',
+  'secret',
+  'password',
+  'passwd',
+  'pass',
+  'token',
+  'auth_token',
+  'accessKey',
+  'secretKey',
+  'privateKey',
+  'key',
+  'SSHPASS',
+  'bearer',
 ]);
 
 function isSensitiveKey(key: string): boolean {
@@ -21,22 +33,22 @@ function isSensitiveKey(key: string): boolean {
 /** Deep-clone an object while masking sensitive string values */
 export function maskSensitive<T>(obj: T): T {
   if (obj === null || obj === undefined) return obj;
-  if (typeof obj === "string") {
+  if (typeof obj === 'string') {
     // If the string itself looks like a key (long hex/base64), mask it
     if (obj.length > 24 && /^[A-Za-z0-9+/=_-]+$/.test(obj)) {
-      return (obj.slice(0, 4) + "***" + obj.slice(-4)) as unknown as T;
+      return (obj.slice(0, 4) + '***' + obj.slice(-4)) as unknown as T;
     }
     return obj;
   }
-  if (typeof obj === "number" || typeof obj === "boolean") return obj;
+  if (typeof obj === 'number' || typeof obj === 'boolean') return obj;
   if (Array.isArray(obj)) {
     return obj.map(maskSensitive) as unknown as T;
   }
-  if (typeof obj === "object") {
+  if (typeof obj === 'object') {
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-      if (isSensitiveKey(k) && typeof v === "string") {
-        result[k] = v.length > 8 ? `${v.slice(0, 3)}***${v.slice(-3)}` : "***";
+      if (isSensitiveKey(k) && typeof v === 'string') {
+        result[k] = v.length > 8 ? `${v.slice(0, 3)}***${v.slice(-3)}` : '***';
       } else {
         result[k] = maskSensitive(v);
       }
@@ -49,9 +61,9 @@ export function maskSensitive<T>(obj: T): T {
 /** Mask an Authorization header value */
 export function maskAuthHeader(header: string): string {
   if (!header) return header;
-  if (header.toLowerCase().startsWith("bearer ")) {
+  if (header.toLowerCase().startsWith('bearer ')) {
     const token = header.slice(7);
-    return `Bearer ${token.length > 8 ? token.slice(0, 3) + "***" + token.slice(-3) : "***"}`;
+    return `Bearer ${token.length > 8 ? token.slice(0, 3) + '***' + token.slice(-3) : '***'}`;
   }
-  return "***";
+  return '***';
 }

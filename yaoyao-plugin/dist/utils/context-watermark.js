@@ -23,13 +23,13 @@ export function computeCompressLevel(currentTokens, config) {
     const aggressiveRatio = config?.aggressiveCompressRatio ?? 0.8;
     const emergencyRatio = config?.emergencyCompressRatio ?? 0.95;
     const ratio = currentTokens / windowTokens;
-    let level = "none";
+    let level = 'none';
     if (ratio >= emergencyRatio)
-        level = "emergency";
+        level = 'emergency';
     else if (ratio >= aggressiveRatio)
-        level = "aggressive";
+        level = 'aggressive';
     else if (ratio >= mildRatio)
-        level = "mild";
+        level = 'mild';
     return { level, ratio, currentTokens, windowTokens };
 }
 /** Estimate total context size from message array */
@@ -37,7 +37,7 @@ export function estimateContextSize(messages) {
     let totalChars = 0;
     for (const m of messages) {
         const content = m.content;
-        if (typeof content === "string") {
+        if (typeof content === 'string') {
             totalChars += content.length;
         }
         else if (content) {

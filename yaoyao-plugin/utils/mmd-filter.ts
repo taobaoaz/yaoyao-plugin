@@ -17,10 +17,7 @@ const MERMAID_GRAPH_TYPES = [
 ];
 
 /** Mermaid comment / directive markers */
-const MERMAID_META = [
-  /%%\s*mermaid/i,
-  /%%\s*init/i,
-];
+const MERMAID_META = [/%%\s*mermaid/i, /%%\s*init/i];
 
 /** Mermaid edge patterns (high density indicates MMD block) */
 const MERMAID_EDGE_DENSITY = /(-->|==>|\.->|-.->)/g;

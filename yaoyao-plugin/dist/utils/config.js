@@ -6,7 +6,7 @@
  */
 /** Get a primitive property from an object, with fallback. */
 export function getProp(obj, key, fallback) {
-    if (!obj || typeof obj !== "object")
+    if (!obj || typeof obj !== 'object')
         return fallback;
     const val = obj[key];
     if (val === undefined || val === null)
@@ -15,17 +15,17 @@ export function getProp(obj, key, fallback) {
 }
 /** Get a nested object property, returning undefined if missing or not an object. */
 export function getObj(obj, key) {
-    if (!obj || typeof obj !== "object")
+    if (!obj || typeof obj !== 'object')
         return undefined;
     const val = obj[key];
-    if (val && typeof val === "object" && !Array.isArray(val)) {
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
         return val;
     }
     return undefined;
 }
 /** Get a boolean property, coercing truthy/falsy values. */
 export function getBool(obj, key, fallback) {
-    if (!obj || typeof obj !== "object")
+    if (!obj || typeof obj !== 'object')
         return fallback;
     const val = obj[key];
     if (val === undefined || val === null)

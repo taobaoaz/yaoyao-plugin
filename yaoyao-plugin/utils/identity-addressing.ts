@@ -5,22 +5,22 @@
  */
 
 export interface IdentityCandidate {
-  kind: "name" | "addressing";
+  kind: 'name' | 'addressing';
   value: string;
   sourceText: string;
 }
 
 function trimCapturedValue(value: string): string {
   return value
-    .replace(/^[\s"'"‘’「」『』*_`~：:]+/, "")
-    .replace(/[\s"'"‘’「」『』*_`~。！，、,.!?:：；;]+$/u, "")
+    .replace(/^[\s"'"‘’「」『』*_`~：:]+/, '')
+    .replace(/[\s"'"‘’「」『』*_`~。！，、,.!?:：；;]+$/u, '')
     .trim();
 }
 
 function extractFirst(patterns: RegExp[], text: string): string | undefined {
   for (const pattern of patterns) {
     const match = pattern.exec(text);
-    const captured = match?.[1] ? trimCapturedValue(match[1]) : "";
+    const captured = match?.[1] ? trimCapturedValue(match[1]) : '';
     if (captured) return captured;
   }
   return undefined;
@@ -57,7 +57,11 @@ const ADDRESSING_HINT_PATTERNS = [
   /addressive identifier/i,
 ];
 
-function makeCandidate(kind: IdentityCandidate["kind"], value: string, sourceText: string): IdentityCandidate {
+function makeCandidate(
+  kind: IdentityCandidate['kind'],
+  value: string,
+  sourceText: string,
+): IdentityCandidate {
   return { kind, value, sourceText };
 }
 
@@ -71,12 +75,12 @@ export function extractIdentityCandidates(text: string): IdentityCandidate[] {
   const candidates: IdentityCandidate[] = [];
 
   if (name) {
-    candidates.push(makeCandidate("name", name, sourceText));
+    candidates.push(makeCandidate('name', name, sourceText));
   }
   if (addressing) {
     const duplicateOfName = name && addressing === name;
     if (!duplicateOfName || candidates.length === 0) {
-      candidates.push(makeCandidate("addressing", addressing, sourceText));
+      candidates.push(makeCandidate('addressing', addressing, sourceText));
     }
   }
 
@@ -107,8 +111,7 @@ export function classifyIdentityMemory(text: string): {
   }
 
   const extracted = extractIdentityValues(sourceText);
-  const hasName =
-    !!extracted.name || NAME_HINT_PATTERNS.some((p) => p.test(sourceText));
+  const hasName = !!extracted.name || NAME_HINT_PATTERNS.some((p) => p.test(sourceText));
   const hasAddressing =
     !!extracted.addressing || ADDRESSING_HINT_PATTERNS.some((p) => p.test(sourceText));
 

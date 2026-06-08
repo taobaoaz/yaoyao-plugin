@@ -9,20 +9,23 @@ import { readPluginVersion } from "../entry/version.js";
 import { createAuditLog } from "../utils/audit-log.js";
 import { runStartupTasks } from "./boot/startup-tasks.js";
 import { stepConfigValidation, stepCoreInit, stepManifest, stepScopeManager, stepCrossSessionRecovery, stepMigration, stepCleanupScheduler, stepImportExistingMemories, } from "./boot/steps.js";
-import { runHealthcheck, runInstallCheck, formatInstallCheck, detectScheduledResetRisks } from "../utils/check-barrel.js";
+import { runHealthcheck, runInstallCheck, formatInstallCheck, detectScheduledResetRisks, } from "../utils/check-barrel.js";
 import { showBanner } from "../entry/banner.js";
 export function bootstrapYaoyao(api, config) {
     const pluginVersion = readPluginVersion();
-    const audit = createAuditLog(config.memoryDir || ".", api.logger, { bufferSize: 50, flushIntervalMs: 5000 });
+    const audit = createAuditLog(config.memoryDir || '.', api.logger, {
+        bufferSize: 50,
+        flushIntervalMs: 5000,
+    });
     const cap = runInstallCheck();
     // ── 1. Platform detection & config ──
     api.logger.info?.(`[yaoyao-memory] ${formatInstallCheck(cap)}`);
     // ── 1.5. Detect scheduled reset risks ──
-    const resetRisks = detectScheduledResetRisks(config.memoryDir || ".", config);
+    const resetRisks = detectScheduledResetRisks(config.memoryDir || '.', config);
     if (resetRisks.length > 0) {
         api.logger.warn?.(`[yaoyao-memory] Detected ${resetRisks.length} scheduled reset risk(s):`);
         for (const risk of resetRisks) {
-            const level = risk.severity === "critical" ? "error" : risk.severity === "warning" ? "warn" : "info";
+            const level = risk.severity === 'critical' ? 'error' : risk.severity === 'warning' ? 'warn' : 'info';
             api.logger[level]?.(`[yaoyao-memory:reset-risk] ${risk.source}: ${risk.description}`);
         }
     }
@@ -36,16 +39,25 @@ export function bootstrapYaoyao(api, config) {
     stepScopeManager(api, scopeManager);
     // ── 4. Feature Registry ──
     const registry = createFeatureRegistry();
-    for (const f of [embeddingFeature, llmFeature, cloudSyncFeature, verifyFeature, cleanerFeature, qualityFeature, retainFeature, graphFeature]) {
+    for (const f of [
+        embeddingFeature,
+        llmFeature,
+        cloudSyncFeature,
+        verifyFeature,
+        cleanerFeature,
+        qualityFeature,
+        retainFeature,
+        graphFeature,
+    ]) {
         registry.register(f);
     }
     registry.initAll(api, config);
-    const embedding = registry.service("embedding");
-    const llmResult = registry.service("llm");
+    const embedding = registry.service('embedding');
+    const llmResult = registry.service('llm');
     if (llmResult?.client)
         api.logger.info?.(`[yaoyao-memory] LLM client: ${llmResult.client.config.model}`);
     // ── 5. Import existing workspace memories (MEMORY.md + memory/*.md) ──
-    stepImportExistingMemories(api.logger, api.baseDir || ".", config, store, storage);
+    stepImportExistingMemories(api.logger, api.baseDir || '.', config, store, storage);
     // ── 6. Cross-session recovery & migration ──
     const agentId = api.agentId;
     stepCrossSessionRecovery(api, config, agentId);
@@ -55,10 +67,16 @@ export function bootstrapYaoyao(api, config) {
     // ── 7. Register tools & hooks ──
     const toolCount = registerMemoryTools(api, store, storage, storage, embedding, registry);
     const health = runHealthcheck(store.baseDir);
-    showBanner(api.logger, { pluginVersion, toolCount, memoryDir: store.baseDir, cap: runInstallCheck(), health });
+    showBanner(api.logger, {
+        pluginVersion,
+        toolCount,
+        memoryDir: store.baseDir,
+        cap: runInstallCheck(),
+        health,
+    });
     let captureDrain;
     if (config.capture?.enabled !== false) {
-        const capHandle = registerCaptureHook(api, store, storage, config, registry.isActive("verify"), scopeManager, llmResult?.client ?? null, audit, embedding);
+        const capHandle = registerCaptureHook(api, store, storage, config, registry.isActive('verify'), scopeManager, llmResult?.client ?? null, audit, embedding);
         captureDrain = capHandle?.drain?.bind(capHandle);
     }
     if (config.recall?.enabled !== false) {
@@ -81,11 +99,11 @@ export function bootstrapYaoyao(api, config) {
     // ── 8. Cleanup scheduler ──
     const { cleanupStop } = stepCleanupScheduler(api, config, storage);
     // ── 9. Shutdown ──
-    api.on("gateway_stop", async () => {
+    api.on('gateway_stop', async () => {
         if (captureDrain) {
             try {
                 await captureDrain();
-                api.logger.info?.("[yaoyao-memory] Write queue drained");
+                api.logger.info?.('[yaoyao-memory] Write queue drained');
             }
             catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
@@ -95,8 +113,8 @@ export function bootstrapYaoyao(api, config) {
         commandNewHandle?.unregister();
         storage.close();
         cleanupStop();
-        api.logger.debug?.("[yaoyao-memory] Plugin stopped");
+        api.logger.debug?.('[yaoyao-memory] Plugin stopped');
     });
-    api.logger.debug?.("[yaoyao-memory] Plugin started");
+    api.logger.debug?.('[yaoyao-memory] Plugin started');
     return { drain: captureDrain };
 }

@@ -4,8 +4,8 @@
  * Used when neither node:sqlite (Node 22+) nor better-sqlite3 is available.
  * Persists data as daily .md files + a lightweight JSON index.
  */
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 /**
  * FileDB — zero-dependency fallback that stores memory entries as
  * daily markdown files in a base directory, with a JSON index for fast
@@ -17,7 +17,7 @@ export class FileDB {
     index;
     constructor(baseDir) {
         this.baseDir = baseDir;
-        this.indexPath = path.join(baseDir, ".yaoyao-index.json");
+        this.indexPath = path.join(baseDir, '.yaoyao-index.json');
         this.index = new Map();
         this._loadIndex();
     }
@@ -26,7 +26,7 @@ export class FileDB {
             if (fs.existsSync(this.indexPath)) {
                 let raw;
                 try {
-                    raw = JSON.parse(fs.readFileSync(this.indexPath, "utf-8"));
+                    raw = JSON.parse(fs.readFileSync(this.indexPath, 'utf-8'));
                 }
                 catch (e) {
                     const msg = e instanceof Error ? e.message : String(e);
@@ -48,7 +48,7 @@ export class FileDB {
             const obj = {};
             for (const [k, v] of this.index)
                 obj[k] = v;
-            fs.writeFileSync(this.indexPath, JSON.stringify(obj), "utf-8");
+            fs.writeFileSync(this.indexPath, JSON.stringify(obj), 'utf-8');
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -60,7 +60,7 @@ export class FileDB {
     }
     prepare(sql) {
         const lowered = sql.toLowerCase().trim();
-        if (lowered.startsWith("insert into memory_meta")) {
+        if (lowered.startsWith('insert into memory_meta')) {
             return {
                 run: (...args) => {
                     const date = args[0];
@@ -68,7 +68,7 @@ export class FileDB {
                     const asstText = args[2];
                     const dailyPath = path.join(this.baseDir, `${date}.md`);
                     const entry = `\n### ${new Date().toISOString()}\n**User:** ${userText}\n**AI:** ${asstText}\n`;
-                    fs.appendFileSync(dailyPath, entry, "utf-8");
+                    fs.appendFileSync(dailyPath, entry, 'utf-8');
                     const existing = this.index.get(date) || [];
                     if (!existing.includes(dailyPath)) {
                         existing.push(dailyPath);
@@ -81,14 +81,14 @@ export class FileDB {
                 get: () => undefined,
             };
         }
-        if (lowered.includes("from memory_fts") && lowered.includes("match")) {
+        if (lowered.includes('from memory_fts') && lowered.includes('match')) {
             return {
                 run: () => ({ changes: 0 }),
                 all: (...args) => this._search(args[0], args[1]),
                 get: () => undefined,
             };
         }
-        if (lowered.includes("count(*)")) {
+        if (lowered.includes('count(*)')) {
             const count = this._countAll();
             return {
                 run: () => ({ changes: 0 }),
@@ -96,7 +96,7 @@ export class FileDB {
                 get: () => ({ c: count }),
             };
         }
-        if (lowered.startsWith("delete from memory_meta")) {
+        if (lowered.startsWith('delete from memory_meta')) {
             return {
                 run: (...args) => {
                     const date = args[0];
@@ -116,11 +116,11 @@ export class FileDB {
                 get: () => undefined,
             };
         }
-        if (lowered.startsWith("pragma journal_mode")) {
+        if (lowered.startsWith('pragma journal_mode')) {
             return {
                 run: () => ({ changes: 0 }),
-                all: () => [{ journal_mode: "delete" }],
-                get: () => ({ journal_mode: "delete" }),
+                all: () => [{ journal_mode: 'delete' }],
+                get: () => ({ journal_mode: 'delete' }),
             };
         }
         return {
@@ -140,7 +140,9 @@ export class FileDB {
         const results = [];
         let files;
         try {
-            files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+            files = fs
+                .readdirSync(this.baseDir)
+                .filter((f) => f.endsWith('.md') && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -150,15 +152,15 @@ export class FileDB {
         const q = query.toLowerCase();
         for (const file of files) {
             const filePath = path.join(this.baseDir, file);
-            const content = fs.readFileSync(filePath, "utf-8");
+            const content = fs.readFileSync(filePath, 'utf-8');
             if (content.toLowerCase().includes(q)) {
-                const lines = content.split("\n");
-                const idx = lines.findIndex(l => l.toLowerCase().includes(q));
-                const snippet = idx >= 0 ? lines[idx].slice(0, 200) : "";
+                const lines = content.split('\n');
+                const idx = lines.findIndex((l) => l.toLowerCase().includes(q));
+                const snippet = idx >= 0 ? lines[idx].slice(0, 200) : '';
                 results.push({
                     id: results.length + 1,
                     rowid: results.length + 1,
-                    date: file.replace(".md", ""),
+                    date: file.replace('.md', ''),
                     snippet: snippet,
                     rank: -results.length,
                 });
@@ -168,7 +170,7 @@ export class FileDB {
     }
     _countAll() {
         try {
-            return fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md")).length;
+            return fs.readdirSync(this.baseDir).filter((f) => f.endsWith('.md')).length;
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

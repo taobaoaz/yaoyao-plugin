@@ -32,16 +32,16 @@ const SCHEMA_SQLS = [
 ];
 /** Run all CREATE TABLE statements. Safe to call multiple times. */
 export function ensureSchema(db) {
-    db.exec("BEGIN TRANSACTION");
+    db.exec('BEGIN TRANSACTION');
     try {
         for (const sql of SCHEMA_SQLS) {
             db.exec(sql);
         }
-        db.exec("COMMIT");
+        db.exec('COMMIT');
     }
     catch (err) {
         try {
-            db.exec("ROLLBACK");
+            db.exec('ROLLBACK');
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

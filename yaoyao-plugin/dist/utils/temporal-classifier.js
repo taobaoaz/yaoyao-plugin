@@ -5,25 +5,67 @@
  */
 // Dynamic keywords — time-sensitive indicators.
 const DYNAMIC_PATTERNS_EN = [
-    /\btoday\b/i, /\byesterday\b/i, /\btomorrow\b/i, /\brecently\b/i,
-    /\bcurrently\b/i, /\bright now\b/i, /\bthis week\b/i, /\bthis month\b/i,
-    /\blast week\b/i, /\bnext week\b/i, /\bthis morning\b/i, /\btonight\b/i,
+    /\btoday\b/i,
+    /\byesterday\b/i,
+    /\btomorrow\b/i,
+    /\brecently\b/i,
+    /\bcurrently\b/i,
+    /\bright now\b/i,
+    /\bthis week\b/i,
+    /\bthis month\b/i,
+    /\blast week\b/i,
+    /\bnext week\b/i,
+    /\bthis morning\b/i,
+    /\btonight\b/i,
     /\blater\b/i,
 ];
 const DYNAMIC_KEYWORDS_ZH = [
-    "今天", "昨天", "明天", "最近", "正在", "刚才", "刚刚",
-    "这周", "这个月", "上周", "下周", "目前", "现在",
-    "今晚", "今早", "稍后", "待会",
+    '今天',
+    '昨天',
+    '明天',
+    '最近',
+    '正在',
+    '刚才',
+    '刚刚',
+    '这周',
+    '这个月',
+    '上周',
+    '下周',
+    '目前',
+    '现在',
+    '今晚',
+    '今早',
+    '稍后',
+    '待会',
 ];
 // Static keywords — permanent fact indicators.
 const STATIC_PATTERNS_EN = [
-    /\bfavorite\b/i, /\bprefer\b/i, /\balways\b/i, /\bname is\b/i,
-    /\bborn\b/i, /\bgraduated\b/i, /\blive in\b/i, /\bwork at\b/i,
-    /\bjob\b/i, /\bprofession\b/i, /\bhobby\b/i, /\ballergic\b/i,
+    /\bfavorite\b/i,
+    /\bprefer\b/i,
+    /\balways\b/i,
+    /\bname is\b/i,
+    /\bborn\b/i,
+    /\bgraduated\b/i,
+    /\blive in\b/i,
+    /\bwork at\b/i,
+    /\bjob\b/i,
+    /\bprofession\b/i,
+    /\bhobby\b/i,
+    /\ballergic\b/i,
 ];
 const STATIC_KEYWORDS_ZH = [
-    "喜欢", "偏好", "一直", "名字", "叫做", "出生",
-    "毕业", "住在", "工作", "职业", "爱好", "过敏",
+    '喜欢',
+    '偏好',
+    '一直',
+    '名字',
+    '叫做',
+    '出生',
+    '毕业',
+    '住在',
+    '工作',
+    '职业',
+    '爱好',
+    '过敏',
 ];
 /**
  * Classify memory text as static (permanent fact) or dynamic (time-sensitive).
@@ -36,10 +78,10 @@ export function classifyTemporal(text) {
         STATIC_KEYWORDS_ZH.some((kw) => text.includes(kw));
     // If BOTH match → "dynamic" wins (time-sensitive info takes priority)
     if (hasDynamic)
-        return "dynamic";
+        return 'dynamic';
     if (hasStatic)
-        return "static";
-    return "static";
+        return 'static';
+    return 'static';
 }
 // Expiry rules: pattern → milliseconds to add from now
 const EXPIRY_RULES = [

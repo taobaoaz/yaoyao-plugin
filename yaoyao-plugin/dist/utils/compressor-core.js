@@ -31,7 +31,7 @@ export function compressTexts(texts, maxChars, options = {}) {
         .sort((a, b) => b.score - a.score || a.index - b.index);
     const pairedWith = new Map();
     for (const s of scored) {
-        if (s.reason === "tool_call" &&
+        if (s.reason === 'tool_call' &&
             s.index + 1 < texts.length &&
             !pairedWith.has(s.index) &&
             !pairedWith.has(s.index + 1)) {

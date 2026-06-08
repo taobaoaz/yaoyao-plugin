@@ -62,7 +62,9 @@ export function pruneStaleSessions(windowHours: number): number {
 /** Hard limit prune — keep only maxEntries most recent */
 export function pruneToMax(maxEntries: number): number {
   if (activityMap.size <= maxEntries) return 0;
-  const entries = Array.from(activityMap.entries()).sort((a, b) => b[1].lastActiveMs - a[1].lastActiveMs);
+  const entries = Array.from(activityMap.entries()).sort(
+    (a, b) => b[1].lastActiveMs - a[1].lastActiveMs,
+  );
   const toRemove = entries.slice(maxEntries);
   for (const [key] of toRemove) {
     activityMap.delete(key);

@@ -6,59 +6,71 @@
  * returns candidates for agent/user judgment.
  */
 
-import type { MemoryStore } from "../../utils/memory-store.ts";
-import type { DBBridge } from "../../utils/db-bridge.ts";
-import { withErrorHandling } from "../../tools/common.ts";
-import type { ToolRegistration } from "../../tools/common.ts";
+import type { MemoryStore } from '../../utils/memory-store.ts';
+import type { DBBridge } from '../../utils/db-bridge.ts';
+import { withErrorHandling } from '../../tools/common.ts';
+import type { ToolRegistration } from '../../tools/common.ts';
 import {
   detectConflicts,
   formatConflictCandidates,
   suggestRelation,
   canAutoResolve,
-} from "../../core/conflict/detect.ts";
+} from '../../core/conflict/detect.ts';
 
-export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetection = true): ToolRegistration {
+export function createSaveTool(
+  store: MemoryStore,
+  db: DBBridge,
+  conflictDetection = true,
+): ToolRegistration {
   return {
-    id: "memory_save",
-    name: "memory_save",
-    label: "Memory Save",
+    id: 'memory_save',
+    name: 'memory_save',
+    label: 'Memory Save',
     description:
-      "Manually save an important memory to long-term storage. Use this when you want to explicitly " +
-      "record something the AI should remember. Automatically checks for conflicts with existing memories.",
+      'Manually save an important memory to long-term storage. Use this when you want to explicitly ' +
+      'record something the AI should remember. Automatically checks for conflicts with existing memories.',
     parameters: {
-      type: "object",
+      type: 'object',
       properties: {
-        content: { type: "string", description: "The memory content to save" },
-        date: { type: "string", description: "Date string (YYYY-MM-DD). Defaults to today.", default: "" },
-        tags: { type: "string", description: "Optional tags (comma-separated) like 'decision,preference,learning'", default: "" },
+        content: { type: 'string', description: 'The memory content to save' },
+        date: {
+          type: 'string',
+          description: 'Date string (YYYY-MM-DD). Defaults to today.',
+          default: '',
+        },
+        tags: {
+          type: 'string',
+          description: "Optional tags (comma-separated) like 'decision,preference,learning'",
+          default: '',
+        },
         skipConflictCheck: {
-          type: "boolean",
-          description: "Skip automatic conflict detection (default: false)",
+          type: 'boolean',
+          description: 'Skip automatic conflict detection (default: false)',
           default: false,
         },
       },
-      required: ["content"],
+      required: ['content'],
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
-      const content = String(params.content ?? "").trim();
-      if (!content) return { content: [{ type: "text", text: "请输入要保存的记忆内容。" }] };
+      const content = String(params.content ?? '').trim();
+      if (!content) return { content: [{ type: 'text', text: '请输入要保存的记忆内容。' }] };
 
       const date = params.date ? String(params.date).trim() : new Date().toISOString().slice(0, 10);
-      const tags = params.tags ? String(params.tags).trim() : "";
+      const tags = params.tags ? String(params.tags).trim() : '';
       const skipConflict = params.skipConflictCheck === true;
-      const tagStr = tags ? ` [${tags}]` : "";
+      const tagStr = tags ? ` [${tags}]` : '';
 
-      const timestamp = new Date().toISOString().slice(0, 19).replace("T", " ");
+      const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const entry = `\n### ${timestamp}\n💾 ${content}${tagStr}\n`;
 
       // Write to daily log
       store.appendToDaily(date, entry);
 
       // Index in FTS5
-      const rowId = db.indexTurn(content, "", date);
+      const rowId = db.indexTurn(content, '', date);
 
       // ── Conflict detection ──
-      let conflictOutput = "";
+      let conflictOutput = '';
       if (conflictDetection && !skipConflict && content.length > 10) {
         try {
           const similar = db.search(content, 10);
@@ -76,7 +88,8 @@ export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetecti
                 try {
                   const metaRaw = db.getMemoryMeta(c.memoryId);
                   const meta = metaRaw ? tryParseJSON(metaRaw) : {};
-                  if (!Array.isArray(meta.relations)) meta.relations = [] as Array<Record<string, unknown>>;
+                  if (!Array.isArray(meta.relations))
+                    meta.relations = [] as Array<Record<string, unknown>>;
                   (meta.relations as Array<Record<string, unknown>>).push({
                     relation: rel,
                     reason: `自动裁决: ${c.reason}（置信度 ${(c.confidence * 100).toFixed(0)}%）`,
@@ -99,7 +112,7 @@ export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetecti
             }
 
             if (pending.length > 0) {
-              conflictOutput += "\n" + formatConflictCandidates(pending);
+              conflictOutput += '\n' + formatConflictCandidates(pending);
             }
           }
         } catch (err) {
@@ -108,20 +121,24 @@ export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetecti
         }
       }
 
-      const saveMsg = `✅ 记忆已保存到 ${date}.md\n行号: ${rowId > 0 ? rowId : "索引失败"}${tagStr ? `\n标签: ${tags}` : ""}`;
+      const saveMsg = `✅ 记忆已保存到 ${date}.md\n行号: ${rowId > 0 ? rowId : '索引失败'}${tagStr ? `\n标签: ${tags}` : ''}`;
 
       return {
-        content: [{
-          type: "text",
-          text: combineMessages(saveMsg, conflictOutput),
-        }],
+        content: [
+          {
+            type: 'text',
+            text: combineMessages(saveMsg, conflictOutput),
+          },
+        ],
       };
     }),
   };
 }
 
 function tryParseJSON(s: string): Record<string, unknown> {
-  try { return JSON.parse(s); } catch (e: unknown) {
+  try {
+    return JSON.parse(s);
+  } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn(`[yaoyao-memory:save] Parse JSON failed: ${msg}`);
     return {};
@@ -130,5 +147,5 @@ function tryParseJSON(s: string): Record<string, unknown> {
 
 function combineMessages(a: string, b: string): string {
   if (!b) return a;
-  return a + "\n" + b;
+  return a + '\n' + b;
 }

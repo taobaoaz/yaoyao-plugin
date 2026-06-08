@@ -13,8 +13,8 @@ export function createCoexistContext(_config) {
     const clawBridge = forwardCapture ? (createClawBridge() ?? null) : null;
     const parts = [];
     if (skipLocalIndexing)
-        parts.push("[coexist: L1/L2 skipped]");
+        parts.push('[coexist: L1/L2 skipped]');
     if (forwardCapture)
-        parts.push("[coexist: forwarding to claw-core]");
-    return { skipLocalIndexing, forwardCapture, clawBridge, logSuffix: parts.join("") };
+        parts.push('[coexist: forwarding to claw-core]');
+    return { skipLocalIndexing, forwardCapture, clawBridge, logSuffix: parts.join('') };
 }

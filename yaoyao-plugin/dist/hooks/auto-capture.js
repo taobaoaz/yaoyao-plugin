@@ -18,25 +18,25 @@ import { createFlushHandler } from "./capture-flush.js";
 import { processCaptureEvent } from "./capture-event.js";
 export { extractContent, safeStringify } from "./capture-content.js";
 export function registerCaptureHook(api, store, db, config, verifyActive = true, scopeManager, llmClient, audit, embedding) {
-    const captureMode = config.capture?.mode || "async";
+    const captureMode = config.capture?.mode || 'async';
     // Coexist detection + bridge
     const { skipLocalIndexing, forwardCapture, clawBridge, logSuffix } = createCoexistContext(config);
-    api.logger.info?.(`[yaoyao-memory] auto-capture mode=${captureMode}${embedding ? " + vector" : ""}${logSuffix}`);
+    api.logger.info?.(`[yaoyao-memory] auto-capture mode=${captureMode}${embedding ? ' + vector' : ''}${logSuffix}`);
     // Persistence layers
     const persist = createPersistHandlers(api, db, store, embedding);
     // L1+L2 async queue (disabled when coexist skips local indexing)
-    const writeQueue = (captureMode === "async" && !skipLocalIndexing)
+    const writeQueue = captureMode === 'async' && !skipLocalIndexing
         ? createWriteQueue(persist.flushBatch, api.logger, audit)
         : null;
     // Three-stage dedup: L1 hash → L2 vector → L3 text
-    const dedupEngine = new DedupEngine({ enabled: true, vectorThreshold: 0.80, textLookback: 10 });
+    const dedupEngine = new DedupEngine({ enabled: true, vectorThreshold: 0.8, textLookback: 10 });
     // Debouncer: merges rapid captures for same session
     const debounceMs = clampNum(config.capture?.debounceMs ?? 3000, 3000, 500, 30000);
     const captureDebouncer = createCaptureDebouncer({ debounceMs, maxDelayMs: 10000, maxQueueSize: 50 }, createFlushHandler(persist, writeQueue, clawBridge, forwardCapture, api));
     // Hook: fired on every agent turn end
-    api.on("agent_end", async (event, ctx) => {
+    api.on('agent_end', async (event, ctx) => {
         const agentId = api.agentId;
-        const result = await processCaptureEvent(event, ctx, config, api, store, verifyActive, scopeManager, agentId, llmClient, audit, dedupEngine, db, embedding, skipLocalIndexing);
+        const result = await processCaptureEvent(event, ctx, config, api, store, verifyActive, scopeManager, agentId, llmClient ?? null, audit, dedupEngine, db, embedding ?? null, skipLocalIndexing);
         if (result && result.shouldCapture) {
             captureDebouncer.push({
                 sessionKey: result.sessionKey,
@@ -47,7 +47,7 @@ export function registerCaptureHook(api, store, db, config, verifyActive = true,
                 meta: result.meta,
                 entry: result.entry,
             });
-            api.logger.debug?.("[yaoyao-memory:capture] Captured to " + result.date);
+            api.logger.debug?.('[yaoyao-memory:capture] Captured to ' + result.date);
         }
     });
     return {

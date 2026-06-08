@@ -1,8 +1,8 @@
 /**
  * utils/compressor-core.ts — Core compression logic.
  */
-import type { ScoredText, CompressResult } from "./session-compressor.ts";
-import { scoreText } from "./session-compressor.ts";
+import type { ScoredText, CompressResult } from './session-compressor.ts';
+import { scoreText } from './session-compressor.ts';
 
 const DEFAULT_MIN_TEXTS = 3;
 
@@ -47,7 +47,7 @@ export function compressTexts(
   const pairedWith = new Map<number, number>();
   for (const s of scored) {
     if (
-      s.reason === "tool_call" &&
+      s.reason === 'tool_call' &&
       s.index + 1 < texts.length &&
       !pairedWith.has(s.index) &&
       !pairedWith.has(s.index + 1)
@@ -68,7 +68,11 @@ export function compressTexts(
 
   const allLow = scored.every((s) => s.score < minScoreToKeep);
   if (allLow && selectedIndices.size < Math.min(minTexts, texts.length)) {
-    for (let i = texts.length - 1; i >= 0 && selectedIndices.size < Math.min(minTexts, texts.length); i--) {
+    for (
+      let i = texts.length - 1;
+      i >= 0 && selectedIndices.size < Math.min(minTexts, texts.length);
+      i--
+    ) {
       addIndex(i);
     }
   }

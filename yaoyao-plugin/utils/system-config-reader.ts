@@ -6,8 +6,8 @@
  *
  * Zero external deps. Uses node:fs and node:path.
  */
-import { readFileSync, existsSync } from "node:fs";
-import path from "node:path";
+import { readFileSync, existsSync } from 'node:fs';
+import path from 'node:path';
 
 export interface OpenClawPluginsConfig {
   slots?: {
@@ -36,9 +36,9 @@ export interface SystemArchitectureState {
   /** Is this a XiaoYi Claw system (claw-core present + configured)? */
   isXiaoYiClaw: boolean;
   /** What plugin owns the memory slot */
-  memorySlotOwner: string | "default" | "none";
+  memorySlotOwner: string | 'default' | 'none';
   /** What plugin owns the contextEngine slot */
-  contextEngineSlotOwner: string | "default" | "none";
+  contextEngineSlotOwner: string | 'default' | 'none';
   /** Is claw-core plugin enabled in entries */
   clawCoreEnabled: boolean;
   /** Is yaoyao-memory enabled in entries */
@@ -61,10 +61,10 @@ let _systemState: SystemArchitectureState | null = null;
 function findConfigPath(): string | null {
   const candidates = [
     process.env.OPENCLAW_CONFIG,
-    path.join(process.env.OPENCLAW_WORKSPACE || "/root/.openclaw", "openclaw.json"),
-    path.join(process.env.HOME || "/root", ".openclaw", "openclaw.json"),
-    "/root/.openclaw/openclaw.json",
-    "/home/sandbox/.openclaw/openclaw.json",
+    path.join(process.env.OPENCLAW_WORKSPACE || '/root/.openclaw', 'openclaw.json'),
+    path.join(process.env.HOME || '/root', '.openclaw', 'openclaw.json'),
+    '/root/.openclaw/openclaw.json',
+    '/home/sandbox/.openclaw/openclaw.json',
   ];
   for (const p of candidates) {
     if (p && existsSync(p)) return p;
@@ -75,7 +75,7 @@ function findConfigPath(): string | null {
 /** Read and parse OpenClaw global config. */
 function readOpenClawConfig(path: string): OpenClawGlobalConfig {
   try {
-    const raw = readFileSync(path, "utf-8");
+    const raw = readFileSync(path, 'utf-8');
     return JSON.parse(raw) as OpenClawGlobalConfig;
   } catch {
     return {};
@@ -86,39 +86,41 @@ function readOpenClawConfig(path: string): OpenClawGlobalConfig {
 export function detectSystemArchitecture(): SystemArchitectureState {
   if (_systemState) return _systemState;
 
-  const configPath = findConfigPath() || "unknown";
-  const cfg = configPath !== "unknown" ? readOpenClawConfig(configPath) : {};
+  const configPath = findConfigPath() || 'unknown';
+  const cfg = configPath !== 'unknown' ? readOpenClawConfig(configPath) : {};
 
   const plugins = cfg.plugins || {};
   const slots = plugins.slots || {};
   const entries = plugins.entries || {};
   const allow = plugins.allow || [];
 
-  const memorySlotOwner = slots.memory || "default";
-  const contextEngineSlotOwner = slots.contextEngine || "default";
+  const memorySlotOwner = slots.memory || 'default';
+  const contextEngineSlotOwner = slots.contextEngine || 'default';
 
-  const clawCoreEnabled = !!entries["claw-core"]?.enabled;
-  const yaoyaoEnabled = !!entries["yaoyao-memory"]?.enabled;
+  const clawCoreEnabled = !!entries['claw-core']?.enabled;
+  const yaoyaoEnabled = !!entries['yaoyao-memory']?.enabled;
 
   // memory-core is enabled by default (it's a bundled plugin)
   // It's active if: (1) allowlist includes it, (2) no denylist blocks it, (3) slot not set to "none"
-  const memoryCoreEnabled = allow.includes("memory-core") || !plugins.allow;
+  const memoryCoreEnabled = allow.includes('memory-core') || !plugins.allow;
 
   // Competing memory plugin detection:
   // If memory slot is owned by someone other than "default" (memory-core) or "none",
   // and that plugin is enabled, then yaoyao has competition.
-  const competingPlugins = ["claw-core", "memory-lancedb"];
+  const competingPlugins = ['claw-core', 'memory-lancedb'];
   const hasCompetingMemoryPlugin =
-    memorySlotOwner !== "default" &&
-    memorySlotOwner !== "none" &&
+    memorySlotOwner !== 'default' &&
+    memorySlotOwner !== 'none' &&
     competingPlugins.includes(memorySlotOwner) &&
     !!entries[memorySlotOwner]?.enabled;
 
   // XiaoYi Claw system detection:
   // Either claw-core is explicitly enabled, OR memory slot is assigned to claw-core
-  const isXiaoYiClaw = clawCoreEnabled || memorySlotOwner === "claw-core";
+  const isXiaoYiClaw = clawCoreEnabled || memorySlotOwner === 'claw-core';
 
-  const version = ((cfg as Record<string, unknown>).meta as Record<string, unknown>)?.lastTouchedVersion as string || "unknown";
+  const version =
+    (((cfg as Record<string, unknown>).meta as Record<string, unknown>)
+      ?.lastTouchedVersion as string) || 'unknown';
 
   _systemState = {
     isXiaoYiClaw,
@@ -147,5 +149,5 @@ export function getSystemArchitecture(): SystemArchitectureState | null {
   return _systemState;
 }
 
-import { getRecommendedStrategy, type StrategyRecommendation } from "./system-strategy.ts";
-export { getRecommendedStrategy, type StrategyRecommendation } from "./system-strategy.ts";
+import { getRecommendedStrategy, type StrategyRecommendation } from './system-strategy.ts';
+export { getRecommendedStrategy, type StrategyRecommendation } from './system-strategy.ts';

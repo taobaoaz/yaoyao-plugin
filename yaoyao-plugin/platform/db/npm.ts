@@ -7,17 +7,19 @@
  *   - Returns null on failure so compat.ts can cascade to next backend
  */
 
-import { createRequire } from "node:module";
-import type { UnifiedDB, UnifiedStatement } from "./types.ts";
+import { createRequire } from 'node:module';
+import type { UnifiedDB, UnifiedStatement } from './types.ts';
 
 export function createNpmDB(dbPath: string): UnifiedDB | null {
   try {
     const _require = createRequire(import.meta.url);
-    const Database = _require("better-sqlite3");
+    const Database = _require('better-sqlite3');
     const rawDb = new Database(dbPath);
 
     return {
-      exec(sql: string) { rawDb.exec(sql); },
+      exec(sql: string) {
+        rawDb.exec(sql);
+      },
       prepare(sql: string): UnifiedStatement {
         const stmt = rawDb.prepare(sql);
         return {
@@ -25,11 +27,17 @@ export function createNpmDB(dbPath: string): UnifiedDB | null {
             const info = stmt.run(...args);
             return { lastInsertRowid: info?.lastInsertRowid, changes: info?.changes };
           },
-          all(...args: unknown[]) { return stmt.all(...args); },
-          get(...args: unknown[]) { return stmt.get(...args); },
+          all(...args: unknown[]) {
+            return stmt.all(...args);
+          },
+          get(...args: unknown[]) {
+            return stmt.get(...args);
+          },
         };
       },
-      close() { rawDb.close(); },
+      close() {
+        rawDb.close();
+      },
       // better-sqlite3 extension loading differs; leave undefined
       _raw: rawDb,
     };
@@ -43,7 +51,7 @@ export function createNpmDB(dbPath: string): UnifiedDB | null {
 export function isNpmAvailable(): boolean {
   try {
     const _require = createRequire(import.meta.url);
-    _require("better-sqlite3");
+    _require('better-sqlite3');
     return true;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -31,14 +31,14 @@ export async function fetchWithRetry(url, init, retries, backoffBaseMs, defaultT
                 throw err;
             if (isNonRetryError(err))
                 throw err;
-            if ((err instanceof Error && (err.name === "AbortError" || err.message.startsWith("HTTP 5"))) ||
+            if ((err instanceof Error && (err.name === 'AbortError' || err.message.startsWith('HTTP 5'))) ||
                 isTransientUpstreamError(err) ||
-                String(err).startsWith("HTTP 5")) {
+                String(err).startsWith('HTTP 5')) {
                 await new Promise((r) => setTimeout(r, backoffBaseMs * (attempt + 1)));
                 continue;
             }
             throw err;
         }
     }
-    throw new Error("Unreachable");
+    throw new Error('Unreachable');
 }

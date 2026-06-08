@@ -1,10 +1,10 @@
 import { createEmbeddingService, detectEmbedModel } from "../../utils/embedding.js";
 import { maskSensitive } from "../../utils/mask-config.js";
 export const embeddingFeature = {
-    id: "embedding",
-    name: "Embedding Service",
+    id: 'embedding',
+    name: 'Embedding Service',
     dependencies: [],
-    configKey: "embedding.enabled",
+    configKey: 'embedding.enabled',
     defaultEnabled: false,
     init(api, config) {
         const embedCfg = config.embedding;
@@ -13,7 +13,7 @@ export const embeddingFeature = {
             return {
                 active: false,
                 service: null,
-                message: "Embedding service disabled (embedding.enabled=false)",
+                message: 'Embedding service disabled (embedding.enabled=false)',
             };
         }
         // ── Explicitly enabled with full config ──
@@ -21,7 +21,7 @@ export const embeddingFeature = {
             return initEmbeddingService(api, embedCfg);
         }
         // ── Auto-detect: not explicitly configured, scan environment ──
-        const { scanEmbeddingSources } = require("../../utils/env-scan.ts");
+        const { scanEmbeddingSources } = require('../../utils/env-scan.ts');
         const sources = scanEmbeddingSources();
         const firstAuth = sources.find((s) => s.hasAuth);
         if (firstAuth) {
@@ -37,16 +37,18 @@ export const embeddingFeature = {
         return {
             active: false,
             service: null,
-            message: "Embedding service disabled (set embedding.enabled=true + apiKey, or set env var OPENAI_API_KEY / DEEPSEEK_API_KEY / KIMI_API_KEY to auto-detect)",
+            message: 'Embedding service disabled (set embedding.enabled=true + apiKey, or set env var OPENAI_API_KEY / DEEPSEEK_API_KEY / KIMI_API_KEY to auto-detect)',
         };
     },
 };
 function initEmbeddingService(api, embedCfg) {
-    const provider = String(embedCfg.provider || "openai").toLowerCase().trim();
+    const provider = String(embedCfg.provider || 'openai')
+        .toLowerCase()
+        .trim();
     const customMap = (embedCfg.providerModels || {});
     const service = createEmbeddingService({
         apiKey: embedCfg.apiKey,
-        baseUrl: embedCfg.baseUrl || "",
+        baseUrl: embedCfg.baseUrl || '',
         model: embedCfg.model || detectEmbedModel(provider, customMap),
         dimensions: embedCfg.dimensions ?? 1024,
         timeoutMs: Number(embedCfg.timeoutMs) || 15_000,

@@ -8,10 +8,23 @@
  *   formatter.ts    → output formatting
  */
 export type {
-  ConflictRelation, ConflictCandidate, ConflictSignals,
-  ConflictRelationRecord, DetectConflictOptions,
-} from "./types.ts";
-export { CONTRADICTION_MARKERS, PREFERENCE_MARKERS, DECISION_MARKERS, DETECT_DEFAULTS } from "./types.ts";
-export { detectConflicts } from "./detection.ts";
-export { suggestRelation, canAutoResolve, serializeRelationRecord, parseRelationRecord } from "./relation.ts";
-export { formatConflictCandidates } from "./formatter.ts";
+  ConflictRelation,
+  ConflictCandidate,
+  ConflictSignals,
+  ConflictRelationRecord,
+  DetectConflictOptions,
+} from './types.ts';
+export {
+  CONTRADICTION_MARKERS,
+  PREFERENCE_MARKERS,
+  DECISION_MARKERS,
+  DETECT_DEFAULTS,
+} from './types.ts';
+export { detectConflicts } from './detection.ts';
+export {
+  suggestRelation,
+  canAutoResolve,
+  serializeRelationRecord,
+  parseRelationRecord,
+} from './relation.ts';
+export { formatConflictCandidates } from './formatter.ts';

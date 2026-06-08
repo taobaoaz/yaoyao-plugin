@@ -46,7 +46,12 @@
     "test:sentiment": "node --experimental-strip-types --test __tests__/sentiment.test.ts",
     "test:store": "node --experimental-strip-types --test __tests__/memory-store.test.ts",
     "test:core": "node --test __tests__/remind-cron.test.ts __tests__/trends-core.test.ts __tests__/quality-core.test.ts __tests__/recommend-core.test.ts __tests__/retain-core.test.ts",
-    "benchmark": "node --experimental-strip-types --test __tests__/benchmark.ts"
+    "benchmark": "node --experimental-strip-types --test __tests__/benchmark.ts",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run build && npm test"
   },
   "openclaw": {
     "extensions": [
@@ -68,8 +73,14 @@
     "hnswlib-node": "^3.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.4.1",
     "@types/node": "^25.8.0",
-    "typescript": "^6.0.3"
+    "eslint": "^10.4.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.48.0"
   },
   "openclawSecurity": {
     "disclosure": "SECURITY.md",

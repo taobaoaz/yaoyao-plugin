@@ -37,18 +37,20 @@ export function createFlushHandler(persist, writeQueue, clawBridge, forwardCaptu
                 date: item.date,
                 timestamp: item.timestamp,
                 meta: item.meta,
-                source: "yaoyao-proxy",
+                source: 'yaoyao-proxy',
             }));
-            clawBridge.call("store_batch", { items }).catch((err) => {
+            clawBridge.call('store_batch', { items }).catch((err) => {
                 const msg = err instanceof Error ? err.message : String(err);
                 api.logger.debug?.(`[yaoyao-memory:flush] claw-core forward failed: ${msg}`);
                 // Fallback: write locally
-                persist.flushBatch(items.map((i) => ({
+                persist
+                    .flushBatch(items.map((i) => ({
                     userContent: i.userContent,
                     asstContent: i.asstContent,
                     date: i.date,
                     meta: i.meta,
-                }))).catch(() => { });
+                })))
+                    .catch(() => { });
             });
             return;
         }

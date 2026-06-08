@@ -10,29 +10,29 @@
  * Previously utils/db-bridge.ts was a 629-line monolith.
  * Now each engine lives in its own <200-line file.
  */
-import path from "node:path";
-import fs from "node:fs";
-import os from "node:os";
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 import { getProp } from "../utils/config.js";
 import { clampNum } from "../utils/clamp.js";
 import { createCompatDB } from "../platform/db/compat.js";
 import { ensureSchema } from "./schema.js";
-import { createFtsEngine, createVectorStore, createHybridSearch } from "./engine-barrel.js";
+import { createFtsEngine, createVectorStore, createHybridSearch, } from "./engine-barrel.js";
 import * as hybridHelpers from "./hybrid-helpers.js";
 import { setupWAL, setLoggerRef } from "./wal-setup.js";
 import { createQueryApi } from "./query-api.js";
 export { createCompatDB } from "../platform/db/compat.js";
 export function createStorage(config, logger) {
-    const baseDir = path.resolve(config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory"));
-    if (/[\x00-\x1f]/.test(baseDir))
-        throw new TypeError("memoryDir contains invalid control characters");
+    const baseDir = path.resolve(config.memoryDir || path.join(os.homedir(), '.openclaw', 'workspace', 'memory'));
+    if ([...baseDir].some(c => c.codePointAt(0) < 0x20))
+        throw new TypeError('memoryDir contains invalid control characters');
     setLoggerRef(logger);
-    const dbPath = path.join(baseDir, ".yaoyao.db");
+    const dbPath = path.join(baseDir, '.yaoyao.db');
     const log = (msg) => logger?.debug?.(`[yaoyao:storage] ${msg}`);
     // Config
-    const snippetMaxLen = clampNum(getProp(config, "snippetMaxLen", 500), 500, 100, 5000);
-    const searchMaxLimit = clampNum(getProp(config, "searchMaxLimit", 100), 100, 10, 1000);
-    const likeFallbackScore = clampNum(getProp(config, "likeFallbackScore", 0.5), 0.5, 0.1, 1);
+    const snippetMaxLen = clampNum(getProp(config, 'snippetMaxLen', 500), 500, 100, 5000);
+    const searchMaxLimit = clampNum(getProp(config, 'searchMaxLimit', 100), 100, 10, 1000);
+    const likeFallbackScore = clampNum(getProp(config, 'likeFallbackScore', 0.5), 0.5, 0.1, 1);
     // State
     let db = null;
     let initFailed = false;
@@ -47,7 +47,7 @@ export function createStorage(config, logger) {
         if (!db && !initFailed)
             init();
         if (!db)
-            throw new Error("Database failed to initialize");
+            throw new Error('Database failed to initialize');
         return db;
     }
     /** Initialize database — create tables, engines */
@@ -61,7 +61,7 @@ export function createStorage(config, logger) {
             // WAL passive checkpoint timer
             walCheckTimer = setInterval(() => {
                 try {
-                    db?.exec("PRAGMA wal_checkpoint(PASSIVE)");
+                    db?.exec('PRAGMA wal_checkpoint(PASSIVE)');
                 }
                 catch (e) {
                     const msg = e instanceof Error ? e.message : String(e);
@@ -135,7 +135,7 @@ export function createStorage(config, logger) {
         },
         getLocalDate(tz) {
             try {
-                return new Date().toLocaleDateString("sv-SE", { timeZone: tz || "Asia/Shanghai" });
+                return new Date().toLocaleDateString('sv-SE', { timeZone: tz || 'Asia/Shanghai' });
             }
             catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);

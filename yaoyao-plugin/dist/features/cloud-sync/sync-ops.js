@@ -3,18 +3,22 @@
  *
  * Pure sync operations, no tool registration.
  */
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 import { remotePath, markSynced } from "./state.js";
 export async function doUpload(adapter, store, options, sinceMs) {
     const result = {
-        provider: adapter.provider, action: "upload",
-        uploaded: [], downloaded: [], skipped: [], errors: [],
+        provider: adapter.provider,
+        action: 'upload',
+        uploaded: [],
+        downloaded: [],
+        skipped: [],
+        errors: [],
     };
     const files = store.listFiles();
     for (const file of files) {
         try {
-            if (file.filename.endsWith(".sync-source") || file.filename === ".cloud-sync-state.json")
+            if (file.filename.endsWith('.sync-source') || file.filename === '.cloud-sync-state.json')
                 continue;
             if (sinceMs && file.modified < sinceMs) {
                 result.skipped.push(file.filename);
@@ -40,21 +44,21 @@ export async function doUpload(adapter, store, options, sinceMs) {
     }
     // MEMORY.md in workspace root (parent of memoryDir)
     const workspaceDir = path.dirname(store.baseDir);
-    const memoryMd = path.join(workspaceDir, "MEMORY.md");
+    const memoryMd = path.join(workspaceDir, 'MEMORY.md');
     if (fs.existsSync(memoryMd)) {
         try {
             const stat = fs.statSync(memoryMd);
             if (!sinceMs || stat.mtimeMs > sinceMs) {
-                const rp = remotePath("MEMORY.md");
+                const rp = remotePath('MEMORY.md');
                 if (options.dryRun) {
-                    result.uploaded.push("MEMORY.md (dry-run)");
+                    result.uploaded.push('MEMORY.md (dry-run)');
                 }
                 else {
                     const ok = await adapter.upload(memoryMd, rp);
                     if (ok)
-                        result.uploaded.push("MEMORY.md");
+                        result.uploaded.push('MEMORY.md');
                     else
-                        result.errors.push("MEMORY.md");
+                        result.errors.push('MEMORY.md');
                 }
             }
         }
@@ -66,16 +70,23 @@ export async function doUpload(adapter, store, options, sinceMs) {
 }
 export async function doDownload(adapter, store, options) {
     const result = {
-        provider: adapter.provider, action: "download",
-        uploaded: [], downloaded: [], skipped: [], errors: [],
+        provider: adapter.provider,
+        action: 'download',
+        uploaded: [],
+        downloaded: [],
+        skipped: [],
+        errors: [],
     };
     try {
-        const remoteFiles = await adapter.list(remotePath(""));
+        const remoteFiles = await adapter.list(remotePath(''));
         for (const remote of remoteFiles) {
             try {
-                if (remote.name.endsWith(".sync-source") || remote.name === ".cloud-sync-state.json")
+                if (remote.name.endsWith('.sync-source') || remote.name === '.cloud-sync-state.json')
                     continue;
-                const safeName = path.normalize(remote.name).replace(/^(\.\.(\/|\\|$))+/, "").replace(/^[\/\\]+/, "");
+                const safeName = path
+                    .normalize(remote.name)
+                    .replace(/^(\.\.(\/|\\|$))+/, '')
+                    .replace(/^[/\\]+/, '');
                 if (safeName !== remote.name || path.isAbsolute(remote.name)) {
                     result.errors.push(`${remote.name}: 非法文件名（路径遍历嫌疑），已跳过`);
                     continue;
@@ -84,7 +95,7 @@ export async function doDownload(adapter, store, options) {
                 const exists = fs.existsSync(localPath);
                 if (exists) {
                     const localStat = fs.statSync(localPath);
-                    if (options.conflictPolicy === "keep_both") {
+                    if (options.conflictPolicy === 'keep_both') {
                         const newPath = path.join(store.baseDir, `${remote.name}.cloud-${Date.now()}`);
                         if (!options.dryRun) {
                             const ok = await adapter.download(remotePath(remote.name), newPath);
@@ -132,6 +143,6 @@ export async function doBidirectional(adapter, store, options) {
     result.downloaded = downResult.downloaded;
     result.skipped = downResult.skipped;
     result.errors.push(...downResult.errors);
-    result.action = "bidirectional";
+    result.action = 'bidirectional';
     return result;
 }

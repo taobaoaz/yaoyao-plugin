@@ -1,7 +1,7 @@
 /**
  * utils/chunker-split.ts — Split point finding for chunking.
  */
-import type { ChunkerConfig } from "./chunker.ts";
+import type { ChunkerConfig } from './chunker.ts';
 
 export const SENTENCE_ENDING = /[.!?。！？]/;
 
@@ -18,7 +18,7 @@ export function findSplitEnd(
   start: number,
   maxEnd: number,
   minEnd: number,
-  config: ChunkerConfig
+  config: ChunkerConfig,
 ): number {
   const safeMinEnd = clamp(minEnd, start + 1, maxEnd);
   const safeMaxEnd = clamp(maxEnd, safeMinEnd, text.length);
@@ -28,7 +28,7 @@ export function findSplitEnd(
     if (countLines(candidate) > config.maxLinesPerChunk) {
       let breaks = 0;
       for (let i = start; i < safeMaxEnd; i++) {
-        if (text[i] === "\n") {
+        if (text[i] === '\n') {
           breaks++;
           if (breaks >= config.maxLinesPerChunk) {
             return Math.max(i + 1, safeMinEnd);
@@ -48,7 +48,7 @@ export function findSplitEnd(
     }
 
     for (let i = safeMaxEnd - 1; i >= safeMinEnd; i--) {
-      if (text[i] === "\n") return i + 1;
+      if (text[i] === '\n') return i + 1;
     }
   }
 

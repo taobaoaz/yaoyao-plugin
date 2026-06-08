@@ -4,12 +4,12 @@
  * Sanitization, line classification, and deduplication helpers.
  * Zero external dependencies.
  */
-import crypto from "node:crypto";
+import crypto from 'node:crypto';
 export const MIN_ENTRY_LENGTH = 15;
 export const MAX_ENTRY_LENGTH = 2000;
 // ── Deduplication ────────────────────────────────────────────────────────────
 function hashText(text) {
-    return crypto.createHash("sha256").update(text).digest("hex").slice(0, 16);
+    return crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
 }
 /** Deduplicate entries by text hash, keeping highest priority. */
 export function dedupeEntries(entries) {
@@ -26,21 +26,21 @@ export function dedupeEntries(entries) {
 // ── Markdown Sanitization ────────────────────────────────────────────────────
 export function stripMarkdown(text) {
     return text
-        .replace(/```[\s\S]*?```/g, "") // code blocks
-        .replace(/`([^`]+)`/g, "$1") // inline code
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // links
-        .replace(/\*\*([^*]+)\*\*/g, "$1") // bold
-        .replace(/\b_([^_]+)_\b/g, "$1") // italic (word boundaries)
-        .replace(/\*([^*]+)\*/g, "$1") // italic
-        .replace(/#{1,6}\s*/gm, "") // headers
-        .replace(/^>\s*/gm, "") // blockquotes
-        .replace(/\|\s*[-:]+\s*\|/g, "") // table separators
-        .replace(/\|/g, " ") // table cells
+        .replace(/```[\s\S]*?```/g, '') // code blocks
+        .replace(/`([^`]+)`/g, '$1') // inline code
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links
+        .replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+        .replace(/\b_([^_]+)_\b/g, '$1') // italic (word boundaries)
+        .replace(/\*([^*]+)\*/g, '$1') // italic
+        .replace(/#{1,6}\s*/gm, '') // headers
+        .replace(/^>\s*/gm, '') // blockquotes
+        .replace(/\|\s*[-:]+\s*\|/g, '') // table separators
+        .replace(/\|/g, ' ') // table cells
         .trim();
 }
 // ── Line Helpers ─────────────────────────────────────────────────────────────
 export function isSkippableLine(trimmed) {
-    return trimmed === "" || trimmed.startsWith("<!--") || trimmed === "---";
+    return trimmed === '' || trimmed.startsWith('<!--') || trimmed === '---';
 }
 export function isHeader(trimmed) {
     return /^#{1,6}\s+/.test(trimmed);

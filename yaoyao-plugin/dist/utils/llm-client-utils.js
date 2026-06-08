@@ -2,17 +2,17 @@
  * utils/llm-client-utils.ts — LLM client utilities.
  */
 export const DEFAULT_PROVIDER_MODELS = {
-    gitee: "Qwen3-8B",
-    deepseek: "deepseek-chat",
-    openai: "gpt-4o-mini",
-    siliconflow: "Qwen/Qwen2.5-7B-Instruct",
-    azure: "gpt-4o-mini",
-    anthropic: "claude-3-5-sonnet-20241022",
-    google: "gemini-1.5-flash",
-    ollama: "llama3.1",
-    groq: "llama-3.1-70b-versatile",
-    mistral: "mistral-small-latest",
-    fireworks: "accounts/fireworks/models/llama-v3p1-70b-instruct",
+    gitee: 'Qwen3-8B',
+    deepseek: 'deepseek-chat',
+    openai: 'gpt-4o-mini',
+    siliconflow: 'Qwen/Qwen2.5-7B-Instruct',
+    azure: 'gpt-4o-mini',
+    anthropic: 'claude-3-5-sonnet-20241022',
+    google: 'gemini-1.5-flash',
+    ollama: 'llama3.1',
+    groq: 'llama-3.1-70b-versatile',
+    mistral: 'mistral-small-latest',
+    fireworks: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
 };
 /** Auto-detect LLM model name based on provider base URL. */
 export function detectModel(baseUrl, customMap) {
@@ -27,18 +27,26 @@ export function detectModel(baseUrl, customMap) {
         if (url.includes(provider.toLowerCase()))
             return model;
     }
-    return "";
+    return '';
 }
 /** SSRF protection: block internal / link-local / private IP ranges */
 const FORBIDDEN_HOSTS = [
-    "localhost", "127.0.0.1", "0.0.0.0", "::1",
-    "169.254", "192.168", "10.", "172.", "fc00", "fe80",
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '::1',
+    '169.254',
+    '192.168',
+    '10.',
+    '172.',
+    'fc00',
+    'fe80',
 ];
 export function isForbiddenHost(urlStr) {
     try {
         const url = new URL(urlStr);
         const host = url.hostname.toLowerCase();
-        return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h));
+        return FORBIDDEN_HOSTS.some((h) => host === h || host.startsWith(h));
     }
     catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

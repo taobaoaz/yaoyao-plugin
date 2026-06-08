@@ -23,7 +23,7 @@ export interface RetrievalTrace {
   /** The original search query */
   query: string;
   /** Retrieval mode used */
-  mode: "hybrid" | "fts" | "intent-driven";
+  mode: 'hybrid' | 'fts' | 'intent-driven';
   /** Timestamp when retrieval started */
   startedAt: number;
   /** Per-stage results in pipeline order */
@@ -115,7 +115,7 @@ export class TraceCollector {
     const lastStage = this._stages[this._stages.length - 1];
     return {
       query,
-      mode: mode as "hybrid" | "fts",
+      mode: mode as 'hybrid' | 'fts',
       startedAt: this._startTime,
       stages: this._stages,
       finalCount: lastStage ? lastStage.outputCount : 0,
@@ -133,24 +133,22 @@ export class TraceCollector {
       const dropped = stage.inputCount - stage.outputCount;
       const scoreStr = stage.scoreRange
         ? ` scores=[${stage.scoreRange[0].toFixed(3)}, ${stage.scoreRange[1].toFixed(3)}]`
-        : "";
+        : '';
       lines.push(
         `  ${stage.name}: ${stage.inputCount} -> ${stage.outputCount} (-${dropped}) ${stage.durationMs}ms${scoreStr}`,
       );
       if (stage.droppedIds.length > 0 && stage.droppedIds.length <= 5) {
-        lines.push(`    dropped: ${stage.droppedIds.join(", ")}`);
+        lines.push(`    dropped: ${stage.droppedIds.join(', ')}`);
       } else if (stage.droppedIds.length > 5) {
         lines.push(
-          `    dropped: ${stage.droppedIds.slice(0, 5).join(", ")} (+${stage.droppedIds.length - 5} more)`,
+          `    dropped: ${stage.droppedIds.slice(0, 5).join(', ')} (+${stage.droppedIds.length - 5} more)`,
         );
       }
     }
     const lastStage = this._stages[this._stages.length - 1];
     const totalMs = Date.now() - this._startTime;
-    lines.push(
-      `  total: ${totalMs}ms, final count: ${lastStage ? lastStage.outputCount : 0}`,
-    );
-    return lines.join("\n");
+    lines.push(`  total: ${totalMs}ms, final count: ${lastStage ? lastStage.outputCount : 0}`);
+    return lines.join('\n');
   }
 
   /** Access collected stages (read-only). */

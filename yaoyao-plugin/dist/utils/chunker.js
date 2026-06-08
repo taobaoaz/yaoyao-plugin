@@ -36,9 +36,9 @@ export function smartChunk(text, targetLimit = 8192) {
     const cjkHeavy = getCjkRatio(text) > CJK_RATIO_THRESHOLD;
     const divisor = cjkHeavy ? CJK_CHAR_TOKEN_DIVISOR : 1;
     const config = {
-        maxChunkSize: Math.max(200, Math.floor(targetLimit * 0.7 / divisor)),
-        overlapSize: Math.max(0, Math.floor(targetLimit * 0.05 / divisor)),
-        minChunkSize: Math.max(100, Math.floor(targetLimit * 0.1 / divisor)),
+        maxChunkSize: Math.max(200, Math.floor((targetLimit * 0.7) / divisor)),
+        overlapSize: Math.max(0, Math.floor((targetLimit * 0.05) / divisor)),
+        minChunkSize: Math.max(100, Math.floor((targetLimit * 0.1) / divisor)),
         semanticSplit: true,
         maxLinesPerChunk: 50,
     };

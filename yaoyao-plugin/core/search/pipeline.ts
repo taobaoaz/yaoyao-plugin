@@ -12,22 +12,19 @@
  * Tool layers only need to call pipeline.search() and select strategy.
  * No direct SQL access required outside the storage layer.
  */
-import type { Storage, SearchResult, EmbeddedSearchResult } from "../../storage/bridge.ts";
-import type { EmbeddingService } from "../../utils/embedding.ts";
-import { multiSignalFusion } from "./multi-signal.ts";
-import { classifyIntent, INTENT_WEIGHTS, type IntentWeights, type QueryIntent } from "./intent.ts";
-import type { SearchStrategy, SearchPipelineOptions } from "./pipeline-types.ts";
-import { applyIntentWeights, dedupSearchResults } from "./pipeline-scoring.ts";
+import type { Storage, SearchResult, EmbeddedSearchResult } from '../../storage/bridge.ts';
+import type { EmbeddingService } from '../../utils/embedding.ts';
+import { multiSignalFusion } from './multi-signal.ts';
+import { classifyIntent, INTENT_WEIGHTS, type IntentWeights, type QueryIntent } from './intent.ts';
+import type { SearchStrategy, SearchPipelineOptions } from './pipeline-types.ts';
+import { applyIntentWeights, dedupSearchResults } from './pipeline-scoring.ts';
 
-export type { SearchStrategy, SearchPipelineOptions } from "./pipeline-types.ts";
+export type { SearchStrategy, SearchPipelineOptions } from './pipeline-types.ts';
 
 /**
  * Unified search pipeline with intent-aware scoring.
  */
-export function createSearchPipeline(
-  storage: Storage,
-  embedding?: EmbeddingService | null,
-) {
+export function createSearchPipeline(storage: Storage, embedding?: EmbeddingService | null) {
   const hasEmbedding = !!embedding;
 
   return {
@@ -35,27 +32,27 @@ export function createSearchPipeline(
       query: string,
       options: SearchPipelineOptions = {},
     ): Promise<(SearchResult | EmbeddedSearchResult)[]> {
-      const strategy = options.strategy ?? "rrf";
+      const strategy = options.strategy ?? 'rrf';
       const limit = options.limit ?? 10;
       const overfetchLimit = limit * 2;
 
       switch (strategy) {
-        case "fts":
+        case 'fts':
           return storage.search(query, limit);
 
-        case "hybrid": {
+        case 'hybrid': {
           if (!hasEmbedding || !embedding) return storage.search(query, limit);
           const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
           return storage.hybridSearch(query, queryVec, limit);
         }
 
-        case "rrf": {
+        case 'rrf': {
           if (!hasEmbedding || !embedding) return storage.search(query, limit);
           const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
           return storage.rrfHybridSearch(query, queryVec, limit, options.rrfK ?? 60);
         }
 
-        case "intent-driven": {
+        case 'intent-driven': {
           const intent = classifyIntent(query);
           const weights: IntentWeights = options.intentWeights
             ? { ...INTENT_WEIGHTS[intent], ...options.intentWeights }
@@ -64,26 +61,31 @@ export function createSearchPipeline(
           let results: (SearchResult | EmbeddedSearchResult)[];
           if (hasEmbedding && embedding) {
             const queryVec = await embedding.embed(query, embedding.recallTimeoutMs);
-            results = await storage.rrfHybridSearch(query, queryVec, overfetchLimit, options.rrfK ?? 60);
+            results = await storage.rrfHybridSearch(
+              query,
+              queryVec,
+              overfetchLimit,
+              options.rrfK ?? 60,
+            );
           } else {
             results = storage.search(query, overfetchLimit);
           }
 
-          const scored = results.map(r => ({
+          const scored = results.map((r) => ({
             result: r,
             ...applyIntentWeights(r, weights),
           }));
 
           scored.sort((a, b) => b.compositeScore - a.compositeScore);
-          return scored.slice(0, limit).map(s => ({
+          return scored.slice(0, limit).map((s) => ({
             ...s.result,
             score: s.compositeScore,
           }));
         }
 
-        case "multi-signal": {
+        case 'multi-signal': {
           const ftsResults = storage.search(query, overfetchLimit);
-          let vecResults: ReturnType<Storage["vectorSearch"]> = [];
+          let vecResults: ReturnType<Storage['vectorSearch']> = [];
           if (hasEmbedding && embedding) {
             try {
               const qv = await embedding.embed(query, embedding.recallTimeoutMs);
@@ -94,9 +96,9 @@ export function createSearchPipeline(
             }
           }
 
-          const dummyVec = vecResults.map(r => ({
+          const dummyVec = vecResults.map((r) => ({
             ...r,
-            asst_text: "",
+            asst_text: '',
             timestamp: undefined as number | undefined,
             importance: undefined as number | undefined,
             scope: undefined as string | undefined,
@@ -106,7 +108,7 @@ export function createSearchPipeline(
           const entityBoostEnabled = options.entityBoost !== false;
           const signalConfig = {
             temporalHalfLifeDays: options.temporalDecayDays ?? 30,
-            entityBoostMax: entityBoostEnabled ? 0.30 : 0,
+            entityBoostMax: entityBoostEnabled ? 0.3 : 0,
           };
 
           const fused = multiSignalFusion(query, ftsResults, dummyVec, allResults, signalConfig);
@@ -135,5 +137,5 @@ export function createSearchPipeline(
 
 export type SearchPipeline = ReturnType<typeof createSearchPipeline>;
 
-export { INTENT_WEIGHTS } from "./intent.ts";
-export { classifyIntent } from "./intent.ts";
+export { INTENT_WEIGHTS } from './intent.ts';
+export { classifyIntent } from './intent.ts';

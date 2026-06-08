@@ -12,7 +12,7 @@
  * 3. After debounceMs of silence (or maxDelayMs), the request is flushed
  */
 
-import { clampNum } from "./clamp.ts";
+import { clampNum } from './clamp.ts';
 
 export interface DebouncedCapture {
   sessionKey: string;
@@ -81,8 +81,14 @@ export function createCaptureDebouncer(
 
   /** Actually flush pending items */
   function doFlush() {
-    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-    if (forceTimer) { clearTimeout(forceTimer); forceTimer = null; }
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    if (forceTimer) {
+      clearTimeout(forceTimer);
+      forceTimer = null;
+    }
 
     if (pending.size === 0) return;
 
@@ -93,7 +99,9 @@ export function createCaptureDebouncer(
     try {
       flushHandler(batch);
     } catch (err) {
-      console.error?.(`[capture-debouncer] Flush error: ${err instanceof Error ? err.message : String(err)}`);
+      console.error?.(
+        `[capture-debouncer] Flush error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -122,7 +130,7 @@ export function createCaptureDebouncer(
         existing.meta = item.meta;
         existing.entry = item.entry ?? existing.entry;
         existing._lastAt = Date.now();
-        existing.mergedCount++;
+        existing.mergedCount = (existing.mergedCount ?? 0) + 1;
         mergedCount++;
       } else {
         pending.set(item.sessionKey, {
@@ -153,12 +161,20 @@ export function createCaptureDebouncer(
     /** Drain & stop all timers */
     destroy(): void {
       doFlush();
-      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-      if (forceTimer) { clearTimeout(forceTimer); forceTimer = null; }
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      if (forceTimer) {
+        clearTimeout(forceTimer);
+        forceTimer = null;
+      }
     },
 
     /** Current queue depth */
-    get size(): number { return pending.size; },
+    get size(): number {
+      return pending.size;
+    },
 
     /** Statistics for monitoring */
     stats(): { flushedCount: number; mergedCount: number; queueSize: number } {

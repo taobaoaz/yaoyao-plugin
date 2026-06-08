@@ -5,12 +5,12 @@
  * applying intent-aware re-ranking and time-range filtering.
  */
 
-import type { MemoryCall } from "../../utils/memory-call.ts";
-import type { Storage } from "../../storage/bridge.ts";
-import type { SearchResult, EmbeddedSearchResult } from "../../storage/types.ts";
-import type { EmbeddingService } from "../../utils/embedding.ts";
-import { buildSearchQuery, buildDateFilter } from "../../utils/memory-call.ts";
-import { INTENT_WEIGHTS } from "./intent.ts";
+import type { MemoryCall } from '../../utils/memory-call.ts';
+import type { Storage } from '../../storage/bridge.ts';
+import type { SearchResult, EmbeddedSearchResult } from '../../storage/types.ts';
+import type { EmbeddingService } from '../../utils/embedding.ts';
+import { buildSearchQuery, buildDateFilter } from '../../utils/memory-call.ts';
+import { INTENT_WEIGHTS } from './intent.ts';
 
 export interface MemoryCallSearchOptions {
   storage: Storage;
@@ -26,7 +26,7 @@ export async function executeMemoryCall(
   call: MemoryCall,
   opts: MemoryCallSearchOptions,
 ): Promise<SearchResult[]> {
-  const { storage, embedding, tz = "Asia/Shanghai" } = opts;
+  const { storage, embedding, tz = 'Asia/Shanghai' } = opts;
 
   // Build search string from structured call
   const query = buildSearchQuery(call);
@@ -36,7 +36,7 @@ export async function executeMemoryCall(
   const minScore = call.minScore ?? 0.3;
 
   // ── Search: hybrid (FTS + vector) ──
-  let results: SearchResult[] = [];
+  let results: SearchResult[];
 
   if (embedding?.isAvailable) {
     try {
@@ -48,7 +48,9 @@ export async function executeMemoryCall(
       }));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:memory-call] Vector search failed, falling back to FTS5: ${msg}`);
+      console.warn(
+        `[yaoyao-memory:memory-call] Vector search failed, falling back to FTS5: ${msg}`,
+      );
       results = storage.search(query, maxResults * 2);
     }
   } else {
@@ -63,25 +65,26 @@ export async function executeMemoryCall(
     results = results.filter((r) => {
       if (!r.date) return true;
       // Simple date range check: parse date filter clause
-      if (call.timeRange?.relative === "today") {
-        const today = new Date().toLocaleDateString("sv-SE", { timeZone: tz });
+      if (call.timeRange?.relative === 'today') {
+        const today = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
         return r.date === today;
       }
-      if (call.timeRange?.relative === "yesterday") {
+      if (call.timeRange?.relative === 'yesterday') {
         const y = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        return r.date === y.toLocaleDateString("sv-SE", { timeZone: tz });
+        return r.date === y.toLocaleDateString('sv-SE', { timeZone: tz });
       }
-      if (call.timeRange?.relative === "recent") {
+      if (call.timeRange?.relative === 'recent') {
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        return r.date >= weekAgo.toLocaleDateString("sv-SE", { timeZone: tz });
+        return r.date >= weekAgo.toLocaleDateString('sv-SE', { timeZone: tz });
       }
       return true;
     });
   }
 
   // ── Intent-aware re-ranking ──
-  if (call.intent && INTENT_WEIGHTS[call.intent]) {
-    const weights = INTENT_WEIGHTS[call.intent];
+  const intentKey = call.intent as keyof typeof INTENT_WEIGHTS;
+  if (call.intent && INTENT_WEIGHTS[intentKey]) {
+    const weights = INTENT_WEIGHTS[intentKey];
     for (const r of results) {
       const vecScore = (r as EmbeddedSearchResult).vectorScore ?? r.score;
       const ts = r.timestamp;

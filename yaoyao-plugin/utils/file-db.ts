@@ -4,10 +4,10 @@
  * Used when neither node:sqlite (Node 22+) nor better-sqlite3 is available.
  * Persists data as daily .md files + a lightweight JSON index.
  */
-import fs from "node:fs";
-import path from "node:path";
-import type { SQLiteRow } from "../platform/db/types.ts";
-import type { UnifiedDB, UnifiedStatement } from "./db-compat.ts";
+import fs from 'node:fs';
+import path from 'node:path';
+import type { SQLiteRow } from '../platform/db/types.ts';
+import type { UnifiedDB, UnifiedStatement } from './db-compat.ts';
 
 /**
  * FileDB — zero-dependency fallback that stores memory entries as
@@ -21,7 +21,7 @@ export class FileDB implements UnifiedDB {
 
   constructor(baseDir: string) {
     this.baseDir = baseDir;
-    this.indexPath = path.join(baseDir, ".yaoyao-index.json");
+    this.indexPath = path.join(baseDir, '.yaoyao-index.json');
     this.index = new Map();
     this._loadIndex();
   }
@@ -31,12 +31,12 @@ export class FileDB implements UnifiedDB {
       if (fs.existsSync(this.indexPath)) {
         let raw: Record<string, unknown>;
         try {
-          raw = JSON.parse(fs.readFileSync(this.indexPath, "utf-8"));
+          raw = JSON.parse(fs.readFileSync(this.indexPath, 'utf-8'));
         } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
-      raw = {};
-    }
+          const msg = e instanceof Error ? e.message : String(e);
+          console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
+          raw = {};
+        }
         for (const [k, v] of Object.entries(raw)) {
           this.index.set(k, v as string[]);
         }
@@ -51,7 +51,7 @@ export class FileDB implements UnifiedDB {
     try {
       const obj: Record<string, string[]> = {};
       for (const [k, v] of this.index) obj[k] = v;
-      fs.writeFileSync(this.indexPath, JSON.stringify(obj), "utf-8");
+      fs.writeFileSync(this.indexPath, JSON.stringify(obj), 'utf-8');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory]  best effort : ${msg}`);
@@ -65,7 +65,7 @@ export class FileDB implements UnifiedDB {
   prepare(sql: string): UnifiedStatement {
     const lowered = sql.toLowerCase().trim();
 
-    if (lowered.startsWith("insert into memory_meta")) {
+    if (lowered.startsWith('insert into memory_meta')) {
       return {
         run: (...args: unknown[]) => {
           const date = args[0] as string;
@@ -73,7 +73,7 @@ export class FileDB implements UnifiedDB {
           const asstText = args[2] as string;
           const dailyPath = path.join(this.baseDir, `${date}.md`);
           const entry = `\n### ${new Date().toISOString()}\n**User:** ${userText}\n**AI:** ${asstText}\n`;
-          fs.appendFileSync(dailyPath, entry, "utf-8");
+          fs.appendFileSync(dailyPath, entry, 'utf-8');
           const existing = this.index.get(date) || [];
           if (!existing.includes(dailyPath)) {
             existing.push(dailyPath);
@@ -87,7 +87,7 @@ export class FileDB implements UnifiedDB {
       };
     }
 
-    if (lowered.includes("from memory_fts") && lowered.includes("match")) {
+    if (lowered.includes('from memory_fts') && lowered.includes('match')) {
       return {
         run: () => ({ changes: 0 }),
         all: (...args: unknown[]) => this._search(args[0] as string, args[1] as number),
@@ -95,24 +95,26 @@ export class FileDB implements UnifiedDB {
       };
     }
 
-    if (lowered.includes("count(*)")) {
+    if (lowered.includes('count(*)')) {
       const count = this._countAll();
       return {
         run: () => ({ changes: 0 }),
         all: () => [{ c: count } as SQLiteRow],
-        get: () => ({ c: count } as SQLiteRow),
+        get: () => ({ c: count }) as SQLiteRow,
       };
     }
 
-    if (lowered.startsWith("delete from memory_meta")) {
+    if (lowered.startsWith('delete from memory_meta')) {
       return {
         run: (...args: unknown[]) => {
           const date = args[0] as string;
           const file = path.join(this.baseDir, `${date}.md`);
-          try { fs.unlinkSync(file); } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  : ${msg}`);
-    }
+          try {
+            fs.unlinkSync(file);
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory]  : ${msg}`);
+          }
           this.index.delete(date);
           this._saveIndex();
           return { changes: 1 };
@@ -122,11 +124,11 @@ export class FileDB implements UnifiedDB {
       };
     }
 
-    if (lowered.startsWith("pragma journal_mode")) {
+    if (lowered.startsWith('pragma journal_mode')) {
       return {
         run: () => ({ changes: 0 }),
-        all: () => [{ journal_mode: "delete" } as SQLiteRow],
-        get: () => ({ journal_mode: "delete" } as SQLiteRow),
+        all: () => [{ journal_mode: 'delete' } as SQLiteRow],
+        get: () => ({ journal_mode: 'delete' }) as SQLiteRow,
       };
     }
 
@@ -149,7 +151,11 @@ export class FileDB implements UnifiedDB {
   private _search(query: string, limit: number): SQLiteRow[] {
     const results: SQLiteRow[] = [];
     let files: string[];
-    try { files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/)); } catch (e: unknown) {
+    try {
+      files = fs
+        .readdirSync(this.baseDir)
+        .filter((f) => f.endsWith('.md') && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+    } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory:filedb] Read dir failed: ${msg}`);
       files = [];
@@ -158,15 +164,15 @@ export class FileDB implements UnifiedDB {
 
     for (const file of files) {
       const filePath = path.join(this.baseDir, file);
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = fs.readFileSync(filePath, 'utf-8');
       if (content.toLowerCase().includes(q)) {
-        const lines = content.split("\n");
-        const idx = lines.findIndex(l => l.toLowerCase().includes(q));
-        const snippet = idx >= 0 ? lines[idx].slice(0, 200) : "";
+        const lines = content.split('\n');
+        const idx = lines.findIndex((l) => l.toLowerCase().includes(q));
+        const snippet = idx >= 0 ? lines[idx].slice(0, 200) : '';
         results.push({
           id: results.length + 1,
           rowid: results.length + 1,
-          date: file.replace(".md", ""),
+          date: file.replace('.md', ''),
           snippet: snippet,
           rank: -results.length,
         });
@@ -178,7 +184,7 @@ export class FileDB implements UnifiedDB {
 
   private _countAll(): number {
     try {
-      return fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md")).length;
+      return fs.readdirSync(this.baseDir).filter((f) => f.endsWith('.md')).length;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);

@@ -2,21 +2,22 @@
  * features/timeline/tool.ts — memory_timeline tool (modular).
  */
 
-import { clampNum } from "../../utils/clamp.ts";
-import { withErrorHandling } from "../../tools/common.ts";
-import type { ToolRegistration } from "../../tools/common.ts";
-import type { DBBridge } from "../../utils/db-bridge.ts";
+import { clampNum } from '../../utils/clamp.ts';
+import { withErrorHandling } from '../../tools/common.ts';
+import type { ToolRegistration } from '../../tools/common.ts';
+import type { DBBridge } from '../../utils/db-bridge.ts';
 
 export function createTimelineTool(db: DBBridge): ToolRegistration {
   return {
-    id: "memory_timeline",
-    name: "memory_timeline",
-    label: "Memory Timeline",
-    description: "Show a timeline view of memory activity. Visualizes when conversations happened over time with heat-map-like density bars.",
+    id: 'memory_timeline',
+    name: 'memory_timeline',
+    label: 'Memory Timeline',
+    description:
+      'Show a timeline view of memory activity. Visualizes when conversations happened over time with heat-map-like density bars.',
     parameters: {
-      type: "object",
+      type: 'object',
       properties: {
-        days: { type: "number", description: "How many days back (default: 14)", default: 14 },
+        days: { type: 'number', description: 'How many days back (default: 14)', default: 14 },
       },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {
@@ -24,7 +25,7 @@ export function createTimelineTool(db: DBBridge): ToolRegistration {
       const stats = db.getStats();
       const dates = stats.datesSummary || [];
       const now = new Date();
-      const dateMap = new Map(dates.map(d => [d.date, d.count]));
+      const dateMap = new Map(dates.map((d) => [d.date, d.count]));
       const lines = [`📅 记忆时间线 (最近 ${days} 天)`, `───`];
 
       for (let i = days - 1; i >= 0; i--) {
@@ -39,7 +40,7 @@ export function createTimelineTool(db: DBBridge): ToolRegistration {
 
       const total = dates.reduce((sum, d) => sum + d.count, 0);
       lines.push(`───`, `📊 总计: ${total} 条记忆条目`);
-      return { content: [{ type: "text", text: lines.join("\n") }] };
+      return { content: [{ type: 'text', text: lines.join('\n') }] };
     }),
   };
 }

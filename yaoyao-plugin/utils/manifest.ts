@@ -4,8 +4,8 @@
  * 零外部依赖，纯 Node.js fs。
  */
 
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface ManifestData {
   /** Plugin version at first install */
@@ -26,8 +26,8 @@ export interface ManifestData {
   totalEntries?: number;
 }
 
-const MANIFEST_DIR = ".metadata";
-const MANIFEST_FILE = "manifest.json";
+const MANIFEST_DIR = '.metadata';
+const MANIFEST_FILE = 'manifest.json';
 
 /** Ensure manifest directory exists with correct permissions */
 function ensureManifestDir(baseDir: string): string {
@@ -43,20 +43,20 @@ export function readManifest(baseDir: string): ManifestData | null {
   const file = path.join(ensureManifestDir(baseDir), MANIFEST_FILE);
   if (!fs.existsSync(file)) return null;
   try {
-    const raw = fs.readFileSync(file, "utf-8");
+    const raw = fs.readFileSync(file, 'utf-8');
     return JSON.parse(raw) as ManifestData;
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
-      return null;
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
+    return null;
+  }
 }
 
 /** Write manifest atomically */
 export function writeManifest(baseDir: string, data: ManifestData): void {
   const dir = ensureManifestDir(baseDir);
   const file = path.join(dir, MANIFEST_FILE);
-  const tmp = file + ".tmp";
+  const tmp = file + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, file);
 }
@@ -67,7 +67,7 @@ export function initManifest(baseDir: string, pluginVersion: string): ManifestDa
   if (existing) {
     // Update last operation timestamp on each startup
     existing.lastOperationAt = new Date().toISOString();
-    existing.lastOperationType = "startup";
+    existing.lastOperationType = 'startup';
     writeManifest(baseDir, existing);
     return existing;
   }
@@ -75,8 +75,8 @@ export function initManifest(baseDir: string, pluginVersion: string): ManifestDa
     pluginVersion,
     firstInitAt: new Date().toISOString(),
     lastOperationAt: new Date().toISOString(),
-    lastOperationType: "init",
-    storeBackend: "sqlite",
+    lastOperationType: 'init',
+    storeBackend: 'sqlite',
     seedRunCount: 0,
   };
   writeManifest(baseDir, data);
@@ -96,7 +96,11 @@ export function recordSeedRun(baseDir: string, entryCount: number): void {
 }
 
 /** Record an operation (generic) */
-export function recordOperation(baseDir: string, type: string, meta?: Record<string, unknown>): void {
+export function recordOperation(
+  baseDir: string,
+  type: string,
+  meta?: Record<string, unknown>,
+): void {
   const manifest = readManifest(baseDir);
   if (!manifest) return;
   manifest.lastOperationAt = new Date().toISOString();

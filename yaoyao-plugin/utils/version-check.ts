@@ -5,14 +5,14 @@
  * No external deps (no semver package).
  */
 
-import { createRequire } from "node:module";
+import { createRequire } from 'node:module';
 
 /** Parse a version string into comparable parts */
 export function parseVersion(ver: string): number[] {
   // Strip leading 'v' or '='
-  const clean = ver.replace(/^[v=]+/, "").trim();
+  const clean = ver.replace(/^[v=]+/, '').trim();
   // Split by dot, filter out non-numeric segments gracefully
-  return clean.split(".").map(s => {
+  return clean.split('.').map((s) => {
     const n = parseInt(s, 10);
     return isNaN(n) ? 0 : n;
   });
@@ -36,27 +36,27 @@ export function satisfiesVersion(ver: string, range: string): boolean {
   const r = range.trim();
 
   // Handle >=X.Y.Z
-  if (r.startsWith(">=")) {
+  if (r.startsWith('>=')) {
     const min = parseVersion(r.slice(2));
     return compareVersions(v, min) >= 0;
   }
   // Handle >X.Y.Z
-  if (r.startsWith(">")) {
+  if (r.startsWith('>')) {
     const min = parseVersion(r.slice(1));
     return compareVersions(v, min) > 0;
   }
   // Handle <=X.Y.Z
-  if (r.startsWith("<=")) {
+  if (r.startsWith('<=')) {
     const max = parseVersion(r.slice(2));
     return compareVersions(v, max) <= 0;
   }
   // Handle <X.Y.Z
-  if (r.startsWith("<")) {
+  if (r.startsWith('<')) {
     const max = parseVersion(r.slice(1));
     return compareVersions(v, max) < 0;
   }
   // Handle ^X.Y.Z (caret) — same major, >= minor.patch
-  if (r.startsWith("^")) {
+  if (r.startsWith('^')) {
     const base = parseVersion(r.slice(1));
     if (base.length === 0) return false;
     const major = base[0];
@@ -65,7 +65,7 @@ export function satisfiesVersion(ver: string, range: string): boolean {
     return compareVersions(v, base) >= 0;
   }
   // Handle ~X.Y.Z (tilde) — same major.minor, >= patch
-  if (r.startsWith("~")) {
+  if (r.startsWith('~')) {
     const base = parseVersion(r.slice(1));
     if (base.length < 2) return false;
     if (v[0] !== base[0]) return false;
@@ -84,10 +84,10 @@ export function readVersionRequirements(): {
   openclawVersion: string;
 } {
   const defaults = {
-    nodeRange: "^22.0.0",
-    pluginApiRange: ">=2026.5.5",
-    pluginVersion: "unknown",
-    openclawVersion: "unknown",
+    nodeRange: '^22.0.0',
+    pluginApiRange: '>=2026.5.5',
+    pluginVersion: 'unknown',
+    openclawVersion: 'unknown',
   };
 
   try {
@@ -95,24 +95,28 @@ export function readVersionRequirements(): {
     // Try multiple paths for dist vs src context
     let pkg: Record<string, unknown>;
     try {
-      pkg = _require("../package.json");
+      pkg = _require('../package.json');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`[yaoyao-memory:version] Read ../package.json failed: ${msg}`);
       try {
-        pkg = _require("../../package.json");
+        pkg = _require('../../package.json');
       } catch (e2: unknown) {
         const msg2 = e2 instanceof Error ? e2.message : String(e2);
         console.warn(`[yaoyao-memory:version] Read ../../package.json failed: ${msg2}`);
-        pkg = _require("./package.json");
+        pkg = _require('./package.json');
       }
     }
 
     return {
       nodeRange: ((pkg.engines as Record<string, unknown>)?.node as string) || defaults.nodeRange,
-      pluginApiRange: ((pkg.openclaw as Record<string, unknown>)?.compat as Record<string, unknown>)?.pluginApi as string || defaults.pluginApiRange,
+      pluginApiRange:
+        (((pkg.openclaw as Record<string, unknown>)?.compat as Record<string, unknown>)
+          ?.pluginApi as string) || defaults.pluginApiRange,
       pluginVersion: (pkg.version as string) || defaults.pluginVersion,
-      openclawVersion: ((pkg.openclaw as Record<string, unknown>)?.build as Record<string, unknown>)?.openclawVersion as string || defaults.openclawVersion,
+      openclawVersion:
+        (((pkg.openclaw as Record<string, unknown>)?.build as Record<string, unknown>)
+          ?.openclawVersion as string) || defaults.openclawVersion,
     };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

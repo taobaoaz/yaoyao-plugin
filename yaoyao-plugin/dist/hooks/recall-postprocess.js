@@ -10,7 +10,7 @@ export async function doPostProcess(results, mode, userText, cfg, scopeManager, 
     if (cfg.enableIntentDriven && intent) {
         const weights = INTENT_WEIGHTS[intent];
         for (const r of processed) {
-            const vecScore = typeof r.vectorScore === "number"
+            const vecScore = typeof r.vectorScore === 'number'
                 ? r.vectorScore
                 : r.score;
             const ts = r.timestamp;
@@ -39,12 +39,16 @@ export async function doPostProcess(results, mode, userText, cfg, scopeManager, 
     }
     recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length, recentQueries);
     accumulateKeywords(sessionKey, userText, cfg.maxContextKeywords);
-    resultCache.set(`${agentId || "default"}:${userText.slice(0, 120)}`, filtered);
+    resultCache.set(`${agentId || 'default'}:${userText.slice(0, 120)}`, filtered);
     stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, filtered.length));
     if (audit && filtered.length > 0) {
-        audit.record("recall", {
-            query: userText, agentId, mode, results: filtered.length,
-            durationMs: Date.now() - startMs, ...(repeatNote ? { repeatNote } : {}),
+        audit.record('recall', {
+            query: userText,
+            agentId,
+            mode,
+            results: filtered.length,
+            durationMs: Date.now() - startMs,
+            ...(repeatNote ? { repeatNote } : {}),
         });
     }
     if (filtered.length > 0) {

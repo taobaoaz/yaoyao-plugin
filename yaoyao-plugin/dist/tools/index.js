@@ -46,7 +46,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     const pipeline = createSearchPipeline(storage ?? db, embedding);
     /* ── Core tools (always registered) ── */
     tools.push(createSearchTool(pipeline), createMultiSignalSearchTool(db, embedding), createMemoryCallTool(storage ?? db, embedding), createGetTool(store, db), createListTool(store), createSearchTimelineTool(pipeline), createSaveTool(store, db, true), createNoteTool(store, db), createForgetTool(store, db), createTagTool(store, db), createBackupTool(store), createExportTool(db), createImportTool(store), createImportOCTool(store, db), createImportWorkspaceTool(store, db), createStatsTool(store, db), createTimelineTool(db), createTrendsTool(store), createRecommendTool(db, store.baseDir), createRemindTool(), createHealthcheckTool(), createCronTool(api), createTelemetryTool({
-        enabled: process.env.YAOYAO_TELEMETRY !== "0",
+        enabled: process.env.YAOYAO_TELEMETRY !== '0',
         url: process.env.YAOYAO_TELEMETRY_URL,
     }), 
     /* ── Conflict detection (v1.6.0) ── */
@@ -55,7 +55,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     // Enhanced search — uses SearchPipeline, no longer needs raw embedding
     tools.push(createEnhancedSearchTool(pipeline));
     // Cloud sync
-    if (registry?.isActive("cloud-sync")) {
+    if (registry?.isActive('cloud-sync')) {
         try {
             tools.push(createCloudSyncTool(store));
         }
@@ -71,7 +71,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
         api.logger.warn?.(`[yaoyao-memory] Unify tool skipped: ${e instanceof Error ? e.message : String(e)}`);
     }
     // Quality analysis
-    if (registry?.isActive("quality") ?? false) {
+    if (registry?.isActive('quality') ?? false) {
         try {
             tools.push(createQualityTool(store, db));
         }
@@ -80,7 +80,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
         }
     }
     // Retain check
-    if (registry?.isActive("retain") ?? false) {
+    if (registry?.isActive('retain') ?? false) {
         try {
             tools.push(createRetainTool(store, db));
         }
@@ -89,7 +89,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
         }
     }
     // Knowledge graph — requires scenes directory
-    if (registry?.isActive("graph") ?? false) {
+    if (registry?.isActive('graph') ?? false) {
         try {
             tools.push(createGraphTool(db, store.baseDir, store.baseDir, embedding));
         }
@@ -98,7 +98,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
         }
     }
     // Anti-hallucination verify
-    if (registry?.isActive("verify") ?? false) {
+    if (registry?.isActive('verify') ?? false) {
         try {
             tools.push(createVerifyTool(db));
         }
@@ -108,7 +108,7 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     }
     api.logger.info(`[yaoyao-memory] ${tools.length} tools registered`);
     for (const tool of tools) {
-        api.registerTool(tool);
+        api.registerTool?.(tool);
     }
     return tools.length;
 }

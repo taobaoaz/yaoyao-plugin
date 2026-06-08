@@ -1,8 +1,8 @@
 export const cloudSyncFeature = {
-    id: "cloud-sync",
-    name: "Cloud Sync",
+    id: 'cloud-sync',
+    name: 'Cloud Sync',
     dependencies: [],
-    configKey: "cloud.enabled",
+    configKey: 'cloud.enabled',
     defaultEnabled: true,
     init(api, config) {
         const cloudCfg = config.cloud;
@@ -10,7 +10,7 @@ export const cloudSyncFeature = {
             return {
                 active: false,
                 service: null,
-                message: "Cloud sync disabled",
+                message: 'Cloud sync disabled',
             };
         }
         // Best-effort: tool registration itself checks credentials at runtime.
@@ -18,8 +18,8 @@ export const cloudSyncFeature = {
         return {
             active: true,
             service: true,
-            message: "Cloud sync available (credentials checked at runtime)",
-            warning: "Ensure ~/.openclaw/credentials/secrets.env is configured",
+            message: 'Cloud sync available (credentials checked at runtime)',
+            warning: 'Ensure ~/.openclaw/credentials/secrets.env is configured',
         };
     },
 };

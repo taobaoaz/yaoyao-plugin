@@ -20,16 +20,23 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
     const coexist = getCoexistState();
     const useClawPrimary = coexist.flags.useClawPrimaryRecall;
     const clawBridge = useClawPrimary ? createClawBridge() : null;
-    api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? " + vector" : ""})${clawBridge ? " [coexist: claw-core recall primary]" : ""}`);
+    api.logger.info(`[yaoyao-memory] Registering before_prompt_build hook (auto-recall${embedding ? ' + vector' : ''})${clawBridge ? ' [coexist: claw-core recall primary]' : ''}`);
     const baseCfg = getRecallConfig(config);
-    const sessionFilter = createSessionFilter({ blockLabels: config.blockLabels || [], blockInternal: true, minMessages: 1 });
-    const resultCache = new SimpleLRU({ maxSize: baseCfg.maxCacheSize, ttlMs: baseCfg.cacheTTL });
+    const sessionFilter = createSessionFilter({
+        blockLabels: config.blockLabels || [],
+        blockInternal: true,
+        minMessages: 1,
+    });
+    const resultCache = new SimpleLRU({
+        maxSize: baseCfg.maxCacheSize,
+        ttlMs: baseCfg.cacheTTL,
+    });
     const stats = globalRetrievalStats;
     const handler = async (event, ctx) => {
         const recallAsync = async () => {
             try {
                 const startMs = Date.now();
-                const sessionKey = ctx.sessionKey || "default";
+                const sessionKey = ctx.sessionKey || 'default';
                 if (!sessionFilter.shouldProcess(sessionKey))
                     return;
                 const agentId = ctx.agentId;
@@ -40,7 +47,7 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
                     return;
                 const userText = String(userMessage);
                 // LRU cache hit
-                const cacheKey = `${agentId || "default"}:${userText.slice(0, 120)}`;
+                const cacheKey = `${agentId || 'default'}:${userText.slice(0, 120)}`;
                 const cached = resultCache.get(cacheKey);
                 if (cached) {
                     if (cached.length > 0)
@@ -52,7 +59,7 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
                 const primaryQuery = expandQuery(prefixedQuery) || prefixedQuery;
                 const intent = cfg.enableIntentDriven ? classifyIntent(userText) : undefined;
                 // Parallel search + merge
-                const { results: mergedResults, mode: searchMode } = await doParallelRecall(db, userText, primaryQuery, { enableIntentDriven: cfg.enableIntentDriven, maxResults: cfg.maxResults }, cfg.maxResults, embedding, clawBridge, api.logger);
+                const { results: mergedResults, mode: searchMode } = await doParallelRecall(db, userText, primaryQuery, { enableIntentDriven: cfg.enableIntentDriven, maxResults: cfg.maxResults }, cfg.maxResults, embedding ?? null, clawBridge, api.logger);
                 // Post-processing
                 return await doPostProcess(mergedResults, searchMode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, api.logger);
             }
@@ -63,18 +70,18 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
         try {
             await Promise.race([
                 recallAsync(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("recall timeout")), baseCfg.timeoutMs)),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('recall timeout')), baseCfg.timeoutMs)),
             ]);
         }
         catch (timeoutErr) {
             api.logger.warn?.(`[yaoyao-memory:recall] Timeout after ${baseCfg.timeoutMs}ms, skipping`);
         }
     };
-    api.on("before_prompt_build", handler);
+    api.on('before_prompt_build', handler);
     return {
         unregister: () => {
             const apiOff = api.off;
-            apiOff?.("before_prompt_build", handler);
+            apiOff?.('before_prompt_build', handler);
         },
     };
 }

@@ -3,13 +3,20 @@
  */
 
 const FORBIDDEN_HOSTS = [
-  "localhost", "127.0.0.1", "0.0.0.0", "::1",
-  "169.254", "192.168", "10.", "fc00", "fe80",
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+  '::1',
+  '169.254',
+  '192.168',
+  '10.',
+  'fc00',
+  'fe80',
 ];
 
 function isForbidden172(host: string): boolean {
-  if (!host.startsWith("172.")) return false;
-  const second = parseInt(host.split(".")[1], 10);
+  if (!host.startsWith('172.')) return false;
+  const second = parseInt(host.split('.')[1], 10);
   return second >= 16 && second <= 31;
 }
 
@@ -17,10 +24,10 @@ export function isForbiddenHost(urlStr: string): boolean {
   try {
     const url = new URL(urlStr);
     const host = url.hostname.toLowerCase();
-    return FORBIDDEN_HOSTS.some(h => host === h || host.startsWith(h)) || isForbidden172(host);
+    return FORBIDDEN_HOSTS.some((h) => host === h || host.startsWith(h)) || isForbidden172(host);
   } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
-      return true;
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[yaoyao-memory:utils] Operation failed: ${msg}`);
+    return true;
+  }
 }

@@ -25,7 +25,7 @@ export interface WatermarkConfig {
 /** Approximate chars per token for mixed Chinese/English text */
 const CHARS_PER_TOKEN = 3.5;
 
-export type CompressLevel = "none" | "mild" | "aggressive" | "emergency";
+export type CompressLevel = 'none' | 'mild' | 'aggressive' | 'emergency';
 
 /** Estimate token count from character length */
 export function estimateTokens(text: string): number {
@@ -35,7 +35,7 @@ export function estimateTokens(text: string): number {
 /** Compute compression level from current context size */
 export function computeCompressLevel(
   currentTokens: number,
-  config?: WatermarkConfig
+  config?: WatermarkConfig,
 ): { level: CompressLevel; ratio: number; currentTokens: number; windowTokens: number } {
   const windowTokens = config?.contextWindowTokens ?? 128_000;
   const mildRatio = config?.mildOffloadRatio ?? 0.6;
@@ -44,10 +44,10 @@ export function computeCompressLevel(
 
   const ratio = currentTokens / windowTokens;
 
-  let level: CompressLevel = "none";
-  if (ratio >= emergencyRatio) level = "emergency";
-  else if (ratio >= aggressiveRatio) level = "aggressive";
-  else if (ratio >= mildRatio) level = "mild";
+  let level: CompressLevel = 'none';
+  if (ratio >= emergencyRatio) level = 'emergency';
+  else if (ratio >= aggressiveRatio) level = 'aggressive';
+  else if (ratio >= mildRatio) level = 'mild';
 
   return { level, ratio, currentTokens, windowTokens };
 }
@@ -57,7 +57,7 @@ export function estimateContextSize(messages: Array<{ role?: string; content?: u
   let totalChars = 0;
   for (const m of messages) {
     const content = m.content;
-    if (typeof content === "string") {
+    if (typeof content === 'string') {
       totalChars += content.length;
     } else if (content) {
       totalChars += JSON.stringify(content).length;

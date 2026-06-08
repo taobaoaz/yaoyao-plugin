@@ -63,24 +63,24 @@ export function isTrivial(text: string): TrivialCheckResult {
   const trimmed = text.trim();
 
   if (!trimmed) {
-    return { isTrivial: true, reason: "empty", confidence: 1.0 };
+    return { isTrivial: true, reason: 'empty', confidence: 1.0 };
   }
 
   // System messages
   for (const pattern of SYSTEM_PATTERNS) {
     if (pattern.test(trimmed)) {
-      return { isTrivial: true, reason: "system_message", confidence: 1.0 };
+      return { isTrivial: true, reason: 'system_message', confidence: 1.0 };
     }
   }
 
   // URL-only
   if (URL_ONLY_PATTERN.test(trimmed)) {
-    return { isTrivial: true, reason: "url_only", confidence: 0.9 };
+    return { isTrivial: true, reason: 'url_only', confidence: 0.9 };
   }
 
   // Emoji-only
   if (EMOJI_ONLY_PATTERN.test(trimmed) && trimmed.length < 20) {
-    return { isTrivial: true, reason: "emoji_only", confidence: 0.9 };
+    return { isTrivial: true, reason: 'emoji_only', confidence: 0.9 };
   }
 
   // Very short
@@ -90,24 +90,24 @@ export function isTrivial(text: string): TrivialCheckResult {
     const lower = trimmed.toLowerCase();
     for (const pattern of GREETING_PATTERNS) {
       if (pattern.test(lower)) {
-        return { isTrivial: true, reason: "greeting", confidence: 0.95 };
+        return { isTrivial: true, reason: 'greeting', confidence: 0.95 };
       }
     }
     for (const pattern of FAREWELL_PATTERNS) {
       if (pattern.test(lower)) {
-        return { isTrivial: true, reason: "farewell", confidence: 0.95 };
+        return { isTrivial: true, reason: 'farewell', confidence: 0.95 };
       }
     }
     for (const pattern of ACK_PATTERNS) {
       if (pattern.test(lower)) {
-        return { isTrivial: true, reason: "acknowledgment", confidence: 0.85 };
+        return { isTrivial: true, reason: 'acknowledgment', confidence: 0.85 };
       }
     }
   }
 
   // Repeated characters (e.g. ".........", "hahaha")
   if (/^(.)\1{5,}$/.test(trimmed)) {
-    return { isTrivial: true, reason: "repeated_chars", confidence: 0.8 };
+    return { isTrivial: true, reason: 'repeated_chars', confidence: 0.8 };
   }
 
   return { isTrivial: false, confidence: 0.0 };

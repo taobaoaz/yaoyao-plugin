@@ -8,23 +8,26 @@
  * brainMode: "lite" — skip Mermaid, keep raw text
  * brainMode: "full" — generate Mermaid task map, offload detail to refs/
  */
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 /** Build a Mermaid flowchart from conversation tools/tasks */
 export function buildMermaidCanvas(nodes, edges) {
-    const lines = ["graph TD"];
+    const lines = ['graph TD'];
     for (const n of nodes) {
-        const shape = n.type === "decision" ? `{{${n.label}}}` :
-            n.type === "result" ? `[(${n.label})]` :
-                n.type === "tool" ? `[[${n.label}]]` :
-                    `[${n.label}]`;
+        const shape = n.type === 'decision'
+            ? `{{${n.label}}}`
+            : n.type === 'result'
+                ? `[(${n.label})]`
+                : n.type === 'tool'
+                    ? `[[${n.label}]]`
+                    : `[${n.label}]`;
         lines.push(`    ${n.id}${shape}`);
     }
     for (const e of edges) {
-        const label = e.label ? `|${e.label}|` : "";
+        const label = e.label ? `|${e.label}|` : '';
         lines.push(`    ${e.from} -->${label} ${e.to}`);
     }
-    return lines.join("\n");
+    return lines.join('\n');
 }
 /** Heuristic parse: extract tool calls and decisions from raw text */
 export function parseToolsFromText(text) {
@@ -44,8 +47,8 @@ export function parseToolsFromText(text) {
         nodes.push({
             id,
             label,
-            type: "tool",
-            status: "done",
+            type: 'tool',
+            status: 'done',
         });
         labelToId.set(label, id);
         return id;
@@ -64,11 +67,11 @@ export function parseToolsFromText(text) {
 }
 /** Offload detailed text to refs/ dir, return Mermaid reference */
 export function offloadContext(baseDir, sessionKey, detailText, nodes, edges) {
-    const refsDir = path.join(baseDir, "refs");
+    const refsDir = path.join(baseDir, 'refs');
     fs.mkdirSync(refsDir, { recursive: true });
-    const refId = `${sessionKey.replace(/[^a-zA-Z0-9_-]/g, "_")}_${Date.now()}`;
+    const refId = `${sessionKey.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}`;
     const refPath = path.join(refsDir, `${refId}.md`);
-    fs.writeFileSync(refPath, `# Context Offload — ${sessionKey}\n\n${detailText}\n`, "utf8");
+    fs.writeFileSync(refPath, `# Context Offload — ${sessionKey}\n\n${detailText}\n`, 'utf8');
     const mermaid = buildMermaidCanvas(nodes, edges);
     return { mermaid, refPath };
 }

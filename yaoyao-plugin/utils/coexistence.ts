@@ -12,11 +12,11 @@
  * - L1/L2/FTS5/vector indexing skipped (claw-core handles heavy lifting)
  * - auto-recall delegates to claw-core, then supplements with yaoyao results
  */
-import { existsSync } from "node:fs";
-import path from "node:path";
-import { readMmapState, isGatewayAlive } from "./mmap-state.ts";
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { readMmapState, isGatewayAlive } from './mmap-state.ts';
 
-export type CoexistMode = "standalone" | "coexist" | "disabled";
+export type CoexistMode = 'standalone' | 'coexist' | 'disabled';
 
 export interface CoexistFeatureFlags {
   /** Skip local L1/L2 indexing (FTS5 + vector) */
@@ -44,8 +44,8 @@ export interface CoexistState {
 let _state: CoexistState = {
   hasClawCore: false,
   hasClawWorker: false,
-  udsPath: "",
-  mode: "standalone",
+  udsPath: '',
+  mode: 'standalone',
   flags: {
     skipLocalIndexing: false,
     useClawPrimaryRecall: false,
@@ -58,7 +58,7 @@ let _state: CoexistState = {
 };
 
 let _refreshTimer: ReturnType<typeof setInterval> | null = null;
-let _listeners: Array<(prev: CoexistState, next: CoexistState) => void> = [];
+const _listeners: Array<(prev: CoexistState, next: CoexistState) => void> = [];
 
 /** Global query — used by hooks to know current mode. */
 export function getCoexistState(): Readonly<CoexistState> {
@@ -87,14 +87,14 @@ export function onCoexistChange(fn: (prev: CoexistState, next: CoexistState) => 
 }
 
 function _deriveFlags(mode: CoexistMode): CoexistFeatureFlags {
-  if (mode === "coexist") {
+  if (mode === 'coexist') {
     return {
       skipLocalIndexing: true,
       useClawPrimaryRecall: true,
       forwardCaptureToClaw: true,
     };
   }
-  if (mode === "disabled") {
+  if (mode === 'disabled') {
     // Explicit override: behave like standalone even if claw-core is present
     return {
       skipLocalIndexing: false,
@@ -114,18 +114,20 @@ function _setState(next: CoexistState) {
   _state = next;
   if (prev.mode !== next.mode) {
     for (const fn of _listeners) {
-      try { fn(prev, next); } catch {}
+      try {
+        fn(prev, next);
+      } catch { /* intentionally empty */ }
     }
   }
 }
 
 /** Detect whether extended-claw core is installed / running. */
 export function detectCoexistence(homeDir?: string): CoexistState {
-  const home = homeDir || process.env.HOME || "/home/sandbox";
-  const udsPath = path.join(home, ".openclaw/extensions/claw-core/var/claw-worker.sock");
+  const home = homeDir || process.env.HOME || '/home/sandbox';
+  const udsPath = path.join(home, '.openclaw/extensions/claw-core/var/claw-worker.sock');
   const hasUds = existsSync(udsPath);
 
-  const extDir = path.join(home, ".openclaw/extensions/claw-core");
+  const extDir = path.join(home, '.openclaw/extensions/claw-core');
   const hasExt = existsSync(extDir);
 
   // v4.6: Read mmap heartbeat for zero-copy detection
@@ -138,9 +140,12 @@ export function detectCoexistence(homeDir?: string): CoexistState {
 
   // Environment-variable override (for testing or emergency manual control)
   const envMode = process.env.YAOYAO_COEXIST_MODE as CoexistMode | undefined;
-  const effectiveMode: CoexistMode = envMode && ["standalone", "coexist", "disabled"].includes(envMode)
-    ? envMode
-    : hasWorker ? "coexist" : "standalone";
+  const effectiveMode: CoexistMode =
+    envMode && ['standalone', 'coexist', 'disabled'].includes(envMode)
+      ? envMode
+      : hasWorker
+        ? 'coexist'
+        : 'standalone';
 
   const next: CoexistState = {
     hasClawCore: hasExt,

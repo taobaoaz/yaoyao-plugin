@@ -33,11 +33,11 @@ const DEFAULT_K = 60;
  * @param k — RRF constant (default 60)
  * @returns — fused list ordered by RRF score descending
  */
-export function reciprocalRankFusion(
-  lists: RankedDoc[][],
-  k = DEFAULT_K,
-): RRFResult[] {
-  const scores = new Map<string | number, { score: number; ranks: number[]; doc: Record<string, unknown> }>();
+export function reciprocalRankFusion(lists: RankedDoc[][], k = DEFAULT_K): RRFResult[] {
+  const scores = new Map<
+    string | number,
+    { score: number; ranks: number[]; doc: Record<string, unknown> }
+  >();
 
   for (let listIdx = 0; listIdx < lists.length; listIdx++) {
     const list = lists[listIdx];
@@ -77,19 +77,33 @@ export function fuseFTSAndVector(
   vecResults: Array<{ id: string | number; score: number; [key: string]: unknown }>,
   k = DEFAULT_K,
   minScoreThreshold = 0,
-): Array<{ id: string | number; rrfScore: number; ftsScore: number; vecScore: number; [key: string]: unknown }> {
-  const ftsRanked: RankedDoc[] = ftsResults.map(r => ({ id: r.id, doc: r, originalScore: r.score }));
-  const vecRanked: RankedDoc[] = vecResults.map(r => ({ id: r.id, doc: r, originalScore: r.score }));
+): Array<{
+  id: string | number;
+  rrfScore: number;
+  ftsScore: number;
+  vecScore: number;
+  [key: string]: unknown;
+}> {
+  const ftsRanked: RankedDoc[] = ftsResults.map((r) => ({
+    id: r.id,
+    doc: r,
+    originalScore: r.score,
+  }));
+  const vecRanked: RankedDoc[] = vecResults.map((r) => ({
+    id: r.id,
+    doc: r,
+    originalScore: r.score,
+  }));
 
   const fused = reciprocalRankFusion([ftsRanked, vecRanked], k);
 
   return fused
-    .filter(r => minScoreThreshold <= 0 || r.rrfScore >= minScoreThreshold)
-    .map(r => ({
+    .filter((r) => minScoreThreshold <= 0 || r.rrfScore >= minScoreThreshold)
+    .map((r) => ({
       id: r.id,
       rrfScore: r.rrfScore,
-      ftsScore: (r.ranks[0] >= 0 ? ftsResults[r.ranks[0]].score : 0),
-      vecScore: (r.ranks[1] >= 0 ? vecResults[r.ranks[1]].score : 0),
+      ftsScore: r.ranks[0] >= 0 ? ftsResults[r.ranks[0]].score : 0,
+      vecScore: r.ranks[1] >= 0 ? vecResults[r.ranks[1]].score : 0,
       ...r.doc,
     }));
 }

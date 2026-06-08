@@ -9,13 +9,13 @@ export { DEFAULT_PROVIDER_MODELS, detectModel };
 export { LLMClient };
 export function createLLMClient(config, embeddingConfig) {
     const result = { client: null, source: null };
-    if (!config || typeof config !== "object")
+    if (!config || typeof config !== 'object')
         return result;
-    const llmSection = getObj(config, "llm") || {};
+    const llmSection = getObj(config, 'llm') || {};
     const providerModels = (llmSection.providerModels || {});
-    const llmApiKey = String(llmSection.apiKey || "");
+    const llmApiKey = String(llmSection.apiKey || '');
     if (llmApiKey) {
-        const baseUrl = String(llmSection.baseUrl || "").trim();
+        const baseUrl = String(llmSection.baseUrl || '').trim();
         if (!baseUrl)
             return result;
         if (isForbiddenHost(baseUrl))
@@ -24,14 +24,14 @@ export function createLLMClient(config, embeddingConfig) {
         if (!model)
             return result;
         result.client = new LLMClient({ apiKey: llmApiKey, baseUrl, model });
-        result.source = "explicit";
+        result.source = 'explicit';
         return result;
     }
-    if (embeddingConfig && typeof embeddingConfig === "object") {
-        const embeddingApiKey = String(embeddingConfig.apiKey || "");
+    if (embeddingConfig && typeof embeddingConfig === 'object') {
+        const embeddingApiKey = String(embeddingConfig.apiKey || '');
         const embeddingEnabled = embeddingConfig.enabled !== false;
         if (embeddingApiKey && embeddingEnabled) {
-            const baseUrl = String(embeddingConfig.baseUrl || "").trim();
+            const baseUrl = String(embeddingConfig.baseUrl || '').trim();
             if (!baseUrl)
                 return result;
             if (isForbiddenHost(baseUrl))
@@ -40,7 +40,7 @@ export function createLLMClient(config, embeddingConfig) {
             if (!model)
                 return result;
             result.client = new LLMClient({ apiKey: embeddingApiKey, baseUrl, model });
-            result.source = "embedding-auto";
+            result.source = 'embedding-auto';
             return result;
         }
     }

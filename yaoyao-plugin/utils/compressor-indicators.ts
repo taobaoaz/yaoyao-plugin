@@ -10,7 +10,7 @@ export const TOOL_CALL_INDICATORS = [
 ];
 
 export const CORRECTION_INDICATORS = [
-  /^no[,\.\s]/i,
+  /^no[,.\s]/i,
   /\bactually\b/i,
   /\binstead\b/i,
   /\bwrong\b/i,

@@ -8,7 +8,14 @@ export function createQueryApi(ensureDB, vector) {
             catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
                 console.warn(`[yaoyao-memory:storage] Operation failed: ${msg}`);
-                return { totalMemories: 0, datesSummary: [], ftsEnabled: false, vecEnabled: false, totalVectors: 0, dimensions: 0 };
+                return {
+                    totalMemories: 0,
+                    datesSummary: [],
+                    ftsEnabled: false,
+                    vecEnabled: false,
+                    totalVectors: 0,
+                    dimensions: 0,
+                };
             }
         },
         getAllTags() {

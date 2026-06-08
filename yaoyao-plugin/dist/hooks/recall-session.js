@@ -15,7 +15,10 @@ export function accumulateKeywords(sessionKey, text, maxKeywords) {
         _sessionContextKeywords.delete(firstKey);
         _sessionKeywordOrder.delete(firstKey);
     }
-    const words = text.toLowerCase().split(/[^a-z0-9\u4e00-\u9fa5]+/).filter((w) => w.length >= 2);
+    const words = text
+        .toLowerCase()
+        .split(/[^a-z0-9\u4e00-\u9fa5]+/)
+        .filter((w) => w.length >= 2);
     let set = _sessionContextKeywords.get(sessionKey);
     let order = _sessionKeywordOrder.get(sessionKey);
     if (!set) {

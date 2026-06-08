@@ -21,7 +21,7 @@ export interface BatchDedupResult {
 function trigramJaccard(a: string, b: string): number {
   const trigrams = (s: string): Set<string> => {
     const set = new Set<string>();
-    const norm = s.toLowerCase().replace(/\s+/g, " ").trim();
+    const norm = s.toLowerCase().replace(/\s+/g, ' ').trim();
     for (let i = 0; i <= norm.length - 3; i++) {
       set.add(norm.slice(i, i + 3));
     }
@@ -81,10 +81,7 @@ export function isDuplicateOfRecent(
   return false;
 }
 
-export function batchDedup(
-  texts: string[],
-  threshold = 0.85,
-): BatchDedupResult {
+export function batchDedup(texts: string[], threshold = 0.85): BatchDedupResult {
   if (texts.length === 0) {
     return { survivingIndices: [], duplicateIndices: [], inputCount: 0, outputCount: 0 };
   }
@@ -107,12 +104,8 @@ export function batchDedup(
     }
   }
 
-  const survivingIndices = candidates
-    .filter((c) => !c.isBatchDuplicate)
-    .map((c) => c.index);
-  const duplicateIndices = candidates
-    .filter((c) => c.isBatchDuplicate)
-    .map((c) => c.index);
+  const survivingIndices = candidates.filter((c) => !c.isBatchDuplicate).map((c) => c.index);
+  const duplicateIndices = candidates.filter((c) => c.isBatchDuplicate).map((c) => c.index);
 
   return {
     survivingIndices,

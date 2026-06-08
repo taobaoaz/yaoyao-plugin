@@ -5,7 +5,7 @@
  * Orchestrates file discovery → parsing → FTS5 indexing → optional vector storage.
  * Delegates all algorithm work to utils/ modules.
  */
-import fs from "node:fs";
+import fs from 'node:fs';
 import { MIN_ENTRY_LENGTH, MAX_ENTRY_LENGTH } from "../../utils/markdown-helpers.js";
 import { parseFile } from "../../utils/memory-parser.js";
 import { readImportManifest, writeImportManifest } from "../../utils/import-manifest.js";
@@ -24,7 +24,7 @@ export function stepImportExistingMemories(logger, workspaceDir, _config, store,
             const stat = fs.statSync(file.path);
             const lastMtime = importedFiles.get(file.path) || 0;
             // Skip today's daily file (still being written)
-            if (file.type === "daily" && file.date === today) {
+            if (file.type === 'daily' && file.date === today) {
                 skipped++;
                 continue;
             }
@@ -33,7 +33,7 @@ export function stepImportExistingMemories(logger, workspaceDir, _config, store,
                 skipped++;
                 continue;
             }
-            const content = fs.readFileSync(file.path, "utf-8");
+            const content = fs.readFileSync(file.path, 'utf-8');
             const fileDate = file.date || today;
             const entries = parseFile(content, file.filename, fileDate);
             let fileImported = 0;
@@ -41,9 +41,9 @@ export function stepImportExistingMemories(logger, workspaceDir, _config, store,
                 if (entry.text.length < MIN_ENTRY_LENGTH)
                     continue;
                 const text = entry.text.length > MAX_ENTRY_LENGTH
-                    ? entry.text.slice(0, MAX_ENTRY_LENGTH) + "..."
+                    ? entry.text.slice(0, MAX_ENTRY_LENGTH) + '...'
                     : entry.text;
-                storage.indexTurn(text, "", entry.date, entry.meta);
+                storage.indexTurn(text, '', entry.date, entry.meta);
                 imported++;
                 fileImported++;
             }

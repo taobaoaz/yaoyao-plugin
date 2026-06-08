@@ -15,11 +15,14 @@ export function extractCjkBigrams(query: string): string[] {
     let hasCjk = false;
     for (let j = 0; j < pair.length; j++) {
       const cp = pair.charCodeAt(j);
-      if ((cp >= 0x4E00 && cp <= 0x9FFF) ||
-          (cp >= 0x3400 && cp <= 0x4DBF) ||
-          (cp >= 0xF900 && cp <= 0xFAFF) ||
-          (cp >= 0x2E80 && cp <= 0x2EFF) ||
-          cp === 0x3005 || cp === 0x3006) {
+      if (
+        (cp >= 0x4e00 && cp <= 0x9fff) ||
+        (cp >= 0x3400 && cp <= 0x4dbf) ||
+        (cp >= 0xf900 && cp <= 0xfaff) ||
+        (cp >= 0x2e80 && cp <= 0x2eff) ||
+        cp === 0x3005 ||
+        cp === 0x3006
+      ) {
         hasCjk = true;
         break;
       }

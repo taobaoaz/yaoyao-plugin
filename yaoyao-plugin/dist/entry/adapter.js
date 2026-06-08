@@ -7,11 +7,11 @@ export function adaptEnvironment(api) {
     if (isOpenClaw()) {
         const ocApi = api;
         return {
-            type: "openclaw",
-            registerTool: (tool) => ocApi.registerTool(tool),
+            type: 'openclaw',
+            registerTool: (tool) => ocApi.registerTool?.(tool),
             registerHook: (hook) => {
                 // OpenClaw hook registration
-                if ("registerHook" in ocApi) {
+                if ('registerHook' in ocApi) {
                     ocApi.registerHook(hook);
                 }
             },
@@ -22,7 +22,7 @@ export function adaptEnvironment(api) {
     if (isXiaoYiClaw()) {
         const xyApi = api;
         return {
-            type: "xiaoyi-claw",
+            type: 'xiaoyi-claw',
             registerTool: xyApi.registerTool.bind(xyApi),
             registerHook: xyApi.registerHook?.bind(xyApi),
             logger: xyApi.logger || { info: console.log, error: console.error },
@@ -31,7 +31,7 @@ export function adaptEnvironment(api) {
     }
     // Fallback — try generic adapter
     return {
-        type: "openclaw",
+        type: 'openclaw',
         registerTool: (tool) => api.registerTool?.(tool),
         registerHook: (hook) => api.registerHook?.(hook),
         logger: api.logger || { info: console.log, error: console.error },

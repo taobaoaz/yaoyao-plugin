@@ -13,17 +13,14 @@ const BRAND_ITEM_PREFERENCE_PATTERNS = [
     /\b(?:i|user)?\s*(?:really\s+|still\s+|also\s+)?(?:like|love|prefer|enjoy)\s+(?<items>[a-z0-9'&\-\s]{1,80})\s+from\s+(?<brand>[a-z0-9'&\-\s]{1,40})/iu,
 ];
 function normalizePreferenceText(value) {
-    return value
-        .replace(ROLE_PREFIX_RE, "")
-        .replace(/\s+/g, " ")
-        .trim();
+    return value.replace(ROLE_PREFIX_RE, '').replace(/\s+/g, ' ').trim();
 }
 export function normalizePreferenceToken(value) {
     return normalizePreferenceText(value)
-        .replace(/^[\u201C\u201D"'\u2018\u2019`《【〔［\[]+|[\u201C\u201D"'\u2018\u2019`》】〕］\]】。！!?，,；;:：]+$/gu, "")
-        .replace(/\b(?:the|a|an)\s+/giu, "")
-        .replace(/['\u2019]/g, "") // strip apostrophes
-        .replace(/\s+/g, "")
+        .replace(/^[\u201C\u201D"'\u2018\u2019`《【〔［[]+|[\u201C\u201D"'\u2018\u2019`》】〕］\]】。！!?，,；;:：]+$/gu, '')
+        .replace(/\b(?:the|a|an)\s+/giu, '')
+        .replace(/['\u2019]/g, '') // strip apostrophes
+        .replace(/\s+/g, '')
         .toLowerCase();
 }
 function splitPreferenceItems(rawItems) {
@@ -39,8 +36,8 @@ export function parseBrandItemPreference(text) {
         const match = normalizedText.match(pattern);
         if (!match?.groups)
             continue;
-        const brand = normalizePreferenceToken(match.groups.brand || "");
-        const items = splitPreferenceItems(match.groups.items || "");
+        const brand = normalizePreferenceToken(match.groups.brand || '');
+        const items = splitPreferenceItems(match.groups.items || '');
         if (!brand || items.length === 0)
             continue;
         return {
@@ -57,7 +54,7 @@ export function inferAtomicBrandItemPreferenceSlot(text) {
         return null;
     }
     return {
-        type: "brand-item",
+        type: 'brand-item',
         brand: parsed.brand,
         item: parsed.items[0],
     };

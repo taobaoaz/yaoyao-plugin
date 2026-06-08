@@ -4,7 +4,7 @@
  * 零外部依赖，纯本地
  */
 
-import type { RetrievalTrace } from "./retrieval-trace.ts";
+import type { RetrievalTrace } from './retrieval-trace.ts';
 
 export interface AggregateStats {
   totalQueries: number;
@@ -32,7 +32,7 @@ export class RetrievalStatsCollector {
     this._records = new Array(maxRecords);
   }
 
-  recordQuery(trace: RetrievalTrace, source = "auto-recall"): void {
+  recordQuery(trace: RetrievalTrace, source = 'auto-recall'): void {
     this._records[this._head] = { trace, source };
     this._head = (this._head + 1) % this._maxRecords;
     if (this._count < this._maxRecords) {

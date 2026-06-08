@@ -3,13 +3,17 @@
  * Delegates to reset-detector-config.ts and reset-detector-system.ts.
  */
 
-import path from "node:path";
-import { scanOpenClawConfig, scanMemorySlotConflict, scanYaoyaoConfig } from "./reset-detector-config.ts";
-import { scanSystemCron, scanPluginConfigs } from "./reset-detector-system.ts";
+import path from 'node:path';
+import {
+  scanOpenClawConfig,
+  scanMemorySlotConflict,
+  scanYaoyaoConfig,
+} from './reset-detector-config.ts';
+import { scanSystemCron, scanPluginConfigs } from './reset-detector-system.ts';
 
 export interface ResetRisk {
   source: string;
-  severity: "critical" | "warning" | "info";
+  severity: 'critical' | 'warning' | 'info';
   description: string;
   mitigation: string;
 }
@@ -17,7 +21,9 @@ export interface ResetRisk {
 /** Main entry: detect all scheduled reset risks */
 export function detectScheduledResetRisks(
   memoryDir: string,
-  yaoyaoConfig?: { cleanup?: { enabled?: boolean; l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean } },
+  yaoyaoConfig?: {
+    cleanup?: { enabled?: boolean; l0l1RetentionDays?: number; allowAggressiveCleanup?: boolean };
+  },
 ): ResetRisk[] {
   const homeDir = path.dirname(memoryDir);
   const risks: ResetRisk[] = [];

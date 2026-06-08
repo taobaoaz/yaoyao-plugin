@@ -10,14 +10,14 @@
 
 /** All supported memory types */
 export type MemoryType =
-  | "preference"    // User likes/dislikes, habits, preferences
-  | "fact"          // Objective facts about the user or world
-  | "event"         // Specific events with timestamps
-  | "entity"        // Named entities (people, places, tools, orgs)
-  | "goal"          // User goals, plans, intentions
-  | "relationship"  // Relationships between entities
-  | "behavior"      // User behavior patterns / habits
-  | "general";      // Catch-all
+  | 'preference' // User likes/dislikes, habits, preferences
+  | 'fact' // Objective facts about the user or world
+  | 'event' // Specific events with timestamps
+  | 'entity' // Named entities (people, places, tools, orgs)
+  | 'goal' // User goals, plans, intentions
+  | 'relationship' // Relationships between entities
+  | 'behavior' // User behavior patterns / habits
+  | 'general'; // Catch-all
 
 /** Structured tag attached to each stored memory */
 export interface MemoryTag {
@@ -72,51 +72,65 @@ const BEHAVIOR_PATTERNS = [
  * Classify a capture context into a memory type.
  * Rules-based (no LLM call), runs on user + assistant combined content.
  */
-export function classifyMemoryType(userText: string, asstText: string = ""): MemoryTag {
+export function classifyMemoryType(userText: string, asstText: string = ''): MemoryTag {
   const combined = `${userText}\n${asstText}`;
 
   // Preference (highest priority pattern — direct user likes/dislikes)
   for (const p of PREFERENCE_PATTERNS) {
-    if (p.test(combined)) return { type: "preference", confidence: 0.85, tags: ["preference", ...extractKeyTags(combined)] };
+    if (p.test(combined))
+      return {
+        type: 'preference',
+        confidence: 0.85,
+        tags: ['preference', ...extractKeyTags(combined)],
+      };
   }
 
   // Goal (plans/intentions)
   for (const p of GOAL_PATTERNS) {
-    if (p.test(combined)) return { type: "goal", confidence: 0.75, tags: ["goal", ...extractKeyTags(combined)] };
+    if (p.test(combined))
+      return { type: 'goal', confidence: 0.75, tags: ['goal', ...extractKeyTags(combined)] };
   }
 
   // Event (temporal anchors)
   for (const p of EVENT_PATTERNS) {
-    if (p.test(combined)) return { type: "event", confidence: 0.8, tags: ["event", ...extractKeyTags(combined)] };
+    if (p.test(combined))
+      return { type: 'event', confidence: 0.8, tags: ['event', ...extractKeyTags(combined)] };
   }
 
   // Entity (named things about the user)
   for (const p of ENTITY_PATTERNS) {
-    if (p.test(combined)) return { type: "entity", confidence: 0.7, tags: ["entity", ...extractKeyTags(combined)] };
+    if (p.test(combined))
+      return { type: 'entity', confidence: 0.7, tags: ['entity', ...extractKeyTags(combined)] };
   }
 
   // Relationship
   for (const p of RELATIONSHIP_PATTERNS) {
-    if (p.test(combined)) return { type: "relationship", confidence: 0.7, tags: ["relationship", ...extractKeyTags(combined)] };
+    if (p.test(combined))
+      return {
+        type: 'relationship',
+        confidence: 0.7,
+        tags: ['relationship', ...extractKeyTags(combined)],
+      };
   }
 
   // Behavior
   for (const p of BEHAVIOR_PATTERNS) {
-    if (p.test(combined)) return { type: "behavior", confidence: 0.6, tags: ["behavior", ...extractKeyTags(combined)] };
+    if (p.test(combined))
+      return { type: 'behavior', confidence: 0.6, tags: ['behavior', ...extractKeyTags(combined)] };
   }
 
   // Default
-  return { type: "fact", confidence: 0.5, tags: extractKeyTags(combined) };
+  return { type: 'fact', confidence: 0.5, tags: extractKeyTags(combined) };
 }
 
 /** Extract short descriptive tags from combined content (max 3, length-limited) */
 function extractKeyTags(text: string): string[] {
   const cleaned = text
     .toLowerCase()
-    .replace(/[^a-z\u4e00-\u9fff0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[^a-z\u4e00-\u9fff0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
-  const tokens = cleaned.split(/\s+/).filter(t => t.length >= 2 && t.length <= 20);
+  const tokens = cleaned.split(/\s+/).filter((t) => t.length >= 2 && t.length <= 20);
   // Dedup and take first 3 non-numeric tags
   const seen = new Set<string>();
   const tags: string[] = [];

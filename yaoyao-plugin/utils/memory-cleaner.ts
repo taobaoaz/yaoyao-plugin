@@ -6,10 +6,10 @@
  * - Optionally archives before deletion
  * - Evicts cold session checkpoints
  */
-import { clampNum } from "./clamp.ts";
-import path from "node:path";
-import fs from "node:fs";
-import type { DBBridge } from "./db-bridge.ts";
+import { clampNum } from './clamp.ts';
+import path from 'node:path';
+import fs from 'node:fs';
+import type { DBBridge } from './db-bridge.ts';
 
 export function parseCleanTime(cleanTime?: string): { hour: number; minute: number } | null {
   if (!cleanTime) return null;
@@ -27,7 +27,15 @@ export function getNextCleanTimeMs(cleanTime?: string): number {
   if (!parsed) return 0;
 
   const now = new Date();
-  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parsed.hour, parsed.minute, 0, 0);
+  const target = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    parsed.hour,
+    parsed.minute,
+    0,
+    0,
+  );
   if (target.getTime() <= now.getTime()) {
     target.setDate(target.getDate() + 1);
   }
@@ -47,7 +55,12 @@ export interface CleanerConfig {
 
 type Logger = { info?: (s: string) => void; error?: (s: string) => void };
 
-export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: CleanerConfig, logger?: Logger) {
+export function createMemoryCleaner(
+  baseDir: string,
+  db: DBBridge,
+  config?: CleanerConfig,
+  logger?: Logger,
+) {
   const cfg = {
     l0l1RetentionDays: config?.l0l1RetentionDays ?? 30,
     allowAggressiveCleanup: config?.allowAggressiveCleanup ?? false,
@@ -86,7 +99,9 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
     // Clean up old daily .md files
     if (fs.existsSync(baseDir)) {
       let files: string[];
-      try { files = fs.readdirSync(baseDir); } catch (e: unknown) {
+      try {
+        files = fs.readdirSync(baseDir);
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         logger?.error?.(`[yaoyao-memory:cleaner] Read baseDir failed: ${msg}`);
         files = [];
@@ -99,7 +114,7 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
           const stat = fs.statSync(fp);
           if (stat.mtimeMs < cutoff) {
             // Archive before deletion
-            const archiveDir = path.join(baseDir, ".archive");
+            const archiveDir = path.join(baseDir, '.archive');
             fs.mkdirSync(archiveDir, { recursive: true });
             fs.copyFileSync(fp, path.join(archiveDir, f));
             fs.unlinkSync(fp);
@@ -115,10 +130,12 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
     }
 
     // Clean up empty scene_blocks and stale pipeline checkpoints
-    const scenesDir = path.join(baseDir, "scene_blocks");
+    const scenesDir = path.join(baseDir, 'scene_blocks');
     if (fs.existsSync(scenesDir)) {
       let files: string[];
-      try { files = fs.readdirSync(scenesDir); } catch (e: unknown) {
+      try {
+        files = fs.readdirSync(scenesDir);
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         logger?.error?.(`[yaoyao-memory:cleaner] Read scenesDir failed: ${msg}`);
         files = [];
@@ -136,10 +153,12 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
       }
     }
 
-    const pipelineDir = path.join(baseDir, ".pipeline");
+    const pipelineDir = path.join(baseDir, '.pipeline');
     if (fs.existsSync(pipelineDir)) {
       let files: string[];
-      try { files = fs.readdirSync(pipelineDir); } catch (e: unknown) {
+      try {
+        files = fs.readdirSync(pipelineDir);
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         logger?.error?.(`[yaoyao-memory:cleaner] Read pipelineDir failed: ${msg}`);
         files = [];
@@ -159,17 +178,19 @@ export function createMemoryCleaner(baseDir: string, db: DBBridge, config?: Clea
     }
 
     // Prune old backups (keep last 10)
-    const backupDir = path.join(baseDir, ".backups");
+    const backupDir = path.join(baseDir, '.backups');
     if (fs.existsSync(backupDir)) {
       let backups: string[];
-      try { backups = fs.readdirSync(backupDir); } catch (e: unknown) {
+      try {
+        backups = fs.readdirSync(backupDir);
+      } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         logger?.error?.(`[yaoyao-memory:cleaner] Read backupDir failed: ${msg}`);
         backups = [];
       }
       const backupEntries = backups
-        .filter(f => f.startsWith("memory-backup-"))
-        .map(f => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
+        .filter((f) => f.startsWith('memory-backup-'))
+        .map((f) => ({ name: f, mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
         .sort((a, b) => b.mtime - a.mtime);
       for (const b of backupEntries.slice(cfg.maxBackups)) {
         fs.rmSync(path.join(backupDir, b.name), { recursive: true, force: true });

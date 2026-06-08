@@ -1,8 +1,8 @@
 export const verifyFeature = {
-    id: "verify",
-    name: "Anti-Hallucination (Verify)",
+    id: 'verify',
+    name: 'Anti-Hallucination (Verify)',
     dependencies: [],
-    configKey: "verify.enabled",
+    configKey: 'verify.enabled',
     defaultEnabled: true,
     init(api, config) {
         const verifyCfg = config.verify;
@@ -10,13 +10,13 @@ export const verifyFeature = {
             return {
                 active: false,
                 service: null,
-                message: "Anti-hallucination marking disabled",
+                message: 'Anti-hallucination marking disabled',
             };
         }
         return {
             active: true,
             service: true,
-            message: "Anti-hallucination marking enabled (speculative + correction detection)",
+            message: 'Anti-hallucination marking enabled (speculative + correction detection)',
         };
     },
 };

@@ -10,40 +10,47 @@
  * Previously utils/db-bridge.ts was a 629-line monolith.
  * Now each engine lives in its own <200-line file.
  */
-import path from "node:path";
-import fs from "node:fs";
-import os from "node:os";
-import { getProp } from "../utils/config.ts";
-import { clampNum } from "../utils/clamp.ts";
-import { createCompatDB, type UnifiedDB, type DBCompatResult } from "../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
-import { ensureSchema } from "./schema.ts";
-import { createFtsEngine, type FtsEngine, createVectorStore, type VectorStore, createHybridSearch, type HybridSearch } from "./engine-barrel.ts";
-import type { SearchResult, EmbeddedSearchResult } from "./types.ts";
-import * as hybridHelpers from "./hybrid-helpers.ts";
-import { setupWAL, setLoggerRef } from "./wal-setup.ts";
-import { createQueryApi } from "./query-api.ts";
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
+import { getProp } from '../utils/config.ts';
+import { clampNum } from '../utils/clamp.ts';
+import { createCompatDB, type UnifiedDB, type DBCompatResult } from '../platform/db/compat.ts';
+import type { PluginLogger } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
+import { ensureSchema } from './schema.ts';
+import {
+  createFtsEngine,
+  type FtsEngine,
+  createVectorStore,
+  type VectorStore,
+  createHybridSearch,
+  type HybridSearch,
+} from './engine-barrel.ts';
+import type { SearchResult, EmbeddedSearchResult } from './types.ts';
+import * as hybridHelpers from './hybrid-helpers.ts';
+import { setupWAL, setLoggerRef } from './wal-setup.ts';
+import { createQueryApi } from './query-api.ts';
 
-export type { SearchResult, EmbeddedSearchResult, DBStats } from "./types.ts";
-export type { UnifiedDB, SQLiteRow } from "../platform/db/types.ts";
-export { createCompatDB } from "../platform/db/compat.ts";
-
+export type { SearchResult, EmbeddedSearchResult, DBStats } from './types.ts';
+export type { UnifiedDB, SQLiteRow } from '../platform/db/types.ts';
+export { createCompatDB } from '../platform/db/compat.ts';
 
 export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   const baseDir = path.resolve(
-    config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory")
+    config.memoryDir || path.join(os.homedir(), '.openclaw', 'workspace', 'memory'),
   );
-  if (/[\x00-\x1f]/.test(baseDir)) throw new TypeError("memoryDir contains invalid control characters");
+  if ([...baseDir].some(c => c.codePointAt(0)! < 0x20))
+    throw new TypeError('memoryDir contains invalid control characters');
 
   setLoggerRef(logger);
-  const dbPath = path.join(baseDir, ".yaoyao.db");
+  const dbPath = path.join(baseDir, '.yaoyao.db');
   const log = (msg: string) => logger?.debug?.(`[yaoyao:storage] ${msg}`);
 
   // Config
-  const snippetMaxLen = clampNum(getProp(config, "snippetMaxLen", 500), 500, 100, 5000);
-  const searchMaxLimit = clampNum(getProp(config, "searchMaxLimit", 100), 100, 10, 1000);
-  const likeFallbackScore = clampNum(getProp(config, "likeFallbackScore", 0.5), 0.5, 0.1, 1);
+  const snippetMaxLen = clampNum(getProp(config, 'snippetMaxLen', 500), 500, 100, 5000);
+  const searchMaxLimit = clampNum(getProp(config, 'searchMaxLimit', 100), 100, 10, 1000);
+  const likeFallbackScore = clampNum(getProp(config, 'likeFallbackScore', 0.5), 0.5, 0.1, 1);
 
   // State
   let db: UnifiedDB | null = null;
@@ -60,7 +67,7 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
 
   function ensureDB(): UnifiedDB {
     if (!db && !initFailed) init();
-    if (!db) throw new Error("Database failed to initialize");
+    if (!db) throw new Error('Database failed to initialize');
     return db;
   }
 
@@ -76,12 +83,17 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       setupWAL(db, dbPath, dbBackend, log);
 
       // WAL passive checkpoint timer
-      walCheckTimer = setInterval(() => {
-        try { db?.exec("PRAGMA wal_checkpoint(PASSIVE)"); } catch (e: unknown) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.warn(`[yaoyao-memory:storage] WAL checkpoint failed: ${msg}`);
-        }
-      }, 60 * 60 * 1000);
+      walCheckTimer = setInterval(
+        () => {
+          try {
+            db?.exec('PRAGMA wal_checkpoint(PASSIVE)');
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[yaoyao-memory:storage] WAL checkpoint failed: ${msg}`);
+          }
+        },
+        60 * 60 * 1000,
+      );
       walCheckTimer.unref();
 
       // Create tables
@@ -98,7 +110,9 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       log(`Storage initialized: ${dbPath} (db=${dbType}, vec=${vecName})`);
       return true;
     } catch (err: unknown) {
-      logger?.error?.(`[yaoyao:storage] Init failed: ${err instanceof Error ? err.message : String(err)}`);
+      logger?.error?.(
+        `[yaoyao:storage] Init failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
       initFailed = true;
       return false;
     }
@@ -127,12 +141,38 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
       return vector!.search(embedding, limit);
     },
 
-    hybridSearch(query: string, embedding: Float32Array | null, limit: number = 10): EmbeddedSearchResult[] {
-      return hybridHelpers.hybridSearch(ensureDB(), query, embedding, limit, fts!, vector!, hybrid!);
+    hybridSearch(
+      query: string,
+      embedding: Float32Array | null,
+      limit: number = 10,
+    ): EmbeddedSearchResult[] {
+      return hybridHelpers.hybridSearch(
+        ensureDB(),
+        query,
+        embedding,
+        limit,
+        fts!,
+        vector!,
+        hybrid!,
+      );
     },
 
-    rrfHybridSearch(query: string, embedding: Float32Array | null, limit: number = 10, k = 60): EmbeddedSearchResult[] {
-      return hybridHelpers.rrfHybridSearch(ensureDB(), query, embedding, limit, k, fts!, vector!, hybrid!);
+    rrfHybridSearch(
+      query: string,
+      embedding: Float32Array | null,
+      limit: number = 10,
+      k = 60,
+    ): EmbeddedSearchResult[] {
+      return hybridHelpers.rrfHybridSearch(
+        ensureDB(),
+        query,
+        embedding,
+        limit,
+        k,
+        fts!,
+        vector!,
+        hybrid!,
+      );
     },
 
     storeVector(metaId: number, embedding: Float32Array): boolean {
@@ -165,21 +205,29 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
 
     getLocalDate(tz?: string): string {
       try {
-        return new Date().toLocaleDateString("sv-SE", { timeZone: tz || "Asia/Shanghai" });
+        return new Date().toLocaleDateString('sv-SE', { timeZone: tz || 'Asia/Shanghai' });
       } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory:storage] Date locale failed: ${msg}`);
-      return new Date().toISOString().slice(0, 10);
-    }
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory:storage] Date locale failed: ${msg}`);
+        return new Date().toISOString().slice(0, 10);
+      }
     },
 
     close(): void {
-      if (walCheckTimer) { clearInterval(walCheckTimer); walCheckTimer = null; }
+      if (walCheckTimer) {
+        clearInterval(walCheckTimer);
+        walCheckTimer = null;
+      }
       vector?.close();
-      if (db) { try { db.close(); } catch (e: unknown) {
+      if (db) {
+        try {
+          db.close();
+        } catch (e: unknown) {
           const msg = e instanceof Error ? e.message : String(e);
           console.warn(`[yaoyao-memory:storage] DB close failed: ${msg}`);
-        } db = null; }
+        }
+        db = null;
+      }
       fts = null;
       hybrid = null;
       initFailed = false;

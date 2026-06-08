@@ -5,14 +5,14 @@
  */
 function trimCapturedValue(value) {
     return value
-        .replace(/^[\s"'"‘’「」『』*_`~：:]+/, "")
-        .replace(/[\s"'"‘’「」『』*_`~。！，、,.!?:：；;]+$/u, "")
+        .replace(/^[\s"'"‘’「」『』*_`~：:]+/, '')
+        .replace(/[\s"'"‘’「」『』*_`~。！，、,.!?:：；;]+$/u, '')
         .trim();
 }
 function extractFirst(patterns, text) {
     for (const pattern of patterns) {
         const match = pattern.exec(text);
-        const captured = match?.[1] ? trimCapturedValue(match[1]) : "";
+        const captured = match?.[1] ? trimCapturedValue(match[1]) : '';
         if (captured)
             return captured;
     }
@@ -57,12 +57,12 @@ export function extractIdentityCandidates(text) {
     const addressing = extractFirst(ADDRESSING_PATTERNS, sourceText);
     const candidates = [];
     if (name) {
-        candidates.push(makeCandidate("name", name, sourceText));
+        candidates.push(makeCandidate('name', name, sourceText));
     }
     if (addressing) {
         const duplicateOfName = name && addressing === name;
         if (!duplicateOfName || candidates.length === 0) {
-            candidates.push(makeCandidate("addressing", addressing, sourceText));
+            candidates.push(makeCandidate('addressing', addressing, sourceText));
         }
     }
     return candidates;

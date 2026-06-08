@@ -88,7 +88,7 @@ export function createCaptureDebouncer(config = {}, flushHandler) {
                 existing.meta = item.meta;
                 existing.entry = item.entry ?? existing.entry;
                 existing._lastAt = Date.now();
-                existing.mergedCount++;
+                existing.mergedCount = (existing.mergedCount ?? 0) + 1;
                 mergedCount++;
             }
             else {
@@ -126,7 +126,9 @@ export function createCaptureDebouncer(config = {}, flushHandler) {
             }
         },
         /** Current queue depth */
-        get size() { return pending.size; },
+        get size() {
+            return pending.size;
+        },
         /** Statistics for monitoring */
         stats() {
             return { flushedCount, mergedCount, queueSize: pending.size };

@@ -44,18 +44,15 @@ export function isSuppressed(meta: Tier1MetaInput, nowMs: number): boolean {
 /** Has the previous injection of this memory ever been confirmed? */
 function isStaleInjection(meta: Tier1MetaInput): boolean {
   return (
-    typeof meta.last_injected_at === "number" &&
+    typeof meta.last_injected_at === 'number' &&
     meta.last_injected_at > 0 &&
-    (typeof meta.last_confirmed_use_at !== "number" ||
+    (typeof meta.last_confirmed_use_at !== 'number' ||
       meta.last_confirmed_use_at < meta.last_injected_at)
   );
 }
 
 /** Compute metadata patch after Tier 1 auto-recall injects a memory. */
-export function computeTier1Patch(
-  meta: Tier1MetaInput,
-  opts: ComputeTier1PatchOpts,
-): Tier1Patch {
+export function computeTier1Patch(meta: Tier1MetaInput, opts: ComputeTier1PatchOpts): Tier1Patch {
   const {
     injectedAt,
     badRecallDecayMs = TIER1_DEFAULT_BAD_RECALL_DECAY_MS,
@@ -70,30 +67,20 @@ export function computeTier1Patch(
 
   // Lazy heal: reset legacy pollution for never-touched memories
   let baseBadRecall = rawBadRecall;
-  if (
-    meta.suppressed_until_ms === undefined &&
-    (rawBadRecall > 0 || turnLegacy > 0)
-  ) {
+  if (meta.suppressed_until_ms === undefined && (rawBadRecall > 0 || turnLegacy > 0)) {
     baseBadRecall = 0;
   }
 
   // Decay: if gap since last injection exceeds window, reset bad_recall_count
   const gapSinceLastInjection =
-    typeof meta.last_injected_at === "number"
-      ? injectedAt - meta.last_injected_at
-      : Infinity;
+    typeof meta.last_injected_at === 'number' ? injectedAt - meta.last_injected_at : Infinity;
   const decayedBadRecall =
-    badRecallDecayMs > 0 && gapSinceLastInjection > badRecallDecayMs
-      ? 0
-      : baseBadRecall;
+    badRecallDecayMs > 0 && gapSinceLastInjection > badRecallDecayMs ? 0 : baseBadRecall;
 
   const staleInjected = isStaleInjection(meta);
-  const nextBadRecallCount = staleInjected
-    ? decayedBadRecall + 1
-    : decayedBadRecall;
+  const nextBadRecallCount = staleInjected ? decayedBadRecall + 1 : decayedBadRecall;
   const shouldSuppress =
-    nextBadRecallCount >= TIER1_BAD_RECALL_SUPPRESSION_THRESHOLD &&
-    minRepeated > 0;
+    nextBadRecallCount >= TIER1_BAD_RECALL_SUPPRESSION_THRESHOLD && minRepeated > 0;
 
   return {
     access_count: accessCount + 1,

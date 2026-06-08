@@ -53,14 +53,14 @@ export function createWriteQueue(flushHandler, logger, audit, maxSize = 1000) {
                 // Audit: record dropped tasks
                 if (audit) {
                     audit.write({
-                        component: "write-queue",
-                        event: "flush-failed",
+                        component: 'write-queue',
+                        event: 'flush-failed',
                         summary: `L1/L2 异步写入失败（重试一次后仍失败），${batch.length} 条任务被丢弃（L0 .md 已同步落盘）`,
                         details: {
-                            "丢弃任务数": batch.length,
-                            "影响日期": batch.map(t => t.date).join(", "),
-                            "错误类型": retryMsg.slice(0, 200),
-                            "建议": "检查磁盘空间、权限、或切换 capture.mode 为 sync",
+                            丢弃任务数: batch.length,
+                            影响日期: batch.map((t) => t.date).join(', '),
+                            错误类型: retryMsg.slice(0, 200),
+                            建议: '检查磁盘空间、权限、或切换 capture.mode 为 sync',
                         },
                     });
                 }
@@ -78,16 +78,21 @@ export function createWriteQueue(flushHandler, logger, audit, maxSize = 1000) {
             }
         }
     }
-    return { enqueue, get pendingCount() { return pending.length; }, drain: async () => {
+    return {
+        enqueue,
+        get pendingCount() {
+            return pending.length;
+        },
+        drain: async () => {
             if (flushing) {
                 // Wait for current flush to complete (max 30s)
                 let waitMs = 0;
                 while (flushing && waitMs < 30000) {
-                    await new Promise(r => setTimeout(r, 10));
+                    await new Promise((r) => setTimeout(r, 10));
                     waitMs += 10;
                 }
                 if (flushing) {
-                    logger?.warn?.("[yaoyao-memory:write-queue] Drain timeout: flush still in progress after 30s");
+                    logger?.warn?.('[yaoyao-memory:write-queue] Drain timeout: flush still in progress after 30s');
                 }
             }
             if (pending.length > 0) {
@@ -96,16 +101,18 @@ export function createWriteQueue(flushHandler, logger, audit, maxSize = 1000) {
             // Double-check after any async gap (max 30s)
             let waitMs = 0;
             while (flushing && waitMs < 30000) {
-                await new Promise(r => setTimeout(r, 10));
+                await new Promise((r) => setTimeout(r, 10));
                 waitMs += 10;
             }
             if (flushing) {
-                logger?.warn?.("[yaoyao-memory:write-queue] Drain timeout: flush still in progress after 30s");
+                logger?.warn?.('[yaoyao-memory:write-queue] Drain timeout: flush still in progress after 30s');
             }
-        }, retry: async () => {
+        },
+        retry: async () => {
             // Re-run flush for any remaining tasks (used after a failure)
             if (pending.length > 0 && !flushing) {
                 await runFlush();
             }
-        } };
+        },
+    };
 }

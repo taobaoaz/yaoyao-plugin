@@ -1,9 +1,9 @@
 /**
  * utils/telemetry.ts — Anonymous heartbeat to yaoyao website backend.
  */
-const DEFAULT_URL = "https://yaoyao.dev/api/heartbeat";
+const DEFAULT_URL = 'https://yaoyao.dev/api/heartbeat';
 function generateAgentId() {
-    const raw = `${process.env.MACHINE_ID || "unknown"}:${process.env.USER || "unknown"}`;
+    const raw = `${process.env.MACHINE_ID || 'unknown'}:${process.env.USER || 'unknown'}`;
     let h = 0;
     for (let i = 0; i < raw.length; i++) {
         h = (h << 5) - h + raw.charCodeAt(i);
@@ -22,8 +22,8 @@ export async function sendHeartbeat(payload, url) {
     const target = url || process.env.YAOYAO_TELEMETRY_URL || DEFAULT_URL;
     try {
         const res = await fetch(target, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         });
         if (!res.ok)

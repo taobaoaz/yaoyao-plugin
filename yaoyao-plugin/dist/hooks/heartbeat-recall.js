@@ -16,10 +16,10 @@ import { executeMemoryCall } from "../core/search/memory-call-search.js";
  */
 export function registerHeartbeatRecallHook(api, storage, embedding, config) {
     if (!config.enabled) {
-        api.logger.info("[yaoyao-memory] Heartbeat recall hook disabled");
+        api.logger.info('[yaoyao-memory] Heartbeat recall hook disabled');
         return;
     }
-    api.on("heartbeat_prompt_contribution", async (event, _ctx) => {
+    api.on('heartbeat_prompt_contribution', async (event, _ctx) => {
         const sessionKey = event.sessionKey;
         if (!sessionKey)
             return;
@@ -28,7 +28,7 @@ export function registerHeartbeatRecallHook(api, storage, embedding, config) {
         if (!keywords || keywords.length === 0)
             return;
         // Build query from keywords
-        const query = keywords.join(" ");
+        const query = keywords.join(' ');
         const memoryCall = parseMemoryCall(query);
         memoryCall.maxResults = config.maxResults ?? 3;
         memoryCall.minScore = config.minScore ?? 0.4;
@@ -41,7 +41,7 @@ export function registerHeartbeatRecallHook(api, storage, embedding, config) {
             return;
         // Format results as context string
         const maxChars = config.maxContextChars ?? 800;
-        let context = "📋 相关记忆:\n";
+        let context = '📋 相关记忆:\n';
         let charCount = context.length;
         for (const r of results) {
             const entry = `• ${r.filename}: ${r.snippet}\n`;
@@ -53,5 +53,5 @@ export function registerHeartbeatRecallHook(api, storage, embedding, config) {
         // Return as appendContext (injected into heartbeat prompt)
         return { appendContext: context };
     });
-    api.logger.info("[yaoyao-memory] Heartbeat recall hook registered");
+    api.logger.info('[yaoyao-memory] Heartbeat recall hook registered');
 }

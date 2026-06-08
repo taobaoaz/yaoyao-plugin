@@ -4,13 +4,13 @@
  * Supports both numeric semver (1.2.3) and date-based (2026.5.6) versions.
  * No external deps (no semver package).
  */
-import { createRequire } from "node:module";
+import { createRequire } from 'node:module';
 /** Parse a version string into comparable parts */
 export function parseVersion(ver) {
     // Strip leading 'v' or '='
-    const clean = ver.replace(/^[v=]+/, "").trim();
+    const clean = ver.replace(/^[v=]+/, '').trim();
     // Split by dot, filter out non-numeric segments gracefully
-    return clean.split(".").map(s => {
+    return clean.split('.').map((s) => {
         const n = parseInt(s, 10);
         return isNaN(n) ? 0 : n;
     });
@@ -33,27 +33,27 @@ export function satisfiesVersion(ver, range) {
     const v = parseVersion(ver);
     const r = range.trim();
     // Handle >=X.Y.Z
-    if (r.startsWith(">=")) {
+    if (r.startsWith('>=')) {
         const min = parseVersion(r.slice(2));
         return compareVersions(v, min) >= 0;
     }
     // Handle >X.Y.Z
-    if (r.startsWith(">")) {
+    if (r.startsWith('>')) {
         const min = parseVersion(r.slice(1));
         return compareVersions(v, min) > 0;
     }
     // Handle <=X.Y.Z
-    if (r.startsWith("<=")) {
+    if (r.startsWith('<=')) {
         const max = parseVersion(r.slice(2));
         return compareVersions(v, max) <= 0;
     }
     // Handle <X.Y.Z
-    if (r.startsWith("<")) {
+    if (r.startsWith('<')) {
         const max = parseVersion(r.slice(1));
         return compareVersions(v, max) < 0;
     }
     // Handle ^X.Y.Z (caret) — same major, >= minor.patch
-    if (r.startsWith("^")) {
+    if (r.startsWith('^')) {
         const base = parseVersion(r.slice(1));
         if (base.length === 0)
             return false;
@@ -64,7 +64,7 @@ export function satisfiesVersion(ver, range) {
         return compareVersions(v, base) >= 0;
     }
     // Handle ~X.Y.Z (tilde) — same major.minor, >= patch
-    if (r.startsWith("~")) {
+    if (r.startsWith('~')) {
         const base = parseVersion(r.slice(1));
         if (base.length < 2)
             return false;
@@ -80,35 +80,37 @@ export function satisfiesVersion(ver, range) {
 /** Read the plugin's own version requirements from package.json */
 export function readVersionRequirements() {
     const defaults = {
-        nodeRange: "^22.0.0",
-        pluginApiRange: ">=2026.5.5",
-        pluginVersion: "unknown",
-        openclawVersion: "unknown",
+        nodeRange: '^22.0.0',
+        pluginApiRange: '>=2026.5.5',
+        pluginVersion: 'unknown',
+        openclawVersion: 'unknown',
     };
     try {
         const _require = createRequire(import.meta.url);
         // Try multiple paths for dist vs src context
         let pkg;
         try {
-            pkg = _require("../package.json");
+            pkg = _require('../package.json');
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             console.warn(`[yaoyao-memory:version] Read ../package.json failed: ${msg}`);
             try {
-                pkg = _require("../../package.json");
+                pkg = _require('../../package.json');
             }
             catch (e2) {
                 const msg2 = e2 instanceof Error ? e2.message : String(e2);
                 console.warn(`[yaoyao-memory:version] Read ../../package.json failed: ${msg2}`);
-                pkg = _require("./package.json");
+                pkg = _require('./package.json');
             }
         }
         return {
             nodeRange: pkg.engines?.node || defaults.nodeRange,
-            pluginApiRange: pkg.openclaw?.compat?.pluginApi || defaults.pluginApiRange,
+            pluginApiRange: pkg.openclaw?.compat
+                ?.pluginApi || defaults.pluginApiRange,
             pluginVersion: pkg.version || defaults.pluginVersion,
-            openclawVersion: pkg.openclaw?.build?.openclawVersion || defaults.openclawVersion,
+            openclawVersion: pkg.openclaw?.build
+                ?.openclawVersion || defaults.openclawVersion,
         };
     }
     catch (e) {

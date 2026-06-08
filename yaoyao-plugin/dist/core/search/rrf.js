@@ -48,16 +48,24 @@ export function reciprocalRankFusion(lists, k = DEFAULT_K) {
  * Convenience: fuse two lists (FTS5 + vector) with a score threshold filter.
  */
 export function fuseFTSAndVector(ftsResults, vecResults, k = DEFAULT_K, minScoreThreshold = 0) {
-    const ftsRanked = ftsResults.map(r => ({ id: r.id, doc: r, originalScore: r.score }));
-    const vecRanked = vecResults.map(r => ({ id: r.id, doc: r, originalScore: r.score }));
+    const ftsRanked = ftsResults.map((r) => ({
+        id: r.id,
+        doc: r,
+        originalScore: r.score,
+    }));
+    const vecRanked = vecResults.map((r) => ({
+        id: r.id,
+        doc: r,
+        originalScore: r.score,
+    }));
     const fused = reciprocalRankFusion([ftsRanked, vecRanked], k);
     return fused
-        .filter(r => minScoreThreshold <= 0 || r.rrfScore >= minScoreThreshold)
-        .map(r => ({
+        .filter((r) => minScoreThreshold <= 0 || r.rrfScore >= minScoreThreshold)
+        .map((r) => ({
         id: r.id,
         rrfScore: r.rrfScore,
-        ftsScore: (r.ranks[0] >= 0 ? ftsResults[r.ranks[0]].score : 0),
-        vecScore: (r.ranks[1] >= 0 ? vecResults[r.ranks[1]].score : 0),
+        ftsScore: r.ranks[0] >= 0 ? ftsResults[r.ranks[0]].score : 0,
+        vecScore: r.ranks[1] >= 0 ? vecResults[r.ranks[1]].score : 0,
         ...r.doc,
     }));
 }

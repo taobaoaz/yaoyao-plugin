@@ -5,22 +5,22 @@
  * Zero external dependencies beyond node:fs / node:path.
  */
 
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 
 export interface ImportManifest {
   lastImportAt?: string;
   importedFiles?: Record<string, number>; // filepath -> mtimeMs
 }
 
-const IMPORT_MANIFEST_FILE = ".metadata/import-manifest.json";
+const IMPORT_MANIFEST_FILE = '.metadata/import-manifest.json';
 
 /** Read the import manifest from disk. */
 export function readImportManifest(baseDir: string): ImportManifest {
   const file = path.join(baseDir, IMPORT_MANIFEST_FILE);
   if (!fs.existsSync(file)) return {};
   try {
-    return JSON.parse(fs.readFileSync(file, "utf-8")) as ImportManifest;
+    return JSON.parse(fs.readFileSync(file, 'utf-8')) as ImportManifest;
   } catch {
     return {};
   }
@@ -28,10 +28,10 @@ export function readImportManifest(baseDir: string): ImportManifest {
 
 /** Atomically write the import manifest to disk. */
 export function writeImportManifest(baseDir: string, data: ImportManifest): void {
-  const dir = path.join(baseDir, ".metadata");
+  const dir = path.join(baseDir, '.metadata');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const file = path.join(dir, "import-manifest.json");
-  const tmp = file + ".tmp";
+  const file = path.join(dir, 'import-manifest.json');
+  const tmp = file + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, file);
 }

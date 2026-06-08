@@ -36,11 +36,11 @@ const EXPLORATORY_PATTERNS = [
  * relational favours FTS (keyword overlap), exploratory stays balanced.
  */
 export const INTENT_WEIGHTS = {
-    entity_lookup: { fts: 0.25, vector: 0.65, temporal: 0.10 },
-    factual: { fts: 0.35, vector: 0.50, temporal: 0.15 },
-    temporal: { fts: 0.25, vector: 0.25, temporal: 0.50 },
-    relational: { fts: 0.55, vector: 0.35, temporal: 0.10 },
-    exploratory: { fts: 0.40, vector: 0.35, temporal: 0.25 },
+    entity_lookup: { fts: 0.25, vector: 0.65, temporal: 0.1 },
+    factual: { fts: 0.35, vector: 0.5, temporal: 0.15 },
+    temporal: { fts: 0.25, vector: 0.25, temporal: 0.5 },
+    relational: { fts: 0.55, vector: 0.35, temporal: 0.1 },
+    exploratory: { fts: 0.4, vector: 0.35, temporal: 0.25 },
     general: { fts: 0.33, vector: 0.34, temporal: 0.33 },
 };
 // ── Public API ──
@@ -49,29 +49,29 @@ export const INTENT_WEIGHTS = {
  * Uses pattern matching (no LLM call needed for this).
  */
 export function classifyIntent(query) {
-    if (typeof query !== "string" || query.length === 0)
-        return "general";
+    if (typeof query !== 'string' || query.length === 0)
+        return 'general';
     // Relational check first (most specific patterns)
     for (const p of RELATIONAL_PATTERNS) {
         if (p.test(query))
-            return "relational";
+            return 'relational';
     }
     // Entity lookup
     for (const p of ENTITY_PATTERNS) {
         if (p.test(query))
-            return "entity_lookup";
+            return 'entity_lookup';
     }
     // Temporal
     for (const p of TEMPORAL_PATTERNS) {
         if (p.test(query))
-            return "temporal";
+            return 'temporal';
     }
     // Exploratory
     for (const p of EXPLORATORY_PATTERNS) {
         if (p.test(query))
-            return "exploratory";
+            return 'exploratory';
     }
-    return "general";
+    return 'general';
 }
 /**
  * Get the weight profile for a query intent.

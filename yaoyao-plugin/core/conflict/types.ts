@@ -2,11 +2,11 @@
  * core/conflict/types.ts — Conflict detection types and markers.
  */
 export type ConflictRelation =
-  | "supersedes"
-  | "conflicts_with"
-  | "compatible"
-  | "related"
-  | "not_conflict";
+  | 'supersedes'
+  | 'conflicts_with'
+  | 'compatible'
+  | 'related'
+  | 'not_conflict';
 
 export interface ConflictCandidate {
   memoryId: number;
@@ -28,7 +28,7 @@ export interface ConflictRelationRecord {
   memoryAId: number;
   memoryBId: number;
   relation: ConflictRelation;
-  judgedBy: "agent" | "user" | "auto";
+  judgedBy: 'agent' | 'user' | 'auto';
   reason: string;
   evidence?: string;
   judgedAt: string;

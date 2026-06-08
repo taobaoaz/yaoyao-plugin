@@ -17,17 +17,17 @@ export interface SessionFilterConfig {
 
 export function createSessionFilter(config?: SessionFilterConfig) {
   const internalLabels = new Set([
-    "system",
-    "admin",
-    "cron",
-    "cronjob",
-    "heartbeat",
-    "healthcheck",
-    "internal",
-    "plugin",
-    "test",
-    "debug",
-    "monitor",
+    'system',
+    'admin',
+    'cron',
+    'cronjob',
+    'heartbeat',
+    'healthcheck',
+    'internal',
+    'plugin',
+    'test',
+    'debug',
+    'monitor',
   ]);
 
   const cfg = {
@@ -42,23 +42,28 @@ export function createSessionFilter(config?: SessionFilterConfig) {
    * @param sessionKey The session identifier string
    * @param context Optional context object with session metadata
    */
-  function shouldProcess(sessionKey: string, context?: { label?: string; messageCount?: number }): boolean {
+  function shouldProcess(
+    sessionKey: string,
+    context?: { label?: string; messageCount?: number },
+  ): boolean {
     // Skip empty session keys
     if (!sessionKey || sessionKey.trim().length === 0) return false;
 
     // Explicit allowlist: only process matching sessions
     if (cfg.allowLabels.length > 0) {
       const sessionLabel = context?.label || sessionKey;
-      return cfg.allowLabels.some(label =>
-        sessionLabel.toLowerCase().includes(label.toLowerCase())
+      return cfg.allowLabels.some((label) =>
+        sessionLabel.toLowerCase().includes(label.toLowerCase()),
       );
     }
 
     // Block specific labels
     if (cfg.blockLabels.length > 0) {
       for (const blocked of cfg.blockLabels) {
-        if (sessionKey.toLowerCase().includes(blocked.toLowerCase()) ||
-            context?.label?.toLowerCase().includes(blocked.toLowerCase())) {
+        if (
+          sessionKey.toLowerCase().includes(blocked.toLowerCase()) ||
+          context?.label?.toLowerCase().includes(blocked.toLowerCase())
+        ) {
           return false;
         }
       }

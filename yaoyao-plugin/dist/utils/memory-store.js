@@ -7,23 +7,23 @@
  *   - memoryDir 配置禁止 .. 和相对路径
  *   - daily 文件写入后 chmod 0o600
  */
-import path from "node:path";
-import fs from "node:fs";
-import os from "node:os";
+import path from 'node:path';
+import fs from 'node:fs';
+import os from 'node:os';
 /** Validate memoryDir config to prevent path traversal */
 function validateMemoryDir(rawDir) {
     if (!rawDir) {
-        return path.join(os.homedir(), ".openclaw", "workspace", "memory");
+        return path.join(os.homedir(), '.openclaw', 'workspace', 'memory');
     }
     const resolved = path.resolve(rawDir);
     // Reject parent directory references
-    if (rawDir.includes("..") || !path.isAbsolute(resolved)) {
+    if (rawDir.includes('..') || !path.isAbsolute(resolved)) {
         throw new Error(`Invalid memoryDir "${rawDir}": must be absolute and not contain parent references`);
     }
     return resolved;
 }
 export function createMemoryStore(config, logger) {
-    let baseDir = validateMemoryDir(config.memoryDir);
+    const baseDir = validateMemoryDir(config.memoryDir);
     const log = (msg) => logger?.debug?.(`[yaoyao-memory:store] ${msg}`);
     function ensureDir(dir) {
         if (!fs.existsSync(dir)) {
@@ -52,7 +52,7 @@ export function createMemoryStore(config, logger) {
     }
     function readFile(filePath) {
         try {
-            return fs.readFileSync(filePath, "utf-8");
+            return fs.readFileSync(filePath, 'utf-8');
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -66,7 +66,7 @@ export function createMemoryStore(config, logger) {
             ensureDir(baseDir);
             const d = date || new Date().toISOString().slice(0, 10);
             const header = `# ${d} 记忆\n\n> 每日对话记录\n\n---\n\n_此文件由 yaoyao-memory 插件自动维护_\n`;
-            fs.writeFileSync(fp, header, "utf-8");
+            fs.writeFileSync(fp, header, 'utf-8');
             try {
                 fs.chmodSync(fp, 0o600);
             }
@@ -81,7 +81,7 @@ export function createMemoryStore(config, logger) {
     /** Append content to a daily log file. Creates the file if it doesn't exist. */
     function appendToDaily(date, content) {
         const fp = getDailyFile(date);
-        fs.appendFileSync(fp, content, "utf-8");
+        fs.appendFileSync(fp, content, 'utf-8');
         try {
             fs.chmodSync(fp, 0o600);
         }
@@ -93,17 +93,17 @@ export function createMemoryStore(config, logger) {
     /** List all memory files in the directory. */
     function listFiles() {
         ensureDir(baseDir);
-        const files = fs.readdirSync(baseDir).filter(f => f.endsWith(".md"));
+        const files = fs.readdirSync(baseDir).filter((f) => f.endsWith('.md'));
         const results = [];
         for (const f of files) {
             const fp = path.join(baseDir, f);
             try {
                 const stat = fs.statSync(fp);
-                let type = "memory";
+                let type = 'memory';
                 if (/^\d{4}-\d{2}-\d{2}/.test(f))
-                    type = "daily";
-                else if (f.startsWith("archive") || f.includes("archive"))
-                    type = "archive";
+                    type = 'daily';
+                else if (f.startsWith('archive') || f.includes('archive'))
+                    type = 'archive';
                 results.push({
                     type,
                     path: fp,

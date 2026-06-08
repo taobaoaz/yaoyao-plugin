@@ -1,69 +1,88 @@
 /**
  * utils/cloud-adapter/s3.ts — S3 adapter via AWS Signature V4
  */
-import https from "node:https";
-import http from "node:http";
-import { URL } from "node:url";
-import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
+import https from 'node:https';
+import http from 'node:http';
+import { URL } from 'node:url';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 export class S3Adapter {
-    provider = "s3";
+    provider = 's3';
     endpoint;
     accessKey;
     secretKey;
     bucket;
     region;
     constructor(secrets) {
-        this.endpoint = (secrets.S3_ENDPOINT || "").replace(/\/+$/, "");
-        this.accessKey = secrets.S3_ACCESS_KEY || "";
-        this.secretKey = secrets.S3_SECRET_KEY || "";
-        this.bucket = secrets.S3_BUCKET || "";
-        this.region = secrets.S3_REGION || "auto";
+        this.endpoint = (secrets.S3_ENDPOINT || '').replace(/\/+$/, '');
+        this.accessKey = secrets.S3_ACCESS_KEY || '';
+        this.secretKey = secrets.S3_SECRET_KEY || '';
+        this.bucket = secrets.S3_BUCKET || '';
+        this.region = secrets.S3_REGION || 'auto';
     }
     static isConfigured(s) {
         return !!(s.S3_ENDPOINT && s.S3_ACCESS_KEY && s.S3_SECRET_KEY && s.S3_BUCKET);
     }
-    usePathStyle() { return this.bucket.includes("."); }
+    usePathStyle() {
+        return this.bucket.includes('.');
+    }
     targetHost() {
         const h = new URL(this.endpoint).host;
         return this.usePathStyle() ? h : `${this.bucket}.${h}`;
     }
     signRequest(method, path, headers, bodySha256, d) {
-        const dateStamp = d.toISOString().replace(/[-:]/g, "").slice(0, 8);
-        const amzDate = dateStamp + "T" + d.toISOString().replace(/[-:]/g, "").slice(9, 15) + "Z";
+        const dateStamp = d.toISOString().replace(/[-:]/g, '').slice(0, 8);
+        const amzDate = dateStamp + 'T' + d.toISOString().replace(/[-:]/g, '').slice(9, 15) + 'Z';
         const credScope = `${dateStamp}/${this.region}/s3/aws4_request`;
-        headers["x-amz-date"] = amzDate;
-        headers["x-amz-content-sha256"] = bodySha256;
+        headers['x-amz-date'] = amzDate;
+        headers['x-amz-content-sha256'] = bodySha256;
         headers.Host = this.targetHost();
-        const signedKeys = Object.keys(headers).map(k => k.toLowerCase()).sort();
-        const signedHeaders = signedKeys.join(";");
-        const cHeaders = signedKeys.map(k => `${k}:${headers[Object.keys(headers).find(h => h.toLowerCase() === k)]}`).join("\n") + "\n";
-        const cReq = [method, path, "", cHeaders, signedHeaders, bodySha256].join("\n");
-        const sTs = ["AWS4-HMAC-SHA256", amzDate, credScope, crypto.createHash("sha256").update(cReq).digest("hex")].join("\n");
-        const hmac = (k, d) => crypto.createHmac("sha256", k).update(d).digest();
-        let sk = hmac(Buffer.from("AWS4" + this.secretKey), dateStamp);
+        const signedKeys = Object.keys(headers)
+            .map((k) => k.toLowerCase())
+            .sort();
+        const signedHeaders = signedKeys.join(';');
+        const cHeaders = signedKeys
+            .map((k) => `${k}:${headers[Object.keys(headers).find((h) => h.toLowerCase() === k)]}`)
+            .join('\n') + '\n';
+        const cReq = [method, path, '', cHeaders, signedHeaders, bodySha256].join('\n');
+        const sTs = [
+            'AWS4-HMAC-SHA256',
+            amzDate,
+            credScope,
+            crypto.createHash('sha256').update(cReq).digest('hex'),
+        ].join('\n');
+        const hmac = (k, d) => crypto.createHmac('sha256', k).update(d).digest();
+        let sk = hmac(Buffer.from('AWS4' + this.secretKey), dateStamp);
         sk = hmac(sk, this.region);
-        sk = hmac(sk, "s3");
-        sk = hmac(sk, "aws4_request");
-        headers.Authorization = `AWS4-HMAC-SHA256 Credential=${this.accessKey}/${credScope}, SignedHeaders=${signedHeaders}, Signature=${crypto.createHmac("sha256", sk).update(sTs).digest("hex")}`;
+        sk = hmac(sk, 's3');
+        sk = hmac(sk, 'aws4_request');
+        headers.Authorization = `AWS4-HMAC-SHA256 Credential=${this.accessKey}/${credScope}, SignedHeaders=${signedHeaders}, Signature=${crypto.createHmac('sha256', sk).update(sTs).digest('hex')}`;
         return headers;
     }
     async doReq(method, key, xh = {}, body) {
         const bodyData = body || Buffer.alloc(0);
-        const bodySha256 = crypto.createHash("sha256").update(bodyData).digest("hex");
+        const bodySha256 = crypto.createHash('sha256').update(bodyData).digest('hex');
         const targetHost = this.targetHost();
-        const s3Path = this.usePathStyle() ? `/${this.bucket}/${key.replace(/^\//, "")}` : `/${key.replace(/^\//, "")}`;
+        const s3Path = this.usePathStyle()
+            ? `/${this.bucket}/${key.replace(/^\//, '')}`
+            : `/${key.replace(/^\//, '')}`;
         const pe = new URL(this.endpoint);
-        const port = pe.port || (pe.protocol === "https:" ? 443 : 80);
-        const mod = pe.protocol === "https:" ? https : http;
+        const port = pe.port || (pe.protocol === 'https:' ? 443 : 80);
+        const mod = pe.protocol === 'https:' ? https : http;
         return new Promise((resolve, reject) => {
-            const req = mod.request({ method, hostname: targetHost, port, path: s3Path, headers: this.signRequest(method, s3Path, { Host: targetHost, ...xh }, bodySha256, new Date()) }, (res) => {
+            const req = mod.request({
+                method,
+                hostname: targetHost,
+                port,
+                path: s3Path,
+                headers: this.signRequest(method, s3Path, { Host: targetHost, ...xh }, bodySha256, new Date()),
+            }, (res) => {
                 const chunks = [];
-                res.on("data", c => chunks.push(c));
-                res.on("end", () => resolve({ status: res.statusCode || 0, data: Buffer.concat(chunks) }));
+                res.on('data', (c) => chunks.push(c));
+                res.on('end', () => resolve({ status: res.statusCode || 0, data: Buffer.concat(chunks) }));
             });
-            req.on("error", reject);
+            req.on('error', reject);
             if (bodyData.length > 0)
                 req.write(bodyData);
             req.end();
@@ -72,7 +91,7 @@ export class S3Adapter {
     async upload(localPath, remotePath) {
         try {
             const data = fs.readFileSync(localPath);
-            const { status } = await this.doReq("PUT", remotePath, { "Content-Length": String(data.length) }, data);
+            const { status } = await this.doReq('PUT', remotePath, { 'Content-Length': String(data.length) }, data);
             return status >= 200 && status < 300;
         }
         catch {
@@ -81,7 +100,7 @@ export class S3Adapter {
     }
     async download(remotePath, localPath) {
         try {
-            const { status, data } = await this.doReq("GET", remotePath);
+            const { status, data } = await this.doReq('GET', remotePath);
             if (status !== 200)
                 return false;
             fs.mkdirSync(path.dirname(localPath), { recursive: true });
@@ -92,35 +111,48 @@ export class S3Adapter {
             return false;
         }
     }
-    async list(remotePath = "/") {
+    async list(remotePath = '/') {
         try {
-            const prefix = remotePath.replace(/^\//, "");
+            const prefix = remotePath.replace(/^\//, '');
             const targetHost = this.targetHost();
             const query = `?list-type=2&prefix=${encodeURIComponent(prefix)}`;
             const listPath = this.usePathStyle() ? `/${this.bucket}${query}` : `/${query}`;
-            const bodySha256 = crypto.createHash("sha256").update("").digest("hex");
+            const bodySha256 = crypto.createHash('sha256').update('').digest('hex');
             const pe = new URL(this.endpoint);
-            const port = pe.port || (pe.protocol === "https:" ? 443 : 80);
-            const mod = pe.protocol === "https:" ? https : http;
+            const port = pe.port || (pe.protocol === 'https:' ? 443 : 80);
+            const mod = pe.protocol === 'https:' ? https : http;
             return await new Promise((resolve, reject) => {
-                const req = mod.request({ method: "GET", hostname: targetHost, port, path: listPath, headers: this.signRequest("GET", listPath, { Host: targetHost }, bodySha256, new Date()) }, (res) => {
+                const req = mod.request({
+                    method: 'GET',
+                    hostname: targetHost,
+                    port,
+                    path: listPath,
+                    headers: this.signRequest('GET', listPath, { Host: targetHost }, bodySha256, new Date()),
+                }, (res) => {
                     const chunks = [];
-                    res.on("data", c => chunks.push(c));
-                    res.on("end", () => {
+                    res.on('data', (c) => chunks.push(c));
+                    res.on('end', () => {
                         if (res.statusCode !== 200)
                             return resolve([]);
                         const entries = [];
-                        for (const c of Buffer.concat(chunks).toString("utf-8").split(/<Contents>/).slice(1)) {
+                        for (const c of Buffer.concat(chunks)
+                            .toString('utf-8')
+                            .split(/<Contents>/)
+                            .slice(1)) {
                             const km = c.match(/<Key>([^<]+)/);
                             const sm = c.match(/<Size>(\d+)/);
                             const mm = c.match(/<LastModified>([^<]+)/);
                             if (km)
-                                entries.push({ name: km[1].split("/").pop() || km[1], size: sm ? parseInt(sm[1], 10) : 0, modified: mm ? new Date(mm[1]).getTime() : 0 });
+                                entries.push({
+                                    name: km[1].split('/').pop() || km[1],
+                                    size: sm ? parseInt(sm[1], 10) : 0,
+                                    modified: mm ? new Date(mm[1]).getTime() : 0,
+                                });
                         }
                         resolve(entries);
                     });
                 });
-                req.on("error", reject);
+                req.on('error', reject);
                 req.end();
             });
         }
@@ -132,7 +164,7 @@ export class S3Adapter {
     }
     async delete(remotePath) {
         try {
-            const { status } = await this.doReq("DELETE", remotePath);
+            const { status } = await this.doReq('DELETE', remotePath);
             return status >= 200 && status < 300;
         }
         catch {
@@ -141,7 +173,7 @@ export class S3Adapter {
     }
     async exists(remotePath) {
         try {
-            const { status } = await this.doReq("HEAD", remotePath);
+            const { status } = await this.doReq('HEAD', remotePath);
             return status === 200;
         }
         catch {

@@ -4,9 +4,9 @@ import { validateConfig, logValidationResults } from "../../utils/config-validat
 import { runInstallCheck, formatInstallCheck } from "../../utils/install-check.js";
 import { initManifest } from "../../utils/manifest.js";
 import { detectLegacy, cleanupOldSkills } from "../../entry/migration.js";
-import { createMemoryCleaner, getNextCleanTimeMs } from "../../utils/memory-cleaner.js";
+import { createMemoryCleaner, getNextCleanTimeMs, } from "../../utils/memory-cleaner.js";
 import { SimpleScopeManager } from "../../utils/scope-manager.js";
-import { resolveSessionSearchDirs, readCrossSessionMemories } from "../../utils/session-recovery.js";
+import { resolveSessionSearchDirs, readCrossSessionMemories, } from "../../utils/session-recovery.js";
 export { stepImportExistingMemories } from "./import-memories.js";
 export function stepInstallCheck(api, config) {
     const cap = runInstallCheck();
@@ -17,8 +17,8 @@ export function stepInstallCheck(api, config) {
 export function stepConfigValidation(api, config) {
     const results = validateConfig(config);
     logValidationResults(results, api.logger);
-    if (results.some(r => r.level === "error")) {
-        api.logger.warn?.("[yaoyao-memory] Config has errors — some features may be disabled");
+    if (results.some((r) => r.level === 'error')) {
+        api.logger.warn?.('[yaoyao-memory] Config has errors — some features may be disabled');
     }
 }
 export function stepCoreInit(api, config) {
@@ -33,14 +33,14 @@ export function stepManifest(storeBaseDir, pluginVersion) {
 export function stepScopeManager(api, scopeManager) {
     const agentId = api.agentId;
     if (agentId)
-        scopeManager.grantAccess(agentId, ["global", `agent:${agentId}`]);
+        scopeManager.grantAccess(agentId, ['global', `agent:${agentId}`]);
 }
 export function stepCrossSessionRecovery(api, config, agentId) {
     try {
         const searchDirs = resolveSessionSearchDirs({
             context: (api.context || {}),
             cfg: api.pluginConfig || {},
-            workspaceDir: api.baseDir || ".",
+            workspaceDir: api.baseDir || '.',
             currentSessionFile: api.sessionFile,
             sourceAgentId: agentId,
         });
@@ -59,17 +59,17 @@ export function stepCrossSessionRecovery(api, config, agentId) {
     }
 }
 export function stepMigration(api, config) {
-    const m = detectLegacy(config, api.baseDir || ".");
+    const m = detectLegacy(config, api.baseDir || '.');
     if (m.hasLegacy)
-        m.bannerLines.forEach(l => api.logger.warn?.(`[yaoyao-memory:migration] ${l}`));
+        m.bannerLines.forEach((l) => api.logger.warn?.(`[yaoyao-memory:migration] ${l}`));
     cleanupOldSkills(api.logger);
 }
 export function stepCleanupScheduler(api, config, storage) {
     let timer = null;
     let timeout = null;
     try {
-        const cfg = (typeof config.cleaner === "object" ? config.cleaner : {});
-        const baseDir = (config.memoryDir || ".");
+        const cfg = (typeof config.cleaner === 'object' ? config.cleaner : {});
+        const baseDir = (config.memoryDir || '.');
         const cleaner = createMemoryCleaner(baseDir, storage, cfg, api.logger);
         const warn = cleaner.validateConfig();
         if (warn) {
@@ -96,8 +96,11 @@ export function stepCleanupScheduler(api, config, storage) {
         console.warn(`[yaoyao-memory]  best-effort : ${msg}`);
     }
     return {
-        cleanupStop: () => { if (timeout)
-            clearTimeout(timeout); if (timer)
-            clearInterval(timer); },
+        cleanupStop: () => {
+            if (timeout)
+                clearTimeout(timeout);
+            if (timer)
+                clearInterval(timer);
+        },
     };
 }

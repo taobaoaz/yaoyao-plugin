@@ -3,10 +3,10 @@
  * 腾讯方案：记录 store 绑定信息、seed 运行记录、版本历史。
  * 零外部依赖，纯 Node.js fs。
  */
-import fs from "node:fs";
-import path from "node:path";
-const MANIFEST_DIR = ".metadata";
-const MANIFEST_FILE = "manifest.json";
+import fs from 'node:fs';
+import path from 'node:path';
+const MANIFEST_DIR = '.metadata';
+const MANIFEST_FILE = 'manifest.json';
 /** Ensure manifest directory exists with correct permissions */
 function ensureManifestDir(baseDir) {
     const dir = path.join(baseDir, MANIFEST_DIR);
@@ -21,7 +21,7 @@ export function readManifest(baseDir) {
     if (!fs.existsSync(file))
         return null;
     try {
-        const raw = fs.readFileSync(file, "utf-8");
+        const raw = fs.readFileSync(file, 'utf-8');
         return JSON.parse(raw);
     }
     catch (e) {
@@ -34,7 +34,7 @@ export function readManifest(baseDir) {
 export function writeManifest(baseDir, data) {
     const dir = ensureManifestDir(baseDir);
     const file = path.join(dir, MANIFEST_FILE);
-    const tmp = file + ".tmp";
+    const tmp = file + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600 });
     fs.renameSync(tmp, file);
 }
@@ -44,7 +44,7 @@ export function initManifest(baseDir, pluginVersion) {
     if (existing) {
         // Update last operation timestamp on each startup
         existing.lastOperationAt = new Date().toISOString();
-        existing.lastOperationType = "startup";
+        existing.lastOperationType = 'startup';
         writeManifest(baseDir, existing);
         return existing;
     }
@@ -52,8 +52,8 @@ export function initManifest(baseDir, pluginVersion) {
         pluginVersion,
         firstInitAt: new Date().toISOString(),
         lastOperationAt: new Date().toISOString(),
-        lastOperationType: "init",
-        storeBackend: "sqlite",
+        lastOperationType: 'init',
+        storeBackend: 'sqlite',
         seedRunCount: 0,
     };
     writeManifest(baseDir, data);

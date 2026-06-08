@@ -1,5 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
+import fs from 'node:fs';
+import path from 'node:path';
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB cap per file
 export class FileDB {
     baseDir;
@@ -8,11 +8,11 @@ export class FileDB {
     constructor(baseDir) {
         this.baseDir = baseDir;
         // Build a simple in-memory index from existing files
-        this.indexPath = path.join(baseDir, ".filedb_index.json");
+        this.indexPath = path.join(baseDir, '.filedb_index.json');
         this.index = new Map();
         try {
             if (fs.existsSync(this.indexPath)) {
-                const raw = fs.readFileSync(this.indexPath, "utf-8");
+                const raw = fs.readFileSync(this.indexPath, 'utf-8');
                 let parsed;
                 try {
                     parsed = JSON.parse(raw);
@@ -42,23 +42,27 @@ export class FileDB {
             console.warn(`[yaoyao-memory:db] Create baseDir failed: ${msg}`);
         }
     }
-    exec(_sql) { }
+    exec(_sql) {
+        /* no-op */
+    }
     prepare(sql) {
         // Minimal SQL parsing for FileDB
         const lower = sql.toLowerCase().trim();
         // ── SELECT ... FROM memory_meta ──
-        if (lower.startsWith("select")) {
+        if (lower.startsWith('select')) {
             const isCount = /count\(\*\)/.test(lower);
             const limitMatch = lower.match(/limit\s+(\d+)/);
             const limit = limitMatch ? parseInt(limitMatch[1], 10) : 10;
             const dateMatch = lower.match(/date\s*=\s*\?/);
-            const orderDesc = lower.includes("order by id desc");
+            const orderDesc = lower.includes('order by id desc');
             return {
                 run: () => ({ lastInsertRowid: 0, changes: 0 }),
                 all: (...args) => {
                     try {
                         if (isCount) {
-                            const files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md") && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
+                            const files = fs
+                                .readdirSync(this.baseDir)
+                                .filter((f) => f.endsWith('.md') && f.match(/^\d{4}-\d{2}-\d{2}\.md$/));
                             return [{ c: files.length }];
                         }
                         if (dateMatch && args.length > 0) {
@@ -66,14 +70,14 @@ export class FileDB {
                             const filePath = path.join(this.baseDir, `${date}.md`);
                             if (fs.existsSync(filePath)) {
                                 const size = fs.statSync(filePath).size;
-                                return [{ id: 1, date, user_text: filePath, asst_text: "", size }];
+                                return [{ id: 1, date, user_text: filePath, asst_text: '', size }];
                             }
                             return [];
                         }
-                        if (orderDesc || lower.includes("order by")) {
+                        if (orderDesc || lower.includes('order by')) {
                             return this._listAll(orderDesc ? limit : limit);
                         }
-                        return searchFiles(this.baseDir, args[0] || "", limit);
+                        return searchFiles(this.baseDir, args[0] || '', limit);
                     }
                     catch (e) {
                         const msg = e instanceof Error ? e.message : String(e);
@@ -84,15 +88,17 @@ export class FileDB {
                 get: (...args) => {
                     try {
                         if (isCount) {
-                            const files = fs.readdirSync(this.baseDir).filter(f => f.endsWith(".md"));
+                            const files = fs.readdirSync(this.baseDir).filter((f) => f.endsWith('.md'));
                             return { c: files.length };
                         }
                         if (dateMatch && args.length > 0) {
                             const date = String(args[0]);
                             const filePath = path.join(this.baseDir, `${date}.md`);
-                            return fs.existsSync(filePath) ? { id: 1, date, user_text: filePath, asst_text: "" } : undefined;
+                            return fs.existsSync(filePath)
+                                ? { id: 1, date, user_text: filePath, asst_text: '' }
+                                : undefined;
                         }
-                        const rows = searchFiles(this.baseDir, args[0] || "", 1);
+                        const rows = searchFiles(this.baseDir, args[0] || '', 1);
                         return rows[0];
                     }
                     catch (e) {
@@ -104,7 +110,7 @@ export class FileDB {
             };
         }
         // ── DELETE FROM memory_meta ──
-        if (lower.startsWith("delete")) {
+        if (lower.startsWith('delete')) {
             const dateMatch = lower.match(/date\s*=\s*\?/);
             return {
                 run: (...args) => {
@@ -129,14 +135,14 @@ export class FileDB {
             };
         }
         // ── INSERT ──
-        if (lower.startsWith("insert")) {
+        if (lower.startsWith('insert')) {
             return {
                 run: (...args) => {
                     try {
-                        const date = String(args[0] || "");
-                        const text = String(args[1] || "");
+                        const date = String(args[0] || '');
+                        const text = String(args[1] || '');
                         const filePath = path.join(this.baseDir, `${date}.md`);
-                        fs.appendFileSync(filePath, text + "\n");
+                        fs.appendFileSync(filePath, text + '\n');
                         return { lastInsertRowid: 1, changes: 1 };
                     }
                     catch (e) {
@@ -156,7 +162,9 @@ export class FileDB {
             get: () => undefined,
         };
     }
-    close() { }
+    close() {
+        /* no-op */
+    }
     _listAll(limit) {
         return listFiles(this.baseDir, limit);
     }

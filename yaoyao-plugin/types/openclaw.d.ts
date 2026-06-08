@@ -1,4 +1,4 @@
-declare module "openclaw/plugin-sdk/plugin-entry" {
+declare module 'openclaw/plugin-sdk/plugin-entry' {
   export interface PluginLogger {
     info: (msg: string) => void;
     error?: (msg: string) => void;

@@ -46,14 +46,24 @@ export function buildTextClusters(entries, threshold, minClusterSize) {
  */
 export function runTextCompaction(entries, config) {
     if (!config.enabled || entries.length === 0) {
-        return { scanned: 0, clustersFound: 0, entriesDeleted: 0, entriesCreated: 0, dryRun: config.dryRun };
+        return {
+            scanned: 0,
+            clustersFound: 0,
+            entriesDeleted: 0,
+            entriesCreated: 0,
+            dryRun: config.dryRun,
+        };
     }
     const cutoff = Date.now() - config.minAgeDays * 24 * 60 * 60 * 1000;
-    const oldEntries = entries
-        .filter(e => e.timestamp < cutoff)
-        .slice(0, config.maxEntriesToScan);
+    const oldEntries = entries.filter((e) => e.timestamp < cutoff).slice(0, config.maxEntriesToScan);
     if (oldEntries.length === 0) {
-        return { scanned: 0, clustersFound: 0, entriesDeleted: 0, entriesCreated: 0, dryRun: config.dryRun };
+        return {
+            scanned: 0,
+            clustersFound: 0,
+            entriesDeleted: 0,
+            entriesCreated: 0,
+            dryRun: config.dryRun,
+        };
     }
     const clusters = buildTextClusters(oldEntries, config.similarityThreshold, config.minClusterSize);
     if (config.dryRun) {

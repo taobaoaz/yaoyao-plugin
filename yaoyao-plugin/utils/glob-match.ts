@@ -3,7 +3,7 @@
  * Zero dependency.
  */
 export function matchGlob(pattern: string, text: string): boolean {
-  const parts = pattern.split("*");
+  const parts = pattern.split('*');
   if (parts.length === 1) {
     // No wildcards
     return pattern === text;

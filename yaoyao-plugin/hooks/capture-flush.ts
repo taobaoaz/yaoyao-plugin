@@ -5,10 +5,10 @@
  * Pure factory, no orchestration logic.
  */
 
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { ClawBridge } from "../utils/claw-bridge.ts";
-import type { PersistHandlers } from "./persist-handlers.ts";
-import type { createWriteQueue } from "../utils/write-queue.ts";
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
+import type { ClawBridge } from '../utils/claw-bridge.ts';
+import type { PersistHandlers } from './persist-handlers.ts';
+import type { createWriteQueue } from '../utils/write-queue.ts';
 
 type WriteQueue = ReturnType<typeof createWriteQueue>;
 
@@ -37,7 +37,7 @@ export function createFlushHandler(
         persist.writeDailyEntry(item.date, item.entry);
       } catch (e: unknown) {
         api.logger.error?.(
-          `[yaoyao-memory:flush] L0 write failed: ${e instanceof Error ? e.message : String(e)}`
+          `[yaoyao-memory:flush] L0 write failed: ${e instanceof Error ? e.message : String(e)}`,
         );
       }
     }
@@ -64,20 +64,22 @@ export function createFlushHandler(
         date: item.date,
         timestamp: item.timestamp,
         meta: item.meta,
-        source: "yaoyao-proxy",
+        source: 'yaoyao-proxy',
       }));
-      clawBridge.call("store_batch", { items }).catch((err: unknown) => {
+      clawBridge.call('store_batch', { items }).catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         api.logger.debug?.(`[yaoyao-memory:flush] claw-core forward failed: ${msg}`);
         // Fallback: write locally
-        persist.flushBatch(
-          items.map((i) => ({
-            userContent: i.userContent,
-            asstContent: i.asstContent,
-            date: i.date,
-            meta: i.meta,
-          })),
-        ).catch(() => {});
+        persist
+          .flushBatch(
+            items.map((i) => ({
+              userContent: i.userContent,
+              asstContent: i.asstContent,
+              date: i.date,
+              meta: i.meta,
+            })),
+          )
+          .catch(() => {});
       });
       return;
     }

@@ -5,7 +5,14 @@ export function withErrorHandling(handler) {
             return await handler(id, params);
         }
         catch (err) {
-            return { content: [{ type: "text", text: `❌ 记忆操作出错: ${err instanceof Error ? err.message : String(err) || "未知错误"}` }] };
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `❌ 记忆操作出错: ${err instanceof Error ? err.message : String(err) || '未知错误'}`,
+                    },
+                ],
+            };
         }
     };
 }

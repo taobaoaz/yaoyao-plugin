@@ -3,13 +3,13 @@
  *
  * Extracted from app.ts's runStartupTasks function.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
-import type { Storage } from "../../storage/bridge.ts";
-import type { MemoryTier } from "../../utils/tier-manager.ts";
-import { runTextCompaction } from "../../core/compactor/index.ts";
-import { evaluateAllTiers, DEFAULT_TIER_CONFIG } from "../../utils/tier-manager.ts";
-import type { TierableMemory } from "../../utils/tier-manager.ts";
+import type { OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
+import type { YaoyaoMemoryConfig } from '../../utils/memory-store.ts';
+import type { Storage } from '../../storage/bridge.ts';
+import type { MemoryTier } from '../../utils/tier-manager.ts';
+import { runTextCompaction } from '../../core/compactor/index.ts';
+import { evaluateAllTiers, DEFAULT_TIER_CONFIG } from '../../utils/tier-manager.ts';
+import type { TierableMemory } from '../../utils/tier-manager.ts';
 
 /** Background tasks that don't block startup */
 export function runStartupTasks(
@@ -30,9 +30,13 @@ export function runStartupTasks(
     };
     if (cfg.enabled && allEntries.length > 0) {
       const result = runTextCompaction(
-        allEntries.map(e => ({
-          id: String(e.id), text: e.filename, category: "general" as const,
-          importance: 0.5, timestamp: Date.now(), scope: "global",
+        allEntries.map((e) => ({
+          id: String(e.id),
+          text: e.filename,
+          category: 'general' as const,
+          importance: 0.5,
+          timestamp: Date.now(),
+          scope: 'global',
         })),
         cfg,
       );
@@ -47,17 +51,29 @@ export function runStartupTasks(
 
   try {
     const rawDb = storage.getRawDb();
-    const rows = rawDb.prepare(
-      "SELECT id, metadata, access_count, created_at FROM memory_meta WHERE metadata IS NOT NULL"
-    ).all() as Array<{ id: number; metadata: string | null; access_count: number | null; created_at: number | null }>;
-    const tierable: TierableMemory[] = rows.map(r => {
-      let tier = "working" as MemoryTier, importance = 0.5, accessCount = r.access_count ?? 0, createdAt = r.created_at ?? Date.now(), decayScore = 0.5;
+    const rows = rawDb
+      .prepare(
+        'SELECT id, metadata, access_count, created_at FROM memory_meta WHERE metadata IS NOT NULL',
+      )
+      .all() as Array<{
+      id: number;
+      metadata: string | null;
+      access_count: number | null;
+      created_at: number | null;
+    }>;
+    const tierable: TierableMemory[] = rows.map((r) => {
+      let tier = 'working' as MemoryTier,
+        importance = 0.5,
+        accessCount = r.access_count ?? 0,
+        decayScore = 0.5;
+      const createdAt = r.created_at ?? Date.now();
       try {
-        const meta = JSON.parse(r.metadata || "{}") as Record<string, unknown>;
-        tier = (meta.tier as MemoryTier) || "working";
-        importance = typeof meta.importance === "number" ? meta.importance : 0.5;
-        accessCount = typeof meta.accessCount === "number" ? meta.accessCount : (r.access_count ?? 0);
-        decayScore = typeof meta.decayScore === "number" ? meta.decayScore : 0.5;
+        const meta = JSON.parse(r.metadata || '{}') as Record<string, unknown>;
+        tier = (meta.tier as MemoryTier) || 'working';
+        importance = typeof meta.importance === 'number' ? meta.importance : 0.5;
+        accessCount =
+          typeof meta.accessCount === 'number' ? meta.accessCount : (r.access_count ?? 0);
+        decayScore = typeof meta.decayScore === 'number' ? meta.decayScore : 0.5;
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         api.logger.debug?.(`[yaoyao-memory:startup] Parse metadata failed for id=${r.id}: ${msg}`);

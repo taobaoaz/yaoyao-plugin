@@ -2,7 +2,7 @@
  * core/tag/tag.ts — Pure tag logic, zero platform awareness.
  */
 
-import type { UnifiedDB, SQLiteRow } from "../../storage/bridge.ts";
+import type { UnifiedDB, SQLiteRow } from '../../storage/bridge.ts';
 
 export interface TagSearchResult {
   memory_id: number;
@@ -18,67 +18,70 @@ export interface PopularTag {
 }
 
 export function ensureTagTable(db: UnifiedDB): void {
-  if (!db) throw new TypeError("ensureTagTable: db is required");
+  if (!db) throw new TypeError('ensureTagTable: db is required');
   db.exec(
-    "CREATE TABLE IF NOT EXISTS memory_tags (" +
-      "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-      "memory_id INTEGER NOT NULL, " +
-      "tag TEXT NOT NULL COLLATE NOCASE, " +
+    'CREATE TABLE IF NOT EXISTS memory_tags (' +
+      'id INTEGER PRIMARY KEY AUTOINCREMENT, ' +
+      'memory_id INTEGER NOT NULL, ' +
+      'tag TEXT NOT NULL COLLATE NOCASE, ' +
       "created_at TEXT DEFAULT (datetime('now'))" +
-    ")"
+      ')',
   );
-  db.exec("CREATE INDEX IF NOT EXISTS idx_tags_tag ON memory_tags(tag)");
-  db.exec("CREATE INDEX IF NOT EXISTS idx_tags_memory ON memory_tags(memory_id)");
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tags_tag ON memory_tags(tag)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tags_memory ON memory_tags(memory_id)');
 }
 
 export function addTag(db: UnifiedDB, memoryId: number, tag: string): void {
-  if (!db) throw new TypeError("addTag: db is required");
-  if (!Number.isFinite(memoryId)) throw new TypeError("addTag: memoryId must be a number");
-  if (typeof tag !== "string" || !tag.trim()) throw new TypeError("addTag: tag must be a non-empty string");
+  if (!db) throw new TypeError('addTag: db is required');
+  if (!Number.isFinite(memoryId)) throw new TypeError('addTag: memoryId must be a number');
+  if (typeof tag !== 'string' || !tag.trim())
+    throw new TypeError('addTag: tag must be a non-empty string');
 
-  const stmt = db.prepare("INSERT INTO memory_tags (memory_id, tag) VALUES (?, ?)");
+  const stmt = db.prepare('INSERT INTO memory_tags (memory_id, tag) VALUES (?, ?)');
   stmt.run(memoryId, tag.trim().toLowerCase());
 }
 
 export function removeTag(db: UnifiedDB, memoryId: number, tag: string): number {
-  if (!db) throw new TypeError("removeTag: db is required");
-  if (!Number.isFinite(memoryId)) throw new TypeError("removeTag: memoryId must be a number");
-  if (typeof tag !== "string" || !tag.trim()) throw new TypeError("removeTag: tag must be a non-empty string");
+  if (!db) throw new TypeError('removeTag: db is required');
+  if (!Number.isFinite(memoryId)) throw new TypeError('removeTag: memoryId must be a number');
+  if (typeof tag !== 'string' || !tag.trim())
+    throw new TypeError('removeTag: tag must be a non-empty string');
 
-  const stmt = db.prepare("DELETE FROM memory_tags WHERE memory_id = ? AND tag = ? COLLATE NOCASE");
+  const stmt = db.prepare('DELETE FROM memory_tags WHERE memory_id = ? AND tag = ? COLLATE NOCASE');
   const result = stmt.run(memoryId, tag.trim().toLowerCase());
   return Number(result.changes ?? 0);
 }
 
 export function searchByTag(db: UnifiedDB, tag: string, limit: number): TagSearchResult[] {
-  if (!db) throw new TypeError("searchByTag: db is required");
-  if (typeof tag !== "string" || !tag.trim()) throw new TypeError("searchByTag: tag must be a non-empty string");
+  if (!db) throw new TypeError('searchByTag: db is required');
+  if (typeof tag !== 'string' || !tag.trim())
+    throw new TypeError('searchByTag: tag must be a non-empty string');
   if (!Number.isFinite(limit) || limit < 1) limit = 10;
 
   const stmt = db.prepare(
-    "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date " +
-    "FROM memory_tags t " +
-    "JOIN memory_meta m ON t.memory_id = m.rowid " +
-    "WHERE t.tag = ? COLLATE NOCASE " +
-    "ORDER BY m.date DESC LIMIT ?"
+    'SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date ' +
+      'FROM memory_tags t ' +
+      'JOIN memory_meta m ON t.memory_id = m.rowid ' +
+      'WHERE t.tag = ? COLLATE NOCASE ' +
+      'ORDER BY m.date DESC LIMIT ?',
   );
   const rows = stmt.all(tag.trim().toLowerCase(), limit);
 
   return rows.map((r: SQLiteRow) => ({
     memory_id: Number(r.memory_id),
     tag: String(r.tag),
-    user_text: String(r.user_text || ""),
-    asst_text: String(r.asst_text || ""),
-    date: String(r.date || ""),
+    user_text: String(r.user_text || ''),
+    asst_text: String(r.asst_text || ''),
+    date: String(r.date || ''),
   }));
 }
 
 export function getPopularTags(db: UnifiedDB, limit: number): PopularTag[] {
-  if (!db) throw new TypeError("getPopularTags: db is required");
+  if (!db) throw new TypeError('getPopularTags: db is required');
   if (!Number.isFinite(limit) || limit < 1) limit = 20;
 
   const stmt = db.prepare(
-    "SELECT tag, COUNT(*) as count FROM memory_tags GROUP BY tag ORDER BY count DESC LIMIT ?"
+    'SELECT tag, COUNT(*) as count FROM memory_tags GROUP BY tag ORDER BY count DESC LIMIT ?',
   );
   const rows = stmt.all(limit);
 
@@ -89,38 +92,45 @@ export function getPopularTags(db: UnifiedDB, limit: number): PopularTag[] {
 }
 
 export function getTagsForMemory(db: UnifiedDB, memoryId: number): string[] {
-  if (!db) throw new TypeError("getTagsForMemory: db is required");
-  if (!Number.isFinite(memoryId)) throw new TypeError("getTagsForMemory: memoryId must be a number");
+  if (!db) throw new TypeError('getTagsForMemory: db is required');
+  if (!Number.isFinite(memoryId))
+    throw new TypeError('getTagsForMemory: memoryId must be a number');
 
-  const stmt = db.prepare("SELECT tag FROM memory_tags WHERE memory_id = ?");
+  const stmt = db.prepare('SELECT tag FROM memory_tags WHERE memory_id = ?');
   const rows = stmt.all(memoryId);
   return rows.map((r: SQLiteRow) => String(r.tag));
 }
 
 export function deleteTagsForMemory(db: UnifiedDB, memoryId: number): number {
-  if (!db) throw new TypeError("deleteTagsForMemory: db is required");
-  if (!Number.isFinite(memoryId)) throw new TypeError("deleteTagsForMemory: memoryId must be a number");
+  if (!db) throw new TypeError('deleteTagsForMemory: db is required');
+  if (!Number.isFinite(memoryId))
+    throw new TypeError('deleteTagsForMemory: memoryId must be a number');
 
-  const stmt = db.prepare("DELETE FROM memory_tags WHERE memory_id = ?");
+  const stmt = db.prepare('DELETE FROM memory_tags WHERE memory_id = ?');
   const result = stmt.run(memoryId);
   return Number(result.changes ?? 0);
 }
 
 export function getTotalTagCount(db: UnifiedDB): number {
-  if (!db) throw new TypeError("getTotalTagCount: db is required");
-  const row = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as SQLiteRow | undefined;
+  if (!db) throw new TypeError('getTotalTagCount: db is required');
+  const row = db.prepare('SELECT COUNT(*) as c FROM memory_tags').get() as SQLiteRow | undefined;
   return Number(row?.c ?? 0);
 }
 
 // ── Tool-level helpers (used by features/tag/tool.ts) ──
 
-export function addTagsToQuery(db: UnifiedDB, query: string, tags: string[], limit: number): { matched: number; added: number } {
-  if (!db) throw new TypeError("addTagsToQuery: db is required");
-  if (!Array.isArray(tags)) throw new TypeError("addTagsToQuery: tags must be an array");
+export function addTagsToQuery(
+  db: UnifiedDB,
+  query: string,
+  tags: string[],
+  limit: number,
+): { matched: number; added: number } {
+  if (!db) throw new TypeError('addTagsToQuery: db is required');
+  if (!Array.isArray(tags)) throw new TypeError('addTagsToQuery: tags must be an array');
 
   const searchSql = query.trim()
     ? "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' LIMIT ?"
-    : "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta LIMIT ?";
+    : 'SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta LIMIT ?';
   const searchStmt = db.prepare(searchSql);
   const safeQuery = query.trim().replace(/\//g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = query.trim()
@@ -137,19 +147,19 @@ export function addTagsToQuery(db: UnifiedDB, query: string, tags: string[], lim
         addTag(db, memoryId, tag);
         added++;
       } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[yaoyao-memory]  tag may already exist : ${msg}`);
-    }
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[yaoyao-memory]  tag may already exist : ${msg}`);
+      }
     }
   }
   return { matched, added };
 }
 
 export function removeTags(db: UnifiedDB, tags: string[]): number {
-  if (!db) throw new TypeError("removeTags: db is required");
-  if (!Array.isArray(tags)) throw new TypeError("removeTags: tags must be an array");
+  if (!db) throw new TypeError('removeTags: db is required');
+  if (!Array.isArray(tags)) throw new TypeError('removeTags: tags must be an array');
   let total = 0;
-  const stmt = db.prepare("DELETE FROM memory_tags WHERE tag = ? COLLATE NOCASE");
+  const stmt = db.prepare('DELETE FROM memory_tags WHERE tag = ? COLLATE NOCASE');
   for (const tag of tags) {
     const result = stmt.run(tag.trim().toLowerCase());
     total += Number(result.changes ?? 0);
@@ -158,22 +168,28 @@ export function removeTags(db: UnifiedDB, tags: string[]): number {
 }
 
 export function removeAllTags(db: UnifiedDB): number {
-  if (!db) throw new TypeError("removeAllTags: db is required");
-  const result = db.prepare("DELETE FROM memory_tags").run();
+  if (!db) throw new TypeError('removeAllTags: db is required');
+  const result = db.prepare('DELETE FROM memory_tags').run();
   return Number(result.changes ?? 0);
 }
 
 export function cleanOrphanTags(db: UnifiedDB): number {
-  if (!db) throw new TypeError("cleanOrphanTags: db is required");
-  const result = db.prepare(
-    "DELETE FROM memory_tags WHERE memory_id NOT IN (SELECT rowid FROM memory_meta)"
-  ).run();
+  if (!db) throw new TypeError('cleanOrphanTags: db is required');
+  const result = db
+    .prepare('DELETE FROM memory_tags WHERE memory_id NOT IN (SELECT rowid FROM memory_meta)')
+    .run();
   return Number(result.changes ?? 0);
 }
 
-export function searchByTagWithQuery(db: UnifiedDB, tag: string, query: string, limit: number): TagSearchResult[] {
-  if (!db) throw new TypeError("searchByTagWithQuery: db is required");
-  if (typeof tag !== "string" || !tag.trim()) throw new TypeError("searchByTagWithQuery: tag must be a non-empty string");
+export function searchByTagWithQuery(
+  db: UnifiedDB,
+  tag: string,
+  query: string,
+  limit: number,
+): TagSearchResult[] {
+  if (!db) throw new TypeError('searchByTagWithQuery: db is required');
+  if (typeof tag !== 'string' || !tag.trim())
+    throw new TypeError('searchByTagWithQuery: tag must be a non-empty string');
   if (!Number.isFinite(limit) || limit < 1) limit = 10;
 
   const trimmedTag = tag.trim().toLowerCase();
@@ -181,7 +197,7 @@ export function searchByTagWithQuery(db: UnifiedDB, tag: string, query: string, 
 
   const sql = trimmedQuery
     ? "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE AND (m.user_text LIKE ? ESCAPE '\\' OR m.asst_text LIKE ? ESCAPE '\\') ORDER BY m.date DESC LIMIT ?"
-    : "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE ORDER BY m.date DESC LIMIT ?";
+    : 'SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE ORDER BY m.date DESC LIMIT ?';
   const stmt = db.prepare(sql);
   const safeQuery = trimmedQuery.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = trimmedQuery
@@ -191,8 +207,8 @@ export function searchByTagWithQuery(db: UnifiedDB, tag: string, query: string, 
   return rows.map((r: SQLiteRow) => ({
     memory_id: Number(r.memory_id),
     tag: String(r.tag),
-    user_text: String(r.user_text || ""),
-    asst_text: String(r.asst_text || ""),
-    date: String(r.date || ""),
+    user_text: String(r.user_text || ''),
+    asst_text: String(r.asst_text || ''),
+    date: String(r.date || ''),
   }));
 }

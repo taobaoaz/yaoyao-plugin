@@ -10,17 +10,17 @@
 /** Types of query intent — controls which memory layer(s) to favour */
 export type QueryIntent =
   /** Named entity: person, place, tool, concept */
-  | "entity_lookup"
+  | 'entity_lookup'
   /** Factual: what is X, when did Y happen */
-  | "factual"
+  | 'factual'
   /** Temporal: involves time references (today, last week, June) */
-  | "temporal"
+  | 'temporal'
   /** Relational: compare/connect multiple concepts */
-  | "relational"
+  | 'relational'
   /** Broad search: find/list/anything about X */
-  | "exploratory"
+  | 'exploratory'
   /** General / unknown */
-  | "general";
+  | 'general';
 
 /** Weight profile for three retrieval signals */
 export interface IntentWeights {
@@ -68,12 +68,12 @@ const EXPLORATORY_PATTERNS = [
  * relational favours FTS (keyword overlap), exploratory stays balanced.
  */
 export const INTENT_WEIGHTS: Record<QueryIntent, IntentWeights> = {
-  entity_lookup: { fts: 0.25, vector: 0.65, temporal: 0.10 },
-  factual:       { fts: 0.35, vector: 0.50, temporal: 0.15 },
-  temporal:      { fts: 0.25, vector: 0.25, temporal: 0.50 },
-  relational:    { fts: 0.55, vector: 0.35, temporal: 0.10 },
-  exploratory:   { fts: 0.40, vector: 0.35, temporal: 0.25 },
-  general:       { fts: 0.33, vector: 0.34, temporal: 0.33 },
+  entity_lookup: { fts: 0.25, vector: 0.65, temporal: 0.1 },
+  factual: { fts: 0.35, vector: 0.5, temporal: 0.15 },
+  temporal: { fts: 0.25, vector: 0.25, temporal: 0.5 },
+  relational: { fts: 0.55, vector: 0.35, temporal: 0.1 },
+  exploratory: { fts: 0.4, vector: 0.35, temporal: 0.25 },
+  general: { fts: 0.33, vector: 0.34, temporal: 0.33 },
 };
 
 // ── Public API ──
@@ -83,29 +83,29 @@ export const INTENT_WEIGHTS: Record<QueryIntent, IntentWeights> = {
  * Uses pattern matching (no LLM call needed for this).
  */
 export function classifyIntent(query: string): QueryIntent {
-  if (typeof query !== "string" || query.length === 0) return "general";
+  if (typeof query !== 'string' || query.length === 0) return 'general';
 
   // Relational check first (most specific patterns)
   for (const p of RELATIONAL_PATTERNS) {
-    if (p.test(query)) return "relational";
+    if (p.test(query)) return 'relational';
   }
 
   // Entity lookup
   for (const p of ENTITY_PATTERNS) {
-    if (p.test(query)) return "entity_lookup";
+    if (p.test(query)) return 'entity_lookup';
   }
 
   // Temporal
   for (const p of TEMPORAL_PATTERNS) {
-    if (p.test(query)) return "temporal";
+    if (p.test(query)) return 'temporal';
   }
 
   // Exploratory
   for (const p of EXPLORATORY_PATTERNS) {
-    if (p.test(query)) return "exploratory";
+    if (p.test(query)) return 'exploratory';
   }
 
-  return "general";
+  return 'general';
 }
 
 /**

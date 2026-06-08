@@ -2,21 +2,21 @@
  * Session Recovery — Cross-session context restoration (from Brain v1.1.0)
  * Zero external dependency. Scans other agents' memory files for shared context.
  */
-import { dirname, join } from "node:path";
+import { dirname, join } from 'node:path';
 function asNonEmptyString(value) {
-    if (typeof value !== "string")
+    if (typeof value !== 'string')
         return undefined;
     const trimmed = value.trim();
     return trimmed.length ? trimmed : undefined;
 }
 /** Strip .reset. suffix from session file names. */
 export function stripResetSuffix(fileName) {
-    const resetIndex = fileName.indexOf(".reset.");
+    const resetIndex = fileName.indexOf('.reset.');
     if (resetIndex === -1)
         return fileName;
     // Preserve file extension after the reset suffix
     const beforeReset = fileName.slice(0, resetIndex);
-    const afterReset = fileName.slice(resetIndex + ".reset.".length);
+    const afterReset = fileName.slice(resetIndex + '.reset.'.length);
     // afterReset may contain "123.json" — we want to append the extension part
     const extMatch = afterReset.match(/\.[^.]+$/);
     if (extMatch) {
@@ -24,7 +24,7 @@ export function stripResetSuffix(fileName) {
     }
     return beforeReset;
 }
-import { deriveOpenClawHomeFromWorkspacePath, deriveOpenClawHomeFromSessionFilePath } from "./session-recovery-paths.js";
+import { deriveOpenClawHomeFromWorkspacePath, deriveOpenClawHomeFromSessionFilePath, } from "./session-recovery-paths.js";
 import { readCrossSessionMemories } from "./session-recovery-read.js";
 export { readCrossSessionMemories };
 function listConfiguredAgentIds(cfg) {
@@ -36,7 +36,7 @@ function listConfiguredAgentIds(cfg) {
             return [];
         const ids = [];
         for (const item of list) {
-            if (!item || typeof item !== "object")
+            if (!item || typeof item !== 'object')
                 continue;
             const id = asNonEmptyString(item.id);
             if (id)
@@ -72,7 +72,7 @@ export function resolveSessionSearchDirs(params) {
     };
     const addAgentId = (agentIds, value) => {
         const agentId = asNonEmptyString(value);
-        if (!agentId || agentId.includes("/") || agentId.includes("\\") || agentIds.includes(agentId))
+        if (!agentId || agentId.includes('/') || agentId.includes('\\') || agentIds.includes(agentId))
             return;
         agentIds.push(agentId);
     };
@@ -88,7 +88,7 @@ export function resolveSessionSearchDirs(params) {
         addDir(asNonEmptyString(entry.sessionsDir));
         addDir(asNonEmptyString(entry.sessionDir));
     }
-    addDir(join(params.workspaceDir, "sessions"));
+    addDir(join(params.workspaceDir, 'sessions'));
     const openclawHomes = [];
     addHome(openclawHomes, asNonEmptyString(process.env.OPENCLAW_HOME));
     addHome(openclawHomes, deriveOpenClawHomeFromWorkspacePath(params.workspaceDir));
@@ -110,7 +110,7 @@ export function resolveSessionSearchDirs(params) {
         const list = agents?.list;
         if (Array.isArray(list)) {
             for (const item of list) {
-                if (!item || typeof item !== "object")
+                if (!item || typeof item !== 'object')
                     continue;
                 const workspace = asNonEmptyString(item.workspace);
                 if (workspace)
@@ -131,10 +131,10 @@ export function resolveSessionSearchDirs(params) {
     for (const configuredId of listConfiguredAgentIds(params.cfg)) {
         addAgentId(agentIds, configuredId);
     }
-    addAgentId(agentIds, "main");
+    addAgentId(agentIds, 'main');
     for (const home of openclawHomes) {
         for (const agentId of agentIds) {
-            addDir(join(home, "agents", agentId, "sessions"));
+            addDir(join(home, 'agents', agentId, 'sessions'));
         }
     }
     return out;
