@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
-import type { ToolRegistration } from "../../tools/common.ts";
+import { withErrorHandling, type ToolRegistration } from "../../tools/common.ts";
 
 interface CronJob {
   id?: string;
@@ -73,7 +73,7 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
       },
       required: ["action"],
     },
-    execute: async (args: Record<string, unknown>) => {
+    execute: withErrorHandling(async (_id: string, args: Record<string, unknown>) => {
       const action = args.action as string;
 
       // Read openclaw.json
@@ -193,6 +193,6 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
       }
 
       return { error: "Unknown action" };
-    },
+    }),
   };
 }

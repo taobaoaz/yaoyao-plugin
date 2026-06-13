@@ -41,7 +41,7 @@ export function createSaveTool(store, db, conflictDetection = true) {
             // Write to daily log
             store.appendToDaily(date, entry);
             // Index in FTS5
-            const rowId = db.indexTurn(content, "", date);
+            const rowId = db.indexTurn(content, content, date);
             // ── Conflict detection ──
             let conflictOutput = "";
             if (conflictDetection && !skipConflict && content.length > 10) {

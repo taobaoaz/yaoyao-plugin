@@ -79,8 +79,9 @@ export function createMemoryCleaner(baseDir, db, config, logger) {
                     continue; // only daily files
                 const fp = path.join(baseDir, f);
                 try {
-                    const stat = fs.statSync(fp);
-                    if (stat.mtimeMs < cutoff) {
+                    const fileDate = f.slice(0, 10);
+            const fileTime = new Date(fileDate + "T00:00:00").getTime();
+            if (isNaN(fileTime) || fileTime < cutoff) {
                         // Archive before deletion
                         const archiveDir = path.join(baseDir, ".archive");
                         fs.mkdirSync(archiveDir, { recursive: true });

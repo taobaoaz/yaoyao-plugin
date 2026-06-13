@@ -55,7 +55,8 @@ export function createSaveTool(store: MemoryStore, db: DBBridge, conflictDetecti
       store.appendToDaily(date, entry);
 
       // Index in FTS5
-      const rowId = db.indexTurn(content, "", date);
+      // Index both fields with content for wider FTS5/LIKE search coverage
+      const rowId = db.indexTurn(content, content, date);
 
       // ── Conflict detection ──
       let conflictOutput = "";

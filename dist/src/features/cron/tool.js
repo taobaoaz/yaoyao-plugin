@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { withErrorHandling } from "../../tools/common.js";
 function safeReadJson(filePath) {
     try {
         return JSON.parse(fs.readFileSync(filePath, "utf-8"));
@@ -49,7 +50,7 @@ export function createCronTool(api) {
             },
             required: ["action"],
         },
-        execute: async (args) => {
+        execute: withErrorHandling(async (_id, args) => {
             const action = args.action;
             // Read openclaw.json
             const configPath = path.join(homeDir, "openclaw.json");
@@ -151,6 +152,6 @@ export function createCronTool(api) {
                 };
             }
             return { error: "Unknown action" };
-        },
-    };
+    }),
+  };
 }
