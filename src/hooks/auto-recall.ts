@@ -112,7 +112,7 @@ export function registerRecallHook(
         const ppResult = await doPostProcess(
           results, mode, userText, cfg as PostProcessConfig,
           scopeManager, agentId, intent,
-          resultCache, stats, startMs, audit, sessionKey, api.logger,
+          resultCache, stats, startMs, audit, sessionKey, api.logger, db,
         );
         return ppResult;
       } catch (err) {

@@ -3,7 +3,7 @@
  *
  * Encapsulates scoring, diversity, confidence, filtering, caching, stats.
  */
-import type { SearchResult } from "../utils/db-bridge.ts";
+import type { SearchResult, DBBridge } from "../utils/db-bridge.ts";
 import type { AuditLog } from "../utils/audit-log.ts";
 import { scoreConfidenceSupport } from "../utils/confidence-scorer.ts";
 import { RetrievalStatsCollector } from "../utils/retrieval-stats.ts";
@@ -44,9 +44,10 @@ export async function doPostProcess(
   audit: AuditLog | undefined,
   sessionKey: string,
   logger: { debug?: (msg: string) => void; error?: (msg: string) => void },
+  db?: DBBridge,
 ): Promise<unknown | undefined> {
   let processed = filterByScope(results, scopeManager, agentId);
-  processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode);
+  processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode, cfg.fadeMemAccessFactor);
   processed = applyScoring(processed, userText);
   processed.sort((a, b) => b.score - a.score);
 
@@ -70,6 +71,18 @@ export async function doPostProcess(
   }
   const limited = processed.slice(0, cfg.maxResults);
 
+  // v1.8.1 (MemX): Low-confidence rejection. If the best score is below rejectThreshold,
+  // reject ALL results rather than injecting potentially misleading memories.
+  // Paper: MemX (arXiv:2603.16171) — strict quality gate on top result.
+  if (cfg.rejectThreshold > 0 && limited.length > 0) {
+    const topScore = limited[0].score;
+    if (topScore < cfg.rejectThreshold) {
+      logger.debug?.(`[yaoyao-memory:recall] MemX rejection: top score ${topScore.toFixed(3)} < rejectThreshold ${cfg.rejectThreshold}`);
+      stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, 0));
+      return;
+    }
+  }
+
   const confidence = scoreConfidenceSupport(userText, userText);
   if (confidence.score < cfg.scoreThreshold) {
     logger.debug?.(`[yaoyao-memory:recall] Confidence ${confidence.score.toFixed(2)} < threshold ${cfg.scoreThreshold}`);
@@ -89,6 +102,20 @@ export async function doPostProcess(
 
   if (filtered.length > 0) { resultCache.set(`${agentId || "default"}:${userText.slice(0, 120)}`, filtered); }
   stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, filtered.length));
+
+  // v1.8.1 (FadeMem): Increment access_count for recalled memories.
+  // This feeds back into applyTimeDecay on future recalls — frequently
+  // recalled memories get slower decay (longer effective half-life).
+  if (db && filtered.length > 0) {
+    for (const r of filtered) {
+      if (r.id != null) {
+        try {
+          (db as unknown as { incrementAccessCount?: (id: number) => void })
+            .incrementAccessCount?.(r.id);
+        } catch { /* best effort */ }
+      }
+    }
+  }
 
   if (audit && filtered.length > 0) {
     audit.record("recall", {

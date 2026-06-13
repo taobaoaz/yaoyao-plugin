@@ -42,6 +42,9 @@ export function createQueryApi(ensureDB, vector) {
         searchByLike(query, limit) {
             return queryHelpers.searchByLike(ensureDB(), query, limit);
         },
+        batchGetAccessCounts(ids) {
+            return queryHelpers.batchGetAccessCounts(ensureDB(), ids);
+        },
         batchSetConfig(entries) {
             queryHelpers.batchSetConfig(ensureDB(), entries);
         },

@@ -31,6 +31,8 @@ export function getRecallConfig(config) {
         enableIntentDriven: r.enableIntentDriven ?? false,
         enableMmr: r.enableMmr ?? false,
         mmrLambda: r.mmrLambda ?? 0.7,
+        fadeMemAccessFactor: r.fadeMemAccessFactor ?? 0.3,
+        rejectThreshold: r.rejectThreshold ?? 0.15,
     };
 }
 /**

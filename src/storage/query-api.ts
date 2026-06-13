@@ -21,6 +21,8 @@ export interface QueryApi {
   countTags(): { total: number; unique: number };
   getRecentRawMemories(limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }>;
   searchByLike(query: string, limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }>;
+  /** v1.8.1: Batch fetch access_count for FadeMem */
+  batchGetAccessCounts(ids: number[]): Map<number, number>;
   batchSetConfig(entries: Array<{ key: string; value: string }>): void;
 }
 
@@ -61,6 +63,9 @@ export function createQueryApi(ensureDB: () => UnifiedDB, vector: VectorStore | 
     },
     searchByLike(query: string, limit: number): Array<{ id: number; user_text: string; asst_text: string; date: string }> {
       return queryHelpers.searchByLike(ensureDB(), query, limit);
+    },
+    batchGetAccessCounts(ids: number[]): Map<number, number> {
+      return queryHelpers.batchGetAccessCounts(ensureDB(), ids);
     },
     batchSetConfig(entries: Array<{ key: string; value: string }>): void {
       queryHelpers.batchSetConfig(ensureDB(), entries);

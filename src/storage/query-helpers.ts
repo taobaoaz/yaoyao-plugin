@@ -133,3 +133,23 @@ export function batchSetConfig(db: UnifiedDB, entries: Array<{ key: string; valu
     db.exec("COMMIT");
   } catch { /* best effort */ }
 }
+
+
+/**
+ * v1.8.1 (FadeMem): Batch fetch access_count for a set of memory IDs.
+ * Returns a map of id → access_count. Failed lookups are omitted.
+ */
+export function batchGetAccessCounts(db: UnifiedDB, ids: number[]): Map<number, number> {
+  const result = new Map<number, number>();
+  if (ids.length === 0) return result;
+  try {
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = db.prepare(
+      `SELECT id, access_count FROM memory_meta WHERE id IN (${placeholders})`
+    ).all(...ids) as Array<{ id: number; access_count: number }>;
+    for (const row of rows) {
+      result.set(row.id, row.access_count || 0);
+    }
+  } catch { /* best effort */ }
+  return result;
+}

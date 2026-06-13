@@ -61,7 +61,7 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
                 };
                 const { results, mode } = await doRecallSearch(db, primaryQuery, searchCfg, embedding, api.logger);
                 // ── Post-processing pipeline ──
-                const ppResult = await doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, api.logger);
+                const ppResult = await doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, api.logger, db);
                 return ppResult;
             }
             catch (err) {

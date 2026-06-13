@@ -7,6 +7,7 @@ const DEFAULT_OPTIONS = {
     vectorTopN: 5,
     textThreshold: 0.85,
     textLookback: 10,
+    recurrenceLo: 0.60,
 };
 // ── L1: In-memory content hash LRU ──
 function contentHash(text, owner) {
@@ -22,10 +23,13 @@ function contentHash(text, owner) {
 // ── Main engine ──
 export class DedupEngine {
     hashCache;
+    /** v1.8.1 (RecMem): Semantic recurrence tracker — maps content hash → recurrence count */
+    recurrenceCache;
     opts;
     constructor(opts) {
         this.opts = { ...DEFAULT_OPTIONS, ...opts };
         this.hashCache = new SimpleLRU({ maxSize: this.opts.hashLruSize });
+        this.recurrenceCache = new SimpleLRU({ maxSize: this.opts.hashLruSize });
     }
     /** Run all three stages in order. Returns as soon as any stage finds a match. */
     async check(text, db, embedding, owner) {
@@ -39,17 +43,20 @@ export class DedupEngine {
             this.hashCache.set(hash, true);
             return { isDuplicate: true, stage: "hash", confidence: 1.0, reason: "exact content hash match" };
         }
-        // ── L2: Vector cosine similarity ──
+        // ── L2: Vector cosine similarity (with RecMem recurrence detection) ──
+        let recurrenceDetected = false;
+        let recurrenceCount = 0;
         if (embedding?.isAvailable) {
             try {
                 const queryVec = await embedding.embed(text, 30000);
                 if (queryVec && queryVec.length > 0) {
                     const vecResults = db.vectorSearch(queryVec, this.opts.vectorTopN);
+                    let maxSim = 0;
                     for (const vr of vecResults) {
-                        // vr.vectorScore is already cosine similarity from the backend
                         const sim = typeof vr.vectorScore === "number" ? vr.vectorScore : 0;
+                        if (sim > maxSim)
+                            maxSim = sim;
                         if (sim >= this.opts.vectorThreshold) {
-                            // Cache the hash for future L1 matches
                             this.hashCache.set(hash, true);
                             return {
                                 isDuplicate: true,
@@ -59,10 +66,16 @@ export class DedupEngine {
                             };
                         }
                     }
+                    // v1.8.1 (RecMem): Check semantic recurrence band [recurrenceLo, vectorThreshold)
+                    if (maxSim >= this.opts.recurrenceLo) {
+                        const prevCount = this.recurrenceCache.get(hash) ?? 0;
+                        recurrenceCount = prevCount + 1;
+                        this.recurrenceCache.set(hash, recurrenceCount);
+                        recurrenceDetected = true;
+                    }
                 }
             }
             catch (err) {
-                // Vector search failed, fall through to L3
                 console.debug?.(`[yaoyao-memory:dedup] L2 vector check failed: ${err instanceof Error ? err.message : String(err)}`);
             }
         }
@@ -85,10 +98,20 @@ export class DedupEngine {
         }
         // Not a duplicate — record the hash so future exact repeats are caught
         this.hashCache.set(hash, true);
-        return { isDuplicate: false, stage: "none", confidence: 0, reason: "unique content" };
+        return {
+            isDuplicate: false,
+            stage: "none",
+            confidence: 0,
+            reason: "unique content",
+            ...(recurrenceDetected ? { recurrence: true, recurrenceCount } : {}),
+        };
     }
     /** Get current hash cache size (for stats/debugging) */
     get hashCacheSize() {
         return this.hashCache.size;
+    }
+    /** v1.8.1 (RecMem): Get current recurrence tracker size */
+    get recurrenceCacheSize() {
+        return this.recurrenceCache.size;
     }
 }

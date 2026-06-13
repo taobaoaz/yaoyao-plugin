@@ -193,11 +193,6 @@ export function registerCaptureHook(
       const deviceInteractions = extractDeviceInteractions(messages);
       const skillSource = _detectSkillSource(messages);
 
-      const { meta } = await buildMetaObj(userContent, indexableAsst, scopeManager, agentId,
-        specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false,
-        capCfg.brainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config,
-        { channelInfo, deviceInteractions: deviceInteractions.length > 0 ? deviceInteractions : undefined, skillSource });
-
       // v1.8.0-fix: Skip DB-dependent dedup stages in coexist mode
       // (yaoyao doesn't own L1/L2 data in coexist, so L2 vector + L3 text checks
       // would query stale/foreign data and produce false positives)
@@ -216,6 +211,24 @@ export function registerCaptureHook(
         api.logger.debug?.(`[yaoyao-memory:capture] Duplicate (stage=${dedupResult.stage}, conf=${dedupResult.confidence.toFixed(3)}): ${dedupResult.reason}`);
         return;
       }
+
+      // v1.8.1 (RecMem): Recurrence-driven LLM extraction upgrade.
+      // When semantic recurrence is detected (similar content seen before but not
+      // a duplicate), upgrade brainMode from "lite" to "full" for richer extraction.
+      // Paper: RecMem (arXiv:2605.16045) — accumulate-then-extract: recurring
+      // semantic patterns warrant deeper LLM analysis.
+      let effectiveBrainMode = capCfg.brainMode;
+      if (dedupResult.recurrence && dedupResult.recurrenceCount && dedupResult.recurrenceCount >= 2) {
+        if (effectiveBrainMode === "lite") {
+          effectiveBrainMode = "full";
+          api.logger.debug?.(`[yaoyao-memory:capture] RecMem: upgrading to full extraction (recurrence=${dedupResult.recurrenceCount})`);
+        }
+      }
+
+      const { meta } = await buildMetaObj(userContent, indexableAsst, scopeManager, agentId,
+        specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false,
+        effectiveBrainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config,
+        { channelInfo, deviceInteractions: deviceInteractions.length > 0 ? deviceInteractions : undefined, skillSource });
 
       // Build L0 markdown entry string
       const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;

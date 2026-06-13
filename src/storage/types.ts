@@ -17,6 +17,8 @@ export interface SearchResult {
   timestamp?: number;
   /** Importance weight (0-1) */
   importance?: number;
+  /** v1.8.1: Access count for FadeMem frequency-adjusted decay */
+  accessCount?: number;
   /** Scope label for access control */
   scope?: string;
 }

@@ -2,9 +2,9 @@ import { scoreConfidenceSupport } from "../utils/confidence-scorer.js";
 import { INTENT_WEIGHTS } from "../core/search/intent.js";
 import { applyTimeDecay, applyScoring, applyDiversitySampling, applyMmrDiversity, filterByScope, accumulateKeywords, runRecallFilter, checkRepeatQuery, recordRecentQuery, } from "./recall-utils.js";
 import { buildRecallContext, buildHookResult, makeSimpleTrace } from "./recall-formatter.js";
-export async function doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, logger) {
+export async function doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, logger, db) {
     let processed = filterByScope(results, scopeManager, agentId);
-    processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode);
+    processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode, cfg.fadeMemAccessFactor);
     processed = applyScoring(processed, userText);
     processed.sort((a, b) => b.score - a.score);
     if (cfg.enableIntentDriven && intent) {
@@ -26,6 +26,17 @@ export async function doPostProcess(results, mode, userText, cfg, scopeManager, 
         processed = applyDiversitySampling(processed, cfg.jaccardBase, cfg.jaccardMin);
     }
     const limited = processed.slice(0, cfg.maxResults);
+    // v1.8.1 (MemX): Low-confidence rejection. If the best score is below rejectThreshold,
+    // reject ALL results rather than injecting potentially misleading memories.
+    // Paper: MemX (arXiv:2603.16171) — strict quality gate on top result.
+    if (cfg.rejectThreshold > 0 && limited.length > 0) {
+        const topScore = limited[0].score;
+        if (topScore < cfg.rejectThreshold) {
+            logger.debug?.(`[yaoyao-memory:recall] MemX rejection: top score ${topScore.toFixed(3)} < rejectThreshold ${cfg.rejectThreshold}`);
+            stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, 0));
+            return;
+        }
+    }
     const confidence = scoreConfidenceSupport(userText, userText);
     if (confidence.score < cfg.scoreThreshold) {
         logger.debug?.(`[yaoyao-memory:recall] Confidence ${confidence.score.toFixed(2)} < threshold ${cfg.scoreThreshold}`);
@@ -39,8 +50,24 @@ export async function doPostProcess(results, mode, userText, cfg, scopeManager, 
     }
     recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length, recentQueries);
     accumulateKeywords(sessionKey, userText, cfg.maxContextKeywords);
-    if (filtered.length > 0) { resultCache.set(`${agentId || "default"}:${userText.slice(0, 120)}`, filtered); }
+    if (filtered.length > 0) {
+        resultCache.set(`${agentId || "default"}:${userText.slice(0, 120)}`, filtered);
+    }
     stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, filtered.length));
+    // v1.8.1 (FadeMem): Increment access_count for recalled memories.
+    // This feeds back into applyTimeDecay on future recalls — frequently
+    // recalled memories get slower decay (longer effective half-life).
+    if (db && filtered.length > 0) {
+        for (const r of filtered) {
+            if (r.id != null) {
+                try {
+                    db
+                        .incrementAccessCount?.(r.id);
+                }
+                catch { /* best effort */ }
+            }
+        }
+    }
     if (audit && filtered.length > 0) {
         audit.record("recall", {
             query: userText, agentId, mode, results: filtered.length,

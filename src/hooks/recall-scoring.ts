@@ -92,16 +92,30 @@ export function applyDiversitySampling(
   return out;
 }
 
-/** Apply time decay (weibull exponential or logistic) */
+/** v1.8.1 (FadeMem): Access-frequency factor for decay modulation.
+ * Frequently recalled memories decay slower.
+ * Formula: effectiveHalfLife = halfLifeDays * (1 + accessFactor * log(1 + accessCount))
+ * accessFactor=0 disables FadeMem (pure fixed half-life, v1.7.9 behavior).
+ * accessFactor=0.3 (default) means accessCount=10 → half-life ×2.3, accessCount=100 → half-life ×3.4
+ */
 export function applyTimeDecay(
   results: SearchResult[],
   halfLifeDays: number,
   mode: "weibull" | "logistic",
+  accessFactor: number = 0.3,
 ): SearchResult[] {
   const now = Date.now();
-  const halfLifeMs = halfLifeDays * 24 * 60 * 60 * 1000;
+  const baseHalfLifeMs = halfLifeDays * 24 * 60 * 60 * 1000;
   return results.map((r) => {
     const ageMs = now - (r.timestamp || now);
+
+    // FadeMem: modulate half-life by access frequency
+    const accessCount = r.accessCount ?? 0;
+    const fadeMultiplier = accessFactor > 0 && accessCount > 0
+      ? 1 + accessFactor * Math.log(1 + accessCount)
+      : 1;
+    const halfLifeMs = baseHalfLifeMs * fadeMultiplier;
+
     let decay: number;
     if (mode === "logistic") {
       const k = 10 / halfLifeMs;

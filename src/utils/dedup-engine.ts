@@ -21,6 +21,14 @@ export interface DedupResult {
   confidence: number;
   /** Human-readable reason */
   reason: string;
+  /** v1.8.1 (RecMem): Semantic recurrence signal.
+   *  true when content is semantically similar to prior capture but NOT a duplicate
+   *  (similarity in [recurrenceLo, vectorThreshold) band).
+   *  Paper: RecMem (arXiv:2605.16045) — accumulate-then-extract: only run LLM
+   *  extraction when semantic recurrence is observed. */
+  recurrence?: boolean;
+  /** v1.8.1 (RecMem): How many times this semantic cluster has recurred (1-indexed). */
+  recurrenceCount?: number;
 }
 
 export interface DedupOptions {
@@ -35,6 +43,10 @@ export interface DedupOptions {
   textThreshold: number;
   /** How many recent memories to check for L3 */
   textLookback: number;
+  /** v1.8.1 (RecMem): Lower bound for semantic recurrence band [recurrenceLo, vectorThreshold).
+   *  Similarity in this band = recurrence (not dedup, but semantically related).
+   *  Paper: RecMem (arXiv:2605.16045). Default 0.60. */
+  recurrenceLo: number;
 }
 
 const DEFAULT_OPTIONS: DedupOptions = {
@@ -44,6 +56,7 @@ const DEFAULT_OPTIONS: DedupOptions = {
   vectorTopN: 5,
   textThreshold: 0.85,
   textLookback: 10,
+  recurrenceLo: 0.60,
 };
 
 // ── L1: In-memory content hash LRU ──
@@ -63,11 +76,14 @@ function contentHash(text: string, owner?: string): string {
 
 export class DedupEngine {
   private hashCache: SimpleLRU<string, boolean>;
+  /** v1.8.1 (RecMem): Semantic recurrence tracker — maps content hash → recurrence count */
+  private recurrenceCache: SimpleLRU<string, number>;
   private opts: DedupOptions;
 
   constructor(opts?: Partial<DedupOptions>) {
     this.opts = { ...DEFAULT_OPTIONS, ...opts };
     this.hashCache = new SimpleLRU<string, boolean>({ maxSize: this.opts.hashLruSize });
+    this.recurrenceCache = new SimpleLRU<string, number>({ maxSize: this.opts.hashLruSize });
   }
 
   /** Run all three stages in order. Returns as soon as any stage finds a match. */
@@ -89,17 +105,19 @@ export class DedupEngine {
       return { isDuplicate: true, stage: "hash", confidence: 1.0, reason: "exact content hash match" };
     }
 
-    // ── L2: Vector cosine similarity ──
+    // ── L2: Vector cosine similarity (with RecMem recurrence detection) ──
+    let recurrenceDetected = false;
+    let recurrenceCount = 0;
     if (embedding?.isAvailable) {
       try {
         const queryVec = await embedding.embed(text, 30000);
         if (queryVec && queryVec.length > 0) {
           const vecResults = db.vectorSearch(queryVec, this.opts.vectorTopN);
+          let maxSim = 0;
           for (const vr of vecResults) {
-            // vr.vectorScore is already cosine similarity from the backend
             const sim = typeof vr.vectorScore === "number" ? vr.vectorScore : 0;
+            if (sim > maxSim) maxSim = sim;
             if (sim >= this.opts.vectorThreshold) {
-              // Cache the hash for future L1 matches
               this.hashCache.set(hash, true);
               return {
                 isDuplicate: true,
@@ -109,9 +127,15 @@ export class DedupEngine {
               };
             }
           }
+          // v1.8.1 (RecMem): Check semantic recurrence band [recurrenceLo, vectorThreshold)
+          if (maxSim >= this.opts.recurrenceLo) {
+            const prevCount = this.recurrenceCache.get(hash) ?? 0;
+            recurrenceCount = prevCount + 1;
+            this.recurrenceCache.set(hash, recurrenceCount);
+            recurrenceDetected = true;
+          }
         }
       } catch (err) {
-        // Vector search failed, fall through to L3
         console.debug?.(`[yaoyao-memory:dedup] L2 vector check failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
@@ -135,11 +159,22 @@ export class DedupEngine {
 
     // Not a duplicate — record the hash so future exact repeats are caught
     this.hashCache.set(hash, true);
-    return { isDuplicate: false, stage: "none", confidence: 0, reason: "unique content" };
+    return {
+      isDuplicate: false,
+      stage: "none",
+      confidence: 0,
+      reason: "unique content",
+      ...(recurrenceDetected ? { recurrence: true, recurrenceCount } : {}),
+    };
   }
 
   /** Get current hash cache size (for stats/debugging) */
   get hashCacheSize(): number {
     return this.hashCache.size;
+  }
+
+  /** v1.8.1 (RecMem): Get current recurrence tracker size */
+  get recurrenceCacheSize(): number {
+    return this.recurrenceCache.size;
   }
 }

@@ -73,6 +73,16 @@ export interface RecallThresholds {
   enableMmr: boolean;
   /** MMR lambda: 1.0 = pure relevance, 0.5 = balanced, 0.0 = pure diversity */
   mmrLambda: number;
+  /** v1.8.1 (FadeMem): Access-frequency decay modulation factor. 0 = disabled (fixed half-life).
+   *  0.3 (default) = accessCount=10 doubles effective half-life.
+   *  Paper: FadeMem (arXiv:2601.18642) — frequently recalled memories decay slower. */
+  fadeMemAccessFactor: number;
+  /** v1.8.1 (MemX): Hard rejection threshold. If the top-scoring result after
+   *  all scoring/diversity is below this, ALL results are rejected (return empty).
+   *  This is stricter than scoreThreshold (which gates confidence scoring).
+   *  Set to 0 to disable. Paper: MemX (arXiv:2603.16171) — low-confidence rejection
+   *  avoids injecting low-quality memories that could mislead the agent. */
+  rejectThreshold: number;
 }
 
 export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
@@ -108,6 +118,8 @@ export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
     enableIntentDriven: (r.enableIntentDriven as boolean) ?? false,
     enableMmr: (r.enableMmr as boolean) ?? false,
     mmrLambda: (r.mmrLambda as number) ?? 0.7,
+    fadeMemAccessFactor: (r.fadeMemAccessFactor as number) ?? 0.3,
+    rejectThreshold: (r.rejectThreshold as number) ?? 0.15,
   };
 }
 
