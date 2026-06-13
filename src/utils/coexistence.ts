@@ -36,6 +36,14 @@ let _currentState: CoexistState = {
   gatewayVersion: '',
   gatewayAlive: false,
 };
+
+// v1.8.0-fix: Do immediate detection on module load (bypass grace period)
+// This ensures correct mode is available at startup, not after 600ms delay.
+(function _initialDetect() {
+  const initial = _doDetect();
+  _currentMode = initial.mode;
+  _currentState = initial;
+})();
 let _startedAt: number = Date.now();
 let _changeHandlers: Array<(prev: CoexistState, next: CoexistState) => void> = [];
 

@@ -39,7 +39,7 @@ export async function doPostProcess(results, mode, userText, cfg, scopeManager, 
     }
     recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length, recentQueries);
     accumulateKeywords(sessionKey, userText, cfg.maxContextKeywords);
-    resultCache.set(`${agentId || "default"}:${userText.slice(0, 120)}`, filtered);
+    if (filtered.length > 0) { resultCache.set(`${agentId || "default"}:${userText.slice(0, 120)}`, filtered); }
     stats.recordQuery(makeSimpleTrace(userText, mode, startMs, results.length, filtered.length));
     if (audit && filtered.length > 0) {
         audit.record("recall", {

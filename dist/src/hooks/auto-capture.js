@@ -155,9 +155,11 @@ export function registerCaptureHook(
             // v1.8.0: Security-aware content sanitization
             let userContent = cctx.userContent;
             let indexableAsst = cctx.indexableAsst;
+            let displayAsst = cctx.asstContent;
             if (isHardened) {
                 userContent = sanitizeForCapture(userContent);
                 indexableAsst = sanitizeForCapture(indexableAsst);
+                displayAsst = sanitizeForCapture(displayAsst);
             }
 
             const { riskTag, specCheck, corrCheck } = runAntiHallucination(userContent, indexableAsst, effectiveVerify);
@@ -173,15 +175,21 @@ export function registerCaptureHook(
                 capCfg.brainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config,
                 { channelInfo, deviceInteractions: deviceInteractions.length > 0 ? deviceInteractions : undefined, skillSource });
 
-            const dedupResult = await dedupEngine.check(
-                (userContent + " " + indexableAsst).trim(), db, embedding, agentId,
-            );
+            // v1.8.0-fix: Skip DB-dependent dedup stages in coexist mode
+            let dedupResult;
+            if (getCoexistMode() === "coexist") {
+                dedupResult = { isDuplicate: false, stage: "none", confidence: 0, reason: "skipped in coexist mode" };
+            } else {
+                dedupResult = await dedupEngine.check(
+                    (userContent + " " + indexableAsst).trim(), db, embedding, agentId,
+                );
+            }
             if (dedupResult.isDuplicate) {
                 api.logger.debug?.(`[yaoyao-memory:capture] Duplicate (stage=${dedupResult.stage}, conf=${dedupResult.confidence.toFixed(3)}): ${dedupResult.reason}`);
                 return;
             }
 
-            const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${cctx.asstContent}${riskTag}\n`;
+            const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;
 
             captureDebouncer.push({
                 sessionKey, userContent, asstContent: indexableAsst,

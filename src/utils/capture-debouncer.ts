@@ -8,7 +8,7 @@
  * How it works:
  * 1. Each capture request is recorded with a dedup key (session + content hash)
  * 2. If a new request arrives for the same session within debounceMs,
- *    it replaces the pending request (latest content wins)
+ *    content is appended (all turns preserved, not overwritten)
  * 3. After debounceMs of silence (or maxDelayMs), the request is flushed
  */
 
@@ -100,7 +100,7 @@ export function createCaptureDebouncer(
     /**
      * Submit a capture for debounced processing.
      * If the same sessionKey already has a pending item, the new
-     * content replaces it (latest wins, mergedCount increments).
+     * content is appended (all turns preserved, mergedCount increments).
      */
     push(item: {
       sessionKey: string;
@@ -113,13 +113,13 @@ export function createCaptureDebouncer(
     }): void {
       const existing = pending.get(item.sessionKey);
       if (existing) {
-        // Merge: update content, increment counter
-        existing.userContent = item.userContent;
-        existing.asstContent = item.asstContent;
+        // Merge: append content (preserve all turns, don't overwrite)
+        existing.userContent = existing.userContent + "\n---\n" + item.userContent;
+        existing.asstContent = existing.asstContent + "\n---\n" + item.asstContent;
         existing.date = item.date;
         existing.timestamp = item.timestamp;
         existing.meta = item.meta;
-        existing.entry = item.entry ?? existing.entry;
+        existing.entry = (existing.entry ?? "") + (item.entry ?? "");
         existing._lastAt = Date.now();
         existing.mergedCount++;
         mergedCount++;

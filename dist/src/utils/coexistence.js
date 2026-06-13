@@ -17,6 +17,13 @@ let _currentState = {
     gatewayVersion: '',
     gatewayAlive: false,
 };
+
+// v1.8.0-fix: Do immediate detection on module load (bypass grace period)
+(function _initialDetect() {
+    const initial = _doDetect();
+    _currentMode = initial.mode;
+    _currentState = initial;
+})();
 let _startedAt = Date.now();
 let _changeHandlers = [];
 

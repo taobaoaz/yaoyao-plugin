@@ -105,9 +105,10 @@ export function createWriteQueue(
   }
 
   return { enqueue, get pendingCount() { return pending.length; }, drain: async () => {
+    const drainTimeout = Date.now() + 10000;
     if (flushing) {
       // Wait for current flush to complete
-      while (flushing) {
+      while (flushing && Date.now() < drainTimeout) {
         await new Promise(r => setTimeout(r, 10));
       }
     }
@@ -115,7 +116,7 @@ export function createWriteQueue(
       await runFlush();
     }
     // Double-check after any async gap
-    while (flushing) {
+    while (flushing && Date.now() < drainTimeout) {
       await new Promise(r => setTimeout(r, 10));
     }
   }, retry: async () => {

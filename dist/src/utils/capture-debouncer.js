@@ -80,12 +80,12 @@ export function createCaptureDebouncer(config = {}, flushHandler) {
             const existing = pending.get(item.sessionKey);
             if (existing) {
                 // Merge: update content, increment counter
-                existing.userContent = item.userContent;
-                existing.asstContent = item.asstContent;
+                existing.userContent = existing.userContent + "\n---\n" + item.userContent;
+                existing.asstContent = existing.asstContent + "\n---\n" + item.asstContent;
                 existing.date = item.date;
                 existing.timestamp = item.timestamp;
                 existing.meta = item.meta;
-                existing.entry = item.entry ?? existing.entry;
+                existing.entry = (existing.entry ?? "") + (item.entry ?? "");
                 existing._lastAt = Date.now();
                 existing.mergedCount++;
                 mergedCount++;
