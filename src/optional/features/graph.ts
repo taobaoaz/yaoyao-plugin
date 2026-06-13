@@ -2,7 +2,7 @@
  * Knowledge Graph feature — optional scene-based memory graph tool.
  * Requires scenes directory to exist.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { OptionalFeature, FeatureResult } from "../types.ts";
 import fs from "node:fs";

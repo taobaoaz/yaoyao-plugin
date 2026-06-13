@@ -13,7 +13,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig, MemoryEntry } from "./memory-store-types.ts";
 
 export type { YaoyaoMemoryConfig, MemoryEntry } from "./memory-store-types.ts";

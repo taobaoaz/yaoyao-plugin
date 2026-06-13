@@ -6,7 +6,7 @@
  */
 import type { UnifiedDB } from "../platform/db/types.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 import { createVectorBackend } from "../utils/vector/index.ts";
 import type { VectorBackend } from "../utils/vector/types.ts";
 import type { EmbeddedSearchResult } from "./types.ts";

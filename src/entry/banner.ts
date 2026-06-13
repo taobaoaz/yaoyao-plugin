@@ -5,7 +5,7 @@
  * produces the 🎲 banner.
  */
 
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 import type { CapabilityReport } from "../utils/install-check.ts";
 import type { HealthResult } from "../utils/healthcheck.ts";
 

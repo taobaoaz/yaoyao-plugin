@@ -1,7 +1,7 @@
 /**
  * Shared utilities for memory tools.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 
 export type ToolHandlerResult = { content: Array<{ type: string; text: string }> };
 export type ToolHandler = (id: string, params: Record<string, unknown>) => Promise<ToolHandlerResult>;

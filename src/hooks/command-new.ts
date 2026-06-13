@@ -9,7 +9,7 @@
  *   - Clears recall keyword buffer (recall-session.ts)
  *   - Clears capture activity tracking (session-activity.ts)
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import { clearSessionKeywords } from "./recall-session.ts";
 import { resetSession } from "../utils/session-activity.ts";
 

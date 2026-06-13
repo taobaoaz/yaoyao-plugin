@@ -16,7 +16,7 @@ import os from "node:os";
 import { getProp } from "../utils/config.ts";
 import { clampNum } from "../utils/clamp.ts";
 import { createCompatDB, type UnifiedDB, type DBCompatResult } from "../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import { ensureSchema } from "./schema.ts";
 import { createFtsEngine, type FtsEngine, createVectorStore, type VectorStore, createHybridSearch, type HybridSearch } from "./engine-barrel.ts";

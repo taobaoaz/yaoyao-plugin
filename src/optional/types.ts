@@ -4,7 +4,7 @@
  * Every optional capability (embedding, LLM, cloud sync, verify, etc.)
  * implements this interface so the registry can manage them uniformly.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 
 /** Result of initializing a feature */

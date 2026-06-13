@@ -1,7 +1,7 @@
 /**
  * Quality Analysis feature — optional memory quality report tool.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { OptionalFeature, FeatureResult } from "../types.ts";
 

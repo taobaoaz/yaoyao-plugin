@@ -5,7 +5,7 @@
  * to avoid blocking agent_end hooks and the OpenClaw gateway thread.
  */
 
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 import type { AuditLog } from "./audit-log.ts";
 
 export interface WriteTask {

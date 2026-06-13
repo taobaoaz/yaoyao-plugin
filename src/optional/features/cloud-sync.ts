@@ -3,7 +3,7 @@
  *
  * Gracefully skips when no credentials are configured.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { OptionalFeature, FeatureResult } from "../types.ts";
 import type { MemoryStore } from "../../utils/memory-store.ts";

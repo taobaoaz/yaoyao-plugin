@@ -7,7 +7,7 @@
  * Optional tools are gated by the FeatureRegistry so enabling/disabling
  * is declarative and consistent across entry + tools + hooks.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { MemoryStore } from "../utils/memory-store.ts";
 import type { DBBridge } from "../utils/db-bridge.ts";
 import type { EmbeddingService } from "../utils/embedding.ts";

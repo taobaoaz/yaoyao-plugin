@@ -8,7 +8,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { clampNum } from "../clamp.ts";
 import type { UnifiedDB } from "../../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../memory-store.ts";
 import type { VectorBackend, EmbeddedSearchResult } from "./types.ts";
 import type { HnswlibModule, HnswIndex } from "./hnswlib-types.ts";

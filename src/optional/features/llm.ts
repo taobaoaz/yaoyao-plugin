@@ -6,7 +6,7 @@
  *   2. Auto-detect from embedding config (if embedding feature active)
  *   3. Nothing → inactive
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { OptionalFeature, FeatureResult } from "../types.ts";
 import { createLLMClient, type CreateLLMClientResult } from "../../utils/llm-client.ts";

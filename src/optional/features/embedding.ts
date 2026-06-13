@@ -3,7 +3,7 @@
  *
  * Creates an EmbeddingService when embedding.enabled=true and apiKey is present.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { OptionalFeature, FeatureResult } from "../types.ts";
 import { createEmbeddingService, detectEmbedModel } from "../../utils/embedding.ts";

@@ -4,7 +4,7 @@
  * Each step is a standalone function that takes (api, config, ...)
  * and returns its result. The orchestrator calls these in order.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import { createMemoryStore } from "../../utils/memory-store.ts";
 import { createStorage, type Storage } from "../../storage/bridge.ts";

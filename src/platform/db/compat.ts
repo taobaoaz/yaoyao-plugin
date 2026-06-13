@@ -14,7 +14,7 @@
  * All callers use UnifiedDB from ./types.ts
  */
 
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../../openclaw-sdk/plugin-entry.ts";
 import type { DBCompatResult, DBBackend } from "./types.ts";
 import { createNativeDB, isNativeAvailable } from "./native.ts";
 import { createNpmDB, isNpmAvailable } from "./npm.ts";

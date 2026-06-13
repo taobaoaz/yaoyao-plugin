@@ -3,7 +3,7 @@
  *
  * Orchestrator (~100 lines). Each step lives in core/boot/steps.ts.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import { createFeatureRegistry } from "../optional/registry.ts";
 import {

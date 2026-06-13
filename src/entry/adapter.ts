@@ -5,7 +5,7 @@
  */
 
 import { detectEnvironment } from "../utils/environment-detector.ts";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 
 export function adaptEnvironment(api: OpenClawPluginApi): {
   type: "openclaw";

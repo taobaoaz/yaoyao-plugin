@@ -2,7 +2,7 @@
  * Vector backend factory — creates sqlite-vec (default) or hnswlib (optional).
  */
 import type { UnifiedDB } from "../../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../memory-store.ts";
 import type { VectorBackend } from "./types.ts";
 import { SqliteVecBackend } from "./sqlite-vec.ts";

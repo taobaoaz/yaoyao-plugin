@@ -10,7 +10,7 @@
  *   - Session activity tracking
  *   - Conversation value estimation
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import { getProp, getBool } from "../utils/config.ts";
 import { clampNum } from "../utils/clamp.ts";

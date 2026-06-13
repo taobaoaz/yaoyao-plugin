@@ -10,7 +10,7 @@ const _require = createRequire(import.meta.url);
 
 import fs from "node:fs";
 import path from "node:path";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 import type { EmbeddingSource } from "./env-scan-embed.ts";
 import { scanEmbeddingSources, generateSetupGuide } from "./env-scan-embed.ts";
 

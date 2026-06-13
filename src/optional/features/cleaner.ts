@@ -1,7 +1,7 @@
 /**
  * Cleaner feature — optional daily memory cleanup.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { OptionalFeature, FeatureResult } from "../types.ts";
 import { createMemoryCleaner, type CleanerConfig } from "../../utils/memory-cleaner.ts";

@@ -11,7 +11,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../../openclaw-sdk/plugin-entry.ts";
 import type { Storage } from "../../storage/bridge.ts";
 
 interface ParsedTurn {

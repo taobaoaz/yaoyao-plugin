@@ -4,7 +4,7 @@
 import fs from "node:fs";
 import type { UnifiedDB, DBCompatResult } from "../platform/db/compat.ts";
 import { createCompatDB } from "../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 
 let loggerRef: PluginLogger | undefined;
 

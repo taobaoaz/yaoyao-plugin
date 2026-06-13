@@ -18,7 +18,7 @@
  *   recall-filter.ts   — model-based secondary filter
  *   recall-query-cache.ts — repeat query detection
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import type { DBBridge, SearchResult } from "../utils/db-bridge.ts";
 import { RetrievalStatsCollector, globalRetrievalStats } from "../utils/retrieval-stats.ts";

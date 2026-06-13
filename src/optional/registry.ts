@@ -4,7 +4,7 @@
  * Replaces scattered `if (enabled)` / `try/catch` logic in entry/index.ts
  * and tools/index.ts with a declarative, dependency-aware system.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import type { OptionalFeature, FeatureResult, ResolvedFeatures } from "./types.ts";
 

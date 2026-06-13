@@ -6,7 +6,7 @@
  *   - Kept: environment detection, coexistence monitor (generic claw-core),
  *           telemetry heartbeat
  */
-import { definePluginEntry, type OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
+import { definePluginEntry, type OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
 import { bootstrapYaoyao } from '../core/app.ts';
 import { buildPayload, sendHeartbeat } from '../utils/telemetry.ts';

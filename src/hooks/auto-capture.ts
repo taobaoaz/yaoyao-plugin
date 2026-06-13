@@ -12,7 +12,7 @@
  *   - Security-aware capture (hardened mode forces verify + content sanitization)
  */
 import { clampNum } from "../utils/clamp.ts";
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../openclaw-sdk/plugin-entry.ts";
 import type { MemoryStore, YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import type { DBBridge } from "../utils/db-bridge.ts";
 import { getProp, getBool } from "../utils/config.ts";

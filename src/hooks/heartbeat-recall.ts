@@ -8,7 +8,7 @@
  * and appends them as context to the heartbeat prompt.
  */
 
-import type { OpenClawPluginApi, PluginHeartbeatPromptContributionEvent, PluginHeartbeatPromptContributionResult } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi, PluginHeartbeatPromptContributionEvent, PluginHeartbeatPromptContributionResult } from "../openclaw-sdk/plugin-entry.ts";
 import type { Storage } from "../storage/bridge.ts";
 import type { EmbeddingService } from "../utils/embedding.ts";
 import { getAccumulatedKeywords } from "./recall-session.ts";

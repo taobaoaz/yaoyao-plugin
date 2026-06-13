@@ -3,7 +3,7 @@
  *
  * Extracted from app.ts's runStartupTasks function.
  */
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
+import type { OpenClawPluginApi } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { Storage } from "../../storage/bridge.ts";
 import type { MemoryTier } from "../../utils/tier-manager.ts";

@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { readVersionRequirements, satisfiesVersion } from "./version-check.js";
+import * as openclawSdk from "../openclaw-sdk/plugin-entry.js";
 import { getDBCapability } from "../platform/db/compat.js";
 export function runInstallCheck() {
     const warnings = [];
@@ -43,23 +44,22 @@ export function runInstallCheck() {
             "记忆仍会自动保存为 daily markdown，搜索降级为简单文本匹配。" +
             "如需完整功能：npm install better-sqlite3，或升级到 Node 22+。");
     }
-    // 3. OpenClaw Gateway version — report, never block
-    let gatewayVer = "unknown";
-    try {
-        const _require = createRequire(import.meta.url);
-        const sdk = _require("openclaw/plugin-sdk/plugin-entry");
-        gatewayVer = sdk?.OPENCLAW_VERSION || sdk?.version || "unknown";
-        if (satisfiesVersion(gatewayVer, versions.pluginApiRange)) {
-            info.push(`OpenClaw Gateway ${gatewayVer} ✅ (要求 ${versions.pluginApiRange})`);
-        }
-        else {
-            warnings.push(`OpenClaw Gateway ${gatewayVer} 低于推荐版本 ${versions.pluginApiRange}。` +
-                `部分 API 可能不兼容，插件将尝试 graceful fallback。`);
-        }
+    // 3. OpenClaw Gateway version — report, never block.
+    //    With the bundled local SDK stub the version field is unknown by
+    //    design; we report honestly rather than guess.
+    const gatewayVer = openclawSdk.OPENCLAW_VERSION
+        || openclawSdk.version
+        || "unknown";
+    if (satisfiesVersion(gatewayVer, versions.pluginApiRange)) {
+        info.push(`OpenClaw Gateway ${gatewayVer} ✅ (要求 ${versions.pluginApiRange})`);
     }
-    catch {
-        warnings.push(`无法检测 OpenClaw Gateway 版本。插件要求 Gateway ${versions.pluginApiRange}。` +
-            `如功能异常请升级 Gateway。`);
+    else if (gatewayVer === "unknown") {
+        warnings.push(`无法检测 OpenClaw Gateway 版本（bundled stub）。` +
+            `插件要求 Gateway ${versions.pluginApiRange}。如功能异常请升级 host。`);
+    }
+    else {
+        warnings.push(`OpenClaw Gateway ${gatewayVer} 低于推荐版本 ${versions.pluginApiRange}。` +
+            `部分 API 可能不兼容，插件将尝试 graceful fallback。`);
     }
     // 4. sqlite-vec (optional)
     if (backend === "node-sqlite") {

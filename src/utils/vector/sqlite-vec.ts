@@ -4,7 +4,7 @@
  */
 import { createRequire } from "node:module";
 import type { UnifiedDB } from "../../platform/db/compat.ts";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../../openclaw-sdk/plugin-entry.ts";
 import type { YaoyaoMemoryConfig } from "../memory-store.ts";
 import type { VectorBackend, EmbeddedSearchResult } from "./types.ts";
 

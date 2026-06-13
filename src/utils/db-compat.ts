@@ -12,7 +12,7 @@
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
-import type { PluginLogger } from "openclaw/plugin-sdk/plugin-entry";
+import type { PluginLogger } from "../openclaw-sdk/plugin-entry.ts";
 import type { SQLiteRow } from "../platform/db/types.ts";
 import { FileDB } from "./file-db.ts";
 

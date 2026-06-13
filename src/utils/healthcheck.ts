@@ -11,6 +11,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { readVersionRequirements, satisfiesVersion } from "./version-check.ts";
+import * as openclawSdk from "../openclaw-sdk/plugin-entry.ts";
 import { getDBCapability, createCompatDB } from "../platform/db/compat.ts";
 
 export interface HealthResult {
@@ -39,19 +40,18 @@ export function runHealthcheck(baseDir?: string): HealthResult {
     checks.push({ name: "Node.js 版本", status: "fail", message: `${nodeVersion} ❌`, detail: `要求 ${versions.nodeRange}。node:sqlite 从 Node 22 开始内置，当前版本无法加载数据库层。` });
   }
 
-  // 2. OpenClaw Gateway version — reads requirement from package.json
-  let gatewayVer = "unknown";
-  try {
-    const _require = createRequire(import.meta.url);
-    const sdk = _require("openclaw/plugin-sdk/plugin-entry");
-    gatewayVer = sdk?.OPENCLAW_VERSION || sdk?.version || "unknown";
-    if (satisfiesVersion(gatewayVer, versions.pluginApiRange)) {
-      checks.push({ name: "OpenClaw Gateway", status: "pass", message: `${gatewayVer} ✅ (要求 ${versions.pluginApiRange})` });
-    } else {
-      checks.push({ name: "OpenClaw Gateway", status: "fail", message: `${gatewayVer} ❌`, detail: `要求 ${versions.pluginApiRange}。请升级 Gateway：npm install -g openclaw@latest` });
-    }
-  } catch {
-    checks.push({ name: "OpenClaw Gateway", status: "warn", message: `无法检测 ⚠️`, detail: `插件要求 Gateway ${versions.pluginApiRange}。如功能异常请升级。` });
+  // 2. OpenClaw Gateway version — reads requirement from package.json.
+  //    With the bundled local SDK stub the version field is unknown by
+  //    design; we report honestly rather than guess.
+  let gatewayVer = (openclawSdk as unknown as Record<string, unknown>).OPENCLAW_VERSION as string
+    || (openclawSdk as unknown as Record<string, unknown>).version as string
+    || "unknown";
+  if (satisfiesVersion(gatewayVer, versions.pluginApiRange)) {
+    checks.push({ name: "OpenClaw Gateway", status: "pass", message: `${gatewayVer} ✅ (要求 ${versions.pluginApiRange})` });
+  } else if (gatewayVer === "unknown") {
+    checks.push({ name: "OpenClaw Gateway", status: "warn", message: `无法检测（bundled stub）⚠️`, detail: `插件要求 Gateway ${versions.pluginApiRange}。如功能异常请升级 host。` });
+  } else {
+    checks.push({ name: "OpenClaw Gateway", status: "fail", message: `${gatewayVer} ❌`, detail: `要求 ${versions.pluginApiRange}。请升级 Gateway：npm install -g openclaw@latest` });
   }
 
   // 3. SQLite backend availability (node:sqlite or better-sqlite3)
