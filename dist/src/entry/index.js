@@ -8,6 +8,7 @@ import { bootstrapYaoyao } from "../core/app.js";
 import { buildPayload, sendHeartbeat } from "../utils/telemetry.js";
 import { detectEnvironment } from "../utils/environment-detector.js";
 import { createTelemetryTool } from "../features/telemetry/tool.js";
+import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, setCoexistMode, getCoexistMode, getCoexistState } from "../utils/coexistence.js";
 
 export default definePluginEntry({
     id: 'yaoyao-memory',
@@ -19,6 +20,27 @@ export default definePluginEntry({
             // === Environment Detection ===
             const env = detectEnvironment();
             api.logger.info?.(`[yaoyao-memory] Detected environment: ${env}`);
+
+            // === Coexistence Detection ===
+            const coexist = detectCoexistence();
+            const finalMode = getCoexistMode();
+            const finalState = getCoexistState();
+            if (finalMode === 'coexist') {
+                api.logger.info?.(`[yaoyao-memory] Coexist mode — L1/L2 skipped, heavy lifting delegated to claw-core${finalState.gatewayVersion ? ` (Gateway ${finalState.gatewayVersion})` : ''}${finalState.gatewayAlive ? ' [alive]' : ' [socket only]'}`);
+            } else if (finalMode === 'standalone') {
+                api.logger.info?.('[yaoyao-memory] Standalone mode — all layers active');
+            }
+
+            const stopMonitor = startCoexistenceMonitor(10000);
+            api.logger.debug?.('[yaoyao-memory] Coexistence monitor started (10s interval)');
+
+            onCoexistChange((prev, next) => {
+                if (prev.mode !== 'coexist' && next.mode === 'coexist') {
+                    api.logger.info?.(`[yaoyao-memory] claw-core appeared at runtime — switching to coexist mode${next.gatewayVersion ? ` (Gateway ${next.gatewayVersion})` : ''}`);
+                } else if (prev.mode === 'coexist' && next.mode !== 'coexist') {
+                    api.logger.info?.('[yaoyao-memory] claw-core disappeared at runtime — switching to standalone mode');
+                }
+            });
 
             // === Bootstrap Core ===
             bootstrapYaoyao(api, (api.pluginConfig || {}));
@@ -52,7 +74,8 @@ export default definePluginEntry({
                 if (unloadFn) {
                     unloadFn(() => {
                         clearInterval(heartbeatTimer);
-                        api.logger.info?.('[yaoyao-memory] Heartbeat timer cleared');
+                        stopMonitor();
+                        api.logger.info?.('[yaoyao-memory] Heartbeat timer + coexistence monitor cleared');
                     });
                 }
             }

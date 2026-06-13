@@ -2,8 +2,9 @@
  * Plugin entry — OpenClaw plugin adapter.
  *
  * v1.7.9: XiaoYi Claw code removed — pure OpenClaw plugin.
- *   - Removed: xiaoyi-adapter, coexistence monitor, system architecture detection
- *   - Kept: environment detection (openclaw vs unknown), telemetry heartbeat
+ *   - Removed: xiaoyi-adapter, XiaoYi-specific detection
+ *   - Kept: environment detection, coexistence monitor (generic claw-core),
+ *           telemetry heartbeat
  */
 import { definePluginEntry, type OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
 import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
@@ -11,6 +12,14 @@ import { bootstrapYaoyao } from '../core/app.ts';
 import { buildPayload, sendHeartbeat } from '../utils/telemetry.ts';
 import { createTelemetryTool } from '../features/telemetry/tool.ts';
 import { detectEnvironment } from '../utils/environment-detector.ts';
+import {
+  detectCoexistence,
+  startCoexistenceMonitor,
+  onCoexistChange,
+  setCoexistMode,
+  getCoexistMode,
+  getCoexistState,
+} from '../utils/coexistence.ts';
 
 export default definePluginEntry({
   id: 'yaoyao-memory',
@@ -22,6 +31,37 @@ export default definePluginEntry({
       // === Environment Detection ===
       const env = detectEnvironment();
       api.logger.info?.(`[yaoyao-memory] Detected environment: ${env}`);
+
+      // === Coexistence Detection (config + filesystem based) ===
+      const coexist = detectCoexistence();
+      const finalMode = getCoexistMode();
+      const finalState = getCoexistState();
+      if (finalMode === 'coexist') {
+        api.logger.info?.(
+          `[yaoyao-memory] Coexist mode — L1/L2 skipped, heavy lifting delegated to claw-core${finalState.gatewayVersion ? ` (Gateway ${finalState.gatewayVersion})` : ''}${finalState.gatewayAlive ? ' [alive]' : ' [socket only]'}`,
+        );
+      } else if (finalMode === 'standalone') {
+        api.logger.info?.('[yaoyao-memory] Standalone mode — all layers active');
+      }
+
+      // Start periodic monitor (10s interval)
+      const stopMonitor = startCoexistenceMonitor(10000);
+      api.logger.debug?.(
+        '[yaoyao-memory] Coexistence monitor started (10s interval)',
+      );
+
+      // React to transitions
+      onCoexistChange((prev, next) => {
+        if (prev.mode !== 'coexist' && next.mode === 'coexist') {
+          api.logger.info?.(
+            `[yaoyao-memory] claw-core appeared at runtime — switching to coexist mode${next.gatewayVersion ? ` (Gateway ${next.gatewayVersion})` : ''}`,
+          );
+        } else if (prev.mode === 'coexist' && next.mode !== 'coexist') {
+          api.logger.info?.(
+            '[yaoyao-memory] claw-core disappeared at runtime — switching to standalone mode',
+          );
+        }
+      });
 
       // === Bootstrap Core ===
       bootstrapYaoyao(api, (api.pluginConfig || {}) as unknown as YaoyaoMemoryConfig);
@@ -58,7 +98,8 @@ export default definePluginEntry({
         const unloadFn = ((api as unknown) as Record<string, unknown>).onUnload as ((fn: () => void) => void) | undefined;
         unloadFn?.(() => {
           clearInterval(heartbeatTimer);
-          api.logger.info?.('[yaoyao-memory] Heartbeat timer cleared');
+          stopMonitor();
+          api.logger.info?.('[yaoyao-memory] Heartbeat timer + coexistence monitor cleared');
         });
       }
     } catch (err) {
