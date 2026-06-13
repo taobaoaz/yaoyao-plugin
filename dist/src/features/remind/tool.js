@@ -57,7 +57,7 @@ export function createRemindTool() {
                 return {
                     content: [{
                             type: "text",
-                            text: "## 记忆定时提醒\n\n请使用 `openclaw cron list` 查看所有定时任务。\n\n当前渠道: xiaoyi-channel",
+                            text: "## 记忆定时提醒\n\n请使用 `openclaw cron list` 查看所有定时任务。\n\n当前渠道: openclaw",
                         }],
                 };
             }
@@ -99,7 +99,7 @@ export function createRemindTool() {
                 "```bash",
                 `openclaw cron add "${finalCron}" \\`,
                 `  --message "${finalMessage}" \\`,
-                `  --channel xiaoyi-channel`,
+                `  --channel openclaw`,
                 "```",
                 ``,
                 `### 常用 cron 示例`,

@@ -1,108 +1,30 @@
 /**
- * Plugin entry — Universal adapter for OpenClaw / XiaoYi Claw.
+ * Plugin entry — OpenClaw plugin adapter.
  *
- * v1.7.2: System architecture detection
- *   - Reads OpenClaw global config (~/.openclaw/openclaw.json)
- *   - Detects if memory/contextEngine slots are owned by claw-core
- *   - Automatically selects strategy: full | l0-only | supplement | disabled
- *   - Coexistence with runtime UDS monitoring
+ * v1.7.9: XiaoYi Claw code removed — pure OpenClaw plugin.
+ *   - Removed: xiaoyi-adapter, coexistence monitor, system architecture detection
+ *   - Kept: environment detection (openclaw vs unknown), telemetry heartbeat
  */
 import { definePluginEntry, type OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry';
 import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
 import { bootstrapYaoyao } from '../core/app.ts';
 import { buildPayload, sendHeartbeat } from '../utils/telemetry.ts';
 import { createTelemetryTool } from '../features/telemetry/tool.ts';
-import { detectEnvironment, isXiaoYiClaw } from '../utils/environment-detector.ts';
-import { detectSystemArchitecture, getRecommendedStrategy } from '../utils/system-config-reader.ts';
-import { getAdaptedApi, getAdaptedApiExtended } from './xiaoyi-adapter.ts';
-import {
-  detectCoexistence,
-  startCoexistenceMonitor,
-  onCoexistChange,
-  setCoexistMode,
-  getCoexistMode,
-  getCoexistState,
-} from '../utils/coexistence.ts';
+import { detectEnvironment } from '../utils/environment-detector.ts';
 
 export default definePluginEntry({
   id: 'yaoyao-memory',
   name: 'Yaoyao Memory',
-  version: '1.7.8',
+  version: '1.7.9',
   description: '自适应记忆引擎: FTS5 + 向量搜索 + 时间线 + 云备份',
   register(api: OpenClawPluginApi) {
     try {
       // === Environment Detection ===
       const env = detectEnvironment();
-      const isXiaoYi = isXiaoYiClaw();
       api.logger.info?.(`[yaoyao-memory] Detected environment: ${env}`);
 
-      // === System Architecture Detection ===
-      const sysArch = detectSystemArchitecture();
-      const strategy = getRecommendedStrategy(sysArch);
-
-      api.logger.info?.(
-        `[yaoyao-memory] System: ${sysArch.isXiaoYiClaw ? 'XiaoYi Claw' : 'Standard OpenClaw'} (ver=${sysArch.openClawVersion})`,
-      );
-      api.logger.info?.(
-        `[yaoyao-memory] Memory slot: ${sysArch.memorySlotOwner} | ContextEngine: ${sysArch.contextEngineSlotOwner}`,
-      );
-      api.logger.info?.(
-        `[yaoyao-memory] Strategy: capture=${strategy.captureMode}, recall=${strategy.recallMode}`,
-      );
-
-      // === Coexistence Detection (runtime UDS + config-based) ===
-      const coexist = detectCoexistence();
-      // If system config says XiaoYi Claw, force coexist mode regardless of UDS
-      if (sysArch.isXiaoYiClaw && coexist.mode === 'standalone') {
-        setCoexistMode('coexist');
-        api.logger.info?.(
-          '[yaoyao-memory] Config-forced coexistence (claw-core in system architecture)',
-        );
-      }
-
-      const finalMode = getCoexistMode();
-      const finalState = getCoexistState();
-      if (finalMode === 'coexist') {
-        api.logger.info?.(
-          `[yaoyao-memory] Coexist mode — L1/L2 skipped, heavy lifting delegated to claw-core${finalState.gatewayVersion ? ` (Gateway ${finalState.gatewayVersion})` : ''}${finalState.gatewayAlive ? ' [mmap heartbeat OK]' : ' [UDS socket only]'}`,
-        );
-      } else {
-        api.logger.info?.('[yaoyao-memory] Standalone mode — all layers active');
-      }
-
-      // Start periodic monitor (v4.6: 10s interval for rapid detection — Gateway heartbeat is 5s)
-      const stopMonitor = startCoexistenceMonitor(10000);
-      api.logger.debug?.(
-        '[yaoyao-memory] Coexistence monitor started (10s interval, v4.6 mmap-aware)',
-      );
-
-      // React to transitions
-      onCoexistChange((prev, next) => {
-        if (prev.mode !== 'coexist' && next.mode === 'coexist') {
-          api.logger.info?.(
-            `[yaoyao-memory] claw-core appeared at runtime — switching to coexist mode${next.gatewayVersion ? ` (Gateway ${next.gatewayVersion})` : ''}`,
-          );
-        } else if (prev.mode === 'coexist' && next.mode !== 'coexist') {
-          api.logger.info?.(
-            '[yaoyao-memory] claw-core disappeared at runtime — switching to standalone mode',
-          );
-        }
-      });
-
-      // === XiaoYi Claw Adaptations ===
-      let adaptedApi = api;
-      if (isXiaoYi) {
-        api.logger.info?.('[yaoyao-memory] XiaoYi Claw mode — enabling compatibility layer');
-        const xiaoYiAdapted = getAdaptedApiExtended(api);
-        if (xiaoYiAdapted.type === 'xiaoyi-claw') {
-          // Use adapted API for XiaoYi environment
-          adaptedApi = xiaoYiAdapted as unknown as OpenClawPluginApi;
-          api.logger.info?.('[yaoyao-memory] XiaoYi API adapter active (ContextEngine, UDS, ZMQ, mmap)');
-        }
-      }
-
       // === Bootstrap Core ===
-      bootstrapYaoyao(adaptedApi, (adaptedApi.pluginConfig || {}) as unknown as YaoyaoMemoryConfig);
+      bootstrapYaoyao(api, (api.pluginConfig || {}) as unknown as YaoyaoMemoryConfig);
 
       // === Telemetry ===
       const telemetryConfig = {
@@ -110,8 +32,7 @@ export default definePluginEntry({
         url: process.env.YAOYAO_TELEMETRY_URL,
       };
 
-      // Note: telemetry tool is registered by registerMemoryTools() in bootstrapYaoyao
-      // Do NOT register it again here to avoid duplicate registration.
+      api.registerTool?.(createTelemetryTool(telemetryConfig));
 
       if (telemetryConfig.enabled) {
         const version = (api.pluginConfig?.version as string) || 'unknown';
@@ -134,16 +55,11 @@ export default definePluginEntry({
         }, heartbeatInterval);
 
         // 注册清理函数（当插件卸载时清理定时器）
-        const hasUnload = api && typeof (api as unknown as Record<string, unknown>).onUnload === 'function';
-        const unloadFn = hasUnload
-          ? (api as unknown as Record<string, unknown>).onUnload as (fn: () => void) => void
-          : undefined;
-        if (unloadFn) {
-          unloadFn(() => {
-            clearInterval(heartbeatTimer);
-            api.logger.info?.('[yaoyao-memory] Heartbeat timer cleared');
-          });
-        }
+        const unloadFn = ((api as unknown) as Record<string, unknown>).onUnload as ((fn: () => void) => void) | undefined;
+        unloadFn?.(() => {
+          clearInterval(heartbeatTimer);
+          api.logger.info?.('[yaoyao-memory] Heartbeat timer cleared');
+        });
       }
     } catch (err) {
       api.logger.error?.(
