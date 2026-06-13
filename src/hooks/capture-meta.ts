@@ -15,6 +15,7 @@ import { extractIdentityCandidates } from "../utils/identity-addressing.ts";
 import { enrichMetadata } from "../core/upgrader/index.ts";
 import { extractFacts, type L1Logger } from "../utils/l1-extractor.ts";
 import { classifyMemoryType, type MemoryTag } from "../core/memory-types.ts";
+import { computeValueFactors, computeMemoryValue, type MemoryValueFactors } from "../core/value/memory-value.ts";
 import type { YaoyaoMemoryConfig } from "../utils/memory-store.ts";
 import type { DBBridge } from "../utils/db-bridge.ts";
 import { isDuplicateOfRecent } from "../utils/batch-dedup.ts";
@@ -80,7 +81,22 @@ export async function buildMetaObj(
     ? (hasTimeSensitive ? _shortExpiry() : inferExpiry(combinedText))
     : undefined;
   const memoryTag = classifyMemoryType(userContent, asstContent);
-  const metaObj: Record<string, unknown> = { temporal: temporalType, memoryType: memoryTag.type };
+
+  // v1.8.2: Seven-factor memory value function (replaces single importance)
+  // Paper: "Learning What to Remember" (arXiv:2606.12945) — V(m) = Σ wᵢfᵢ(m)
+  const valueFactors = computeValueFactors(userContent, asstContent, {
+    speculative: specCheck.isSpeculative,
+    correction: corrCheck.isCorrection,
+    memoryType: memoryTag.type,
+  });
+  const memoryValue = computeMemoryValue(valueFactors);
+
+  const metaObj: Record<string, unknown> = {
+    temporal: temporalType,
+    memoryType: memoryTag.type,
+    importance: memoryValue,
+    valueFactors,
+  };
 
   if (scopeManager) metaObj.scope = scopeManager.getDefaultScope(agentId);
   const identities = extractIdentityCandidates(combinedText);

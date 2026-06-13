@@ -20,6 +20,7 @@ import { DedupEngine } from "../utils/dedup-engine.js";
 import { getCoexistMode } from "../utils/coexistence.js";
 import { detectChannelInfo } from "../utils/channel-detector.js";
 import { extractDeviceInteractions } from "./capture-content.js";
+import { getGlobalEpisodicCache } from "../core/episodic/episodic-cache.js";
 import { getSecurityLevel } from "../utils/environment-detector.js";
 import { shouldCaptureTurn, trackSessionActivity, getCaptureConfig, buildCaptureContext, estimateConversation, shouldSkipContent, handleMermaidOffload, runAntiHallucination, buildMetaObj, evaluateWatermark, createPersistHandlers, } from "./capture-barrel.js";
 export { extractContent, safeStringify } from "./capture-content.js";
@@ -187,9 +188,18 @@ export function registerCaptureHook(api, store, db, config, verifyActive = true,
                     api.logger.debug?.(`[yaoyao-memory:capture] RecMem: upgrading to full extraction (recurrence=${dedupResult.recurrenceCount})`);
                 }
             }
-            const { meta } = await buildMetaObj(userContent, indexableAsst, scopeManager, agentId, specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false, effectiveBrainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config, { channelInfo, deviceInteractions: deviceInteractions.length > 0 ? deviceInteractions : undefined, skillSource });
+            const buildMetaResult = await buildMetaObj(userContent, indexableAsst, scopeManager, agentId, specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false, effectiveBrainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config, { channelInfo, deviceInteractions: deviceInteractions.length > 0 ? deviceInteractions : undefined, skillSource });
+            const { meta } = buildMetaResult;
+            // v1.8.2 (Dual Process): Push to episodic cache for fast recall
+            getGlobalEpisodicCache().push({
+                sessionKey,
+                userText: userContent,
+                asstText: indexableAsst,
+                timestamp: Date.now(),
+                value: buildMetaResult.metaObj.importance,
+            });
             // Build L0 markdown entry string
-            const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;
+            const entry = `\\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;
             // Push to debouncer instead of writing directly
             // If another capture for same session comes within debounceMs, they merge
             captureDebouncer.push({

@@ -32,6 +32,7 @@ import type { AuditLog } from "../utils/audit-log.ts";
 import { getRecallConfig, applyAgentOverrides, type RecallThresholds } from "./recall-config.ts";
 import { doRecallSearch, type RecallSearchConfig } from "./recall-search.ts";
 import { doPostProcess, type PostProcessConfig } from "./recall-postprocess.ts";
+import { getGlobalEpisodicCache } from "../core/episodic/episodic-cache.ts";
 import { buildRecallContext, buildHookResult, makeSimpleTrace } from "./recall-formatter.ts";
 
 export interface RecallHookHandle {
@@ -81,6 +82,21 @@ export function registerRecallHook(
         if (!userMessage || isTrivial(userMessage as string)) return;
 
         const userText = String(userMessage);
+
+        // v1.8.2 (Dual Process): Check episodic cache first — fast exact/near-match for recent context
+        const episodicCache = getGlobalEpisodicCache();
+        const episodicHits = episodicCache.query(userText, sessionKey, baseCfg.maxResults);
+        if (episodicHits.length > 0) {
+          const formatted: SearchResult[] = episodicHits.map(e => ({
+            filename: "episodic",
+            snippet: `${e.userText} ${e.asstText}`,
+            score: e.value ?? 0.5,
+            date: new Date(e.timestamp).toISOString().slice(0, 10),
+            asst_text: e.asstText,
+          }));
+          api.logger.debug?.(`[yaoyao-memory:recall] Episodic hit: ${episodicHits.length} entries`);
+          return buildHookResult(buildRecallContext(formatted, cfg.maxContextChars), cfg.position);
+        }
 
         // LRU cache hit (include agentId in cache key)
         const cacheKey = `${agentId || "default"}:${userText.slice(0, 120)}`;

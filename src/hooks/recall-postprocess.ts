@@ -48,7 +48,7 @@ export async function doPostProcess(
 ): Promise<unknown | undefined> {
   let processed = filterByScope(results, scopeManager, agentId);
   processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode, cfg.fadeMemAccessFactor);
-  processed = applyScoring(processed, userText);
+  processed = applyScoring(processed, userText, cfg.enableFourSignal, cfg.fourSignalWeights);
   processed.sort((a, b) => b.score - a.score);
 
   if (cfg.enableIntentDriven && intent) {

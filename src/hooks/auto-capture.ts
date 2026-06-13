@@ -25,6 +25,7 @@ import { DedupEngine } from "../utils/dedup-engine.ts";
 import { getCoexistMode } from "../utils/coexistence.ts";
 import { detectChannelInfo } from "../utils/channel-detector.ts";
 import { extractDeviceInteractions } from "./capture-content.ts";
+import { getGlobalEpisodicCache } from "../core/episodic/episodic-cache.ts";
 import { getSecurityLevel } from "../utils/environment-detector.ts";
 import {
   shouldCaptureTurn, trackSessionActivity,
@@ -225,13 +226,24 @@ export function registerCaptureHook(
         }
       }
 
-      const { meta } = await buildMetaObj(userContent, indexableAsst, scopeManager, agentId,
+      const buildMetaResult = await buildMetaObj(userContent, indexableAsst, scopeManager, agentId,
         specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false,
         effectiveBrainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config,
         { channelInfo, deviceInteractions: deviceInteractions.length > 0 ? deviceInteractions : undefined, skillSource });
 
+      const { meta } = buildMetaResult;
+
+      // v1.8.2 (Dual Process): Push to episodic cache for fast recall
+      getGlobalEpisodicCache().push({
+        sessionKey,
+        userText: userContent,
+        asstText: indexableAsst,
+        timestamp: Date.now(),
+        value: buildMetaResult.metaObj.importance as number | undefined,
+      });
+
       // Build L0 markdown entry string
-      const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;
+      const entry = `\\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;
 
       // Push to debouncer instead of writing directly
       // If another capture for same session comes within debounceMs, they merge

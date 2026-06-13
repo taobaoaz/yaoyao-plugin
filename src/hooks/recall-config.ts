@@ -83,6 +83,12 @@ export interface RecallThresholds {
    *  Set to 0 to disable. Paper: MemX (arXiv:2603.16171) — low-confidence rejection
    *  avoids injecting low-quality memories that could mislead the agent. */
   rejectThreshold: number;
+  /** v1.8.2 (SmartVector): Enable four-signal fusion scoring.
+   *  Paper: SmartVector (arXiv:2604.20598) — semantic + temporal + confidence + relational.
+   *  Default false for backward compat. */
+  enableFourSignal: boolean;
+  /** v1.8.2: Four-signal weights (must sum to ~1.0). Defaults: 0.4/0.2/0.2/0.2 */
+  fourSignalWeights?: { semantic: number; temporal: number; confidence: number; relational: number };
 }
 
 export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
@@ -120,6 +126,8 @@ export function getRecallConfig(config: YaoyaoMemoryConfig): RecallThresholds {
     mmrLambda: (r.mmrLambda as number) ?? 0.7,
     fadeMemAccessFactor: (r.fadeMemAccessFactor as number) ?? 0.3,
     rejectThreshold: (r.rejectThreshold as number) ?? 0.15,
+    enableFourSignal: (r.enableFourSignal as boolean) ?? false,
+    fourSignalWeights: (r.fourSignalWeights as { semantic: number; temporal: number; confidence: number; relational: number }) ?? undefined,
   };
 }
 

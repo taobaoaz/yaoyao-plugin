@@ -33,6 +33,8 @@ export function getRecallConfig(config) {
         mmrLambda: r.mmrLambda ?? 0.7,
         fadeMemAccessFactor: r.fadeMemAccessFactor ?? 0.3,
         rejectThreshold: r.rejectThreshold ?? 0.15,
+        enableFourSignal: r.enableFourSignal ?? false,
+        fourSignalWeights: r.fourSignalWeights ?? undefined,
     };
 }
 /**

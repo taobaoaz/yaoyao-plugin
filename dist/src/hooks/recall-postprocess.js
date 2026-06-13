@@ -5,7 +5,7 @@ import { buildRecallContext, buildHookResult, makeSimpleTrace } from "./recall-f
 export async function doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, logger, db) {
     let processed = filterByScope(results, scopeManager, agentId);
     processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode, cfg.fadeMemAccessFactor);
-    processed = applyScoring(processed, userText);
+    processed = applyScoring(processed, userText, cfg.enableFourSignal, cfg.fourSignalWeights);
     processed.sort((a, b) => b.score - a.score);
     if (cfg.enableIntentDriven && intent) {
         const weights = INTENT_WEIGHTS[intent];
