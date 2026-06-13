@@ -13,6 +13,7 @@ import { compressTexts } from "../utils/session-compressor.js";
 import { createWriteQueue } from "../utils/write-queue.js";
 import { createCaptureDebouncer } from "../utils/capture-debouncer.js";
 import { DedupEngine } from "../utils/dedup-engine.js";
+import { getCoexistMode } from "../utils/coexistence.js";
 import { shouldCaptureTurn, trackSessionActivity, getCaptureConfig, buildCaptureContext, estimateConversation, shouldSkipContent, handleMermaidOffload, runAntiHallucination, buildMetaObj, evaluateWatermark, createPersistHandlers, } from "./capture-barrel.js";
 export { extractContent, safeStringify } from "./capture-content.js";
 export function registerCaptureHook(api, store, db, config, verifyActive = true, scopeManager, llmClient, audit, embedding) {
@@ -36,6 +37,11 @@ export function registerCaptureHook(api, store, db, config, verifyActive = true,
             catch (e) {
                 api.logger.error?.(`[yaoyao-memory:debouncer] L0 write failed: ${e.message}`);
             }
+        }
+        // In coexist mode, claw-core owns L1/L2 — only write L0 markdown
+        if (getCoexistMode() === "coexist") {
+            api.logger.debug?.("[yaoyao-memory:capture] Coexist mode — L0 only, skipping L1/L2");
+            return;
         }
         // Queue L1+L2 writes
         if (writeQueue) {

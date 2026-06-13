@@ -18,6 +18,7 @@ import type { AuditLog } from "../utils/audit-log.ts";
 import { createWriteQueue } from "../utils/write-queue.ts";
 import { createCaptureDebouncer, type CaptureDebouncer } from "../utils/capture-debouncer.ts";
 import { DedupEngine } from "../utils/dedup-engine.ts";
+import { getCoexistMode } from "../utils/coexistence.ts";
 import {
   shouldCaptureTurn, trackSessionActivity,
   getCaptureConfig, buildCaptureContext, estimateConversation,
@@ -68,6 +69,11 @@ export function registerCaptureHook(
         } catch (e) {
           api.logger.error?.(`[yaoyao-memory:debouncer] L0 write failed: ${(e as Error).message}`);
         }
+      }
+      // In coexist mode, claw-core owns L1/L2 — only write L0 markdown
+      if (getCoexistMode() === "coexist") {
+        api.logger.debug?.("[yaoyao-memory:capture] Coexist mode — L0 only, skipping L1/L2");
+        return;
       }
       // Queue L1+L2 writes
       if (writeQueue) {
