@@ -6,6 +6,8 @@
  *   - baseDir 创建时权限 0o700（仅 owner 可访问）
  *   - memoryDir 配置禁止 .. 和相对路径
  *   - daily 文件写入后 chmod 0o600
+ *
+ * v1.8.0: Added workspace file methods (MEMORY.md, USER.md, etc.)
  */
 
 import path from "node:path";
@@ -29,10 +31,18 @@ function validateMemoryDir(rawDir: string | undefined): string {
   return resolved;
 }
 
+/** Allowed workspace files (whitelist for security) */
+const ALLOWED_WORKSPACE_FILES = new Set([
+  "MEMORY.md", "USER.md", "IDENTITY.md", "SOUL.md", "TOOLS.md",
+]);
+
 export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   let baseDir = validateMemoryDir(config.memoryDir);
 
   const log = (msg: string) => logger?.debug?.(`[yaoyao-memory:store] ${msg}`);
+
+  // v1.8.0: Derive workspace directory from baseDir (memory/ → parent)
+  const workspaceDir = path.dirname(baseDir);
 
   function ensureDir(dir: string) {
     if (!fs.existsSync(dir)) {
@@ -112,14 +122,71 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
     return results;
   }
 
+  // === v1.8.0: Workspace File Methods ===
+
+  /** Read a workspace configuration file (MEMORY.md, USER.md, etc.) */
+  function readWorkspaceFile(name: string): string | null {
+    if (!ALLOWED_WORKSPACE_FILES.has(name)) {
+      log(`Workspace file access denied (not in whitelist): ${name}`);
+      return null;
+    }
+    const fp = path.join(workspaceDir, name);
+    try {
+      if (!fs.existsSync(fp)) return null;
+      return fs.readFileSync(fp, "utf-8");
+    } catch {
+      return null;
+    }
+  }
+
+  /** Append content to a workspace configuration file */
+  function appendToWorkspaceFile(name: string, content: string): boolean {
+    if (!ALLOWED_WORKSPACE_FILES.has(name)) {
+      log(`Workspace file write denied (not in whitelist): ${name}`);
+      return false;
+    }
+    try {
+      const fp = path.join(workspaceDir, name);
+      fs.appendFileSync(fp, content, "utf-8");
+      try { fs.chmodSync(fp, 0o600); } catch { /* ignore on Windows */ }
+      log(`Appended to workspace file: ${name}`);
+      return true;
+    } catch (err) {
+      logger?.warn?.(`[yaoyao-memory:store] Failed to append to ${name}: ${err}`);
+      return false;
+    }
+  }
+
+  /** Overwrite a workspace configuration file */
+  function writeWorkspaceFile(name: string, content: string): boolean {
+    if (!ALLOWED_WORKSPACE_FILES.has(name)) {
+      log(`Workspace file write denied (not in whitelist): ${name}`);
+      return false;
+    }
+    try {
+      const fp = path.join(workspaceDir, name);
+      fs.writeFileSync(fp, content, "utf-8");
+      try { fs.chmodSync(fp, 0o600); } catch { /* ignore on Windows */ }
+      log(`Wrote workspace file: ${name}`);
+      return true;
+    } catch (err) {
+      logger?.warn?.(`[yaoyao-memory:store] Failed to write ${name}: ${err}`);
+      return false;
+    }
+  }
+
   return {
     baseDir,
+    workspaceDir,
     ensureDir,
     getDailyFile,
     appendToDaily,
     readFile,
     listFiles,
     dailyFilePath,
+    readWorkspaceFile,
+    appendToWorkspaceFile,
+    writeWorkspaceFile,
   };
 }
 

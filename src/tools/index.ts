@@ -81,6 +81,9 @@ import { createSkillAnalyticsTool } from "../features/skill-analytics/tool.ts";
 /* ── Benchmark (Phase 5) ───────────────────────────── */
 import { createBenchmarkTool } from "../features/benchmark/tool.ts";
 
+/* ── Workspace files (v1.8.0) ─────────────────────── */
+import { createWorkspaceTool } from "../features/workspace/tool.ts";
+
 export function registerMemoryTools(
   api: OpenClawPluginApi,
   store: MemoryStore,
@@ -132,6 +135,9 @@ export function registerMemoryTools(
     createBenchmarkTool(),
     createJudgeTool(db),
     createConflictsTool(db),
+
+    /* ── v1.8.0: Workspace file access ── */
+    createWorkspaceTool(store),
   );
 
   /* ── Optional tools (gated by FeatureRegistry) ── */

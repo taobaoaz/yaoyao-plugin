@@ -6,6 +6,10 @@
  *     get merged into one batch (3s quiet window)
  *   - writeDailyFile now async (goes through debouncer)
  *   - Async flus for all persistence layers (L0 .md, L1 FTS5, L2 vector)
+ * v1.8.0:
+ *   - Channel/device context awareness via channel-detector
+ *   - Device tool call extraction via capture-content
+ *   - Security-aware capture (hardened mode forces verify + content sanitization)
  */
 import { clampNum } from "../utils/clamp.ts";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-entry";
@@ -19,6 +23,9 @@ import { createWriteQueue } from "../utils/write-queue.ts";
 import { createCaptureDebouncer, type CaptureDebouncer } from "../utils/capture-debouncer.ts";
 import { DedupEngine } from "../utils/dedup-engine.ts";
 import { getCoexistMode } from "../utils/coexistence.ts";
+import { detectChannelInfo } from "../utils/channel-detector.ts";
+import { extractDeviceInteractions, hasTimeSensitiveInteraction } from "./capture-content.ts";
+import { getSecurityLevel } from "../utils/environment-detector.ts";
 import {
   shouldCaptureTurn, trackSessionActivity,
   getCaptureConfig, buildCaptureContext, estimateConversation,
@@ -29,6 +36,22 @@ import {
 } from "./capture-barrel.ts";
 
 export { extractContent, safeStringify } from "./capture-content.ts";
+
+/** Sanitize sensitive patterns in content for hardened security mode */
+const SENSITIVE_PATTERNS: Array<{ re: RegExp; replacement: string }> = [
+  { re: /(?:sk-|pk-|ghp_|gho_|github_pat_)[a-zA-Z0-9]{20,}/g, replacement: "[REDACTED_TOKEN]" },
+  { re: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[:\s]+[a-zA-Z0-9]{8,}/g, replacement: "[REDACTED_CRED]" },
+  { re: /(?:AKIA|ASIA)[A-Z0-9]{16}/g, replacement: "[REDACTED_KEY]" },
+  { re: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----[\s\S]*?-----END/g, replacement: "[REDACTED_KEY]" },
+];
+
+function sanitizeForCapture(text: string): string {
+  let result = text;
+  for (const { re, replacement } of SENSITIVE_PATTERNS) {
+    result = result.replace(re, replacement);
+  }
+  return result;
+}
 
 export function registerCaptureHook(
   api: OpenClawPluginApi,
@@ -42,6 +65,16 @@ export function registerCaptureHook(
   embedding?: import("../utils/embedding.ts").EmbeddingService | null,
 ) {
   const captureMode = (config.capture?.mode as string) || "async";
+
+  // v1.8.0: Security-aware capture
+  const securityLevel = getSecurityLevel();
+  const isHardened = securityLevel === "hardened";
+  const effectiveVerify = isHardened ? true : verifyActive;
+
+  if (isHardened) {
+    api.logger.info?.(`[yaoyao-memory] Security: hardened mode — content sanitization + forced verify active`);
+  }
+
   api.logger.info?.(`[yaoyao-memory] auto-capture mode=${captureMode}${embedding ? " + vector" : ""}`);
 
   const persist = createPersistHandlers(api, db, store, embedding);
@@ -142,15 +175,29 @@ export function registerCaptureHook(
         return;
       }
 
-      const { riskTag, specCheck, corrCheck } = runAntiHallucination(cctx.userContent, cctx.indexableAsst, verifyActive);
-      handleMermaidOffload(store, sessionKey, cctx.userContent + "\n" + cctx.asstContent, capCfg.enableOffload, capCfg.offloadThreshold);
+      // v1.8.0: Security-aware content sanitization
+      let userContent = cctx.userContent;
+      let indexableAsst = cctx.indexableAsst;
+      if (isHardened) {
+        userContent = sanitizeForCapture(userContent);
+        indexableAsst = sanitizeForCapture(indexableAsst);
+      }
 
-      const { meta } = await buildMetaObj(cctx.userContent, cctx.indexableAsst, scopeManager, agentId,
+      const { riskTag, specCheck, corrCheck } = runAntiHallucination(userContent, indexableAsst, effectiveVerify);
+      handleMermaidOffload(store, sessionKey, userContent + "\n" + cctx.asstContent, capCfg.enableOffload, capCfg.offloadThreshold);
+
+      // v1.8.0: Extract channel/device context and device interactions
+      const channelInfo = detectChannelInfo(ctx);
+      const deviceInteractions = extractDeviceInteractions(messages);
+      const skillSource = _detectSkillSource(messages);
+
+      const { meta } = await buildMetaObj(userContent, indexableAsst, scopeManager, agentId,
         specCheck, corrCheck, capCfg.enableL1, watermark.skipL1 || false,
-        capCfg.brainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config);
+        capCfg.brainMode, llmClient, api.logger, capCfg.maxMemoriesPerSession, config,
+        { channelInfo, deviceInteractions: deviceInteractions.length > 0 ? deviceInteractions : undefined, skillSource });
 
       const dedupResult = await dedupEngine.check(
-        (cctx.userContent + " " + cctx.indexableAsst).trim(),
+        (userContent + " " + indexableAsst).trim(),
         db,
         embedding,
         agentId,
@@ -161,20 +208,28 @@ export function registerCaptureHook(
       }
 
       // Build L0 markdown entry string
-      const entry = `\n### ${timestamp}\n**User:** ${cctx.userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${cctx.asstContent}${riskTag}\n`;
+      const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${cctx.asstContent}${riskTag}\n`;
 
       // Push to debouncer instead of writing directly
       // If another capture for same session comes within debounceMs, they merge
       captureDebouncer.push({
         sessionKey,
-        userContent: cctx.userContent,
-        asstContent: cctx.indexableAsst,
+        userContent,
+        asstContent: indexableAsst,
         date,
         timestamp,
         meta,
         // Extra field used only by our debouncer flush handler
         entry,
       });
+
+      // v1.8.0: Log channel/device context when present
+      if (channelInfo.channel !== "unknown" || channelInfo.deviceType !== "unknown") {
+        api.logger.debug?.(`[yaoyao-memory:capture] Source: channel=${channelInfo.channel}, device=${channelInfo.deviceType}`);
+      }
+      if (deviceInteractions.length > 0) {
+        api.logger.debug?.(`[yaoyao-memory:capture] Device interactions: ${deviceInteractions.length} (tools: ${deviceInteractions.map(d => d.tool).join(", ")})`);
+      }
 
       api.logger.debug?.("[yaoyao-memory:capture] Captured to " + date);
     } catch (e2: unknown) {
@@ -199,4 +254,39 @@ export function registerCaptureHook(
       if (writeQueue) await writeQueue.drain();
     },
   };
+}
+
+/** v1.8.0: Detect if messages contain structured Skill output */
+function _detectSkillSource(messages: Array<Record<string, unknown>>): { name: string; category: string } | undefined {
+  for (const msg of messages) {
+    const meta = msg.meta as Record<string, unknown> | undefined;
+    if (meta) {
+      const skillName = (meta.skill as string) || (meta.skillName as string) || (meta.source as string);
+      if (skillName && typeof skillName === "string") {
+        const category = _classifySkill(skillName);
+        return { name: skillName, category };
+      }
+    }
+    // Check for structured content with skill metadata
+    const content = msg.content;
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        if (part && typeof part === "object") {
+          const partMeta = (part as Record<string, unknown>).meta as Record<string, unknown> | undefined;
+          const skillName = partMeta?.skill as string;
+          if (skillName) {
+            return { name: skillName, category: _classifySkill(skillName) };
+          }
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+function _classifySkill(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes("xiaoyi") || lower.includes("harmony") || lower.includes("hongmeng")) return "xiaoyi";
+  if (lower.includes("guardian") || lower.includes("validator") || lower.includes("scope") || lower.includes("audit")) return "security";
+  return "general";
 }

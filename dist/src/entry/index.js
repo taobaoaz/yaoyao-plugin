@@ -1,7 +1,7 @@
 /**
  * Plugin entry — OpenClaw plugin adapter.
  *
- * v1.7.9: XiaoYi Claw code removed — pure OpenClaw plugin.
+ * v1.8.0: XiaoYi environment adaptation restored — pure OpenClaw plugin.
  */
 import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
 import { bootstrapYaoyao } from "../core/app.js";
@@ -13,7 +13,7 @@ import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, setCoexist
 export default definePluginEntry({
     id: 'yaoyao-memory',
     name: 'Yaoyao Memory',
-    version: '1.7.9',
+    version: '1.8.0',
     description: '自适应记忆引擎: FTS5 + 向量搜索 + 时间线 + 云备份',
     register(api) {
         try {

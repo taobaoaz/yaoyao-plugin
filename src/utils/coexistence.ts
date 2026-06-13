@@ -9,9 +9,11 @@
  *   1. openclaw.json slots.memory ownership
  *   2. UDS socket file presence
  *   3. Shared memory segment presence
+ *
+ * v1.8.0: Added gspd_memory + core_skills detection for XiaoYi environments.
  */
 
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -46,19 +48,19 @@ function _checkConfigSlotOwner(): boolean {
   try {
     const configPath = join(homedir(), ".openclaw", "openclaw.json");
     if (!existsSync(configPath)) return false;
-    const raw = require("node:fs").readFileSync(configPath, "utf-8");
+    const raw = readFileSync(configPath, "utf-8");
     const config = JSON.parse(raw) as Record<string, unknown>;
     const slots = config.slots as Record<string, string> | undefined;
     if (slots?.memory && slots.memory !== "yaoyao-memory") {
       return true;
     }
-    // Check extensions directory for claw-core
+    // Check extensions/plugins for claw-core or gspd_memory (v1.8.0)
     const plugins = config.plugins as Record<string, unknown> | undefined;
     const entries = plugins?.entries as Record<string, Record<string, unknown>> | undefined;
     if (entries) {
       for (const val of Object.values(entries)) {
         const name = (val?.name as string || '').toLowerCase();
-        if (name.includes("claw-core") || name.includes("memory-core")) {
+        if (name.includes("claw-core") || name.includes("memory-core") || name.includes("gspd_memory") || name.includes("gspd-memory")) {
           return true;
         }
       }
@@ -92,11 +94,40 @@ function _checkUdsSocket(): boolean {
         const varDir = join(extDir, "claw-core", "var");
         if (existsSync(varDir)) return true;
       }
+      // v1.8.0: gspd_memory plugin presence
+      if (entries.includes("gspd_memory") || entries.includes("gspd-memory")) {
+        return true;
+      }
     }
   } catch {
     // ignore
   }
   return false;
+}
+
+/** v1.8.0: Check for core_skills directory (XiaoYi claw-core strong signal) */
+function _checkCoreSkills(): boolean {
+  try {
+    const possibleRoots = [
+      process.env.OPENCLAW_HOME,
+      homedir(),
+    ].filter(Boolean) as string[];
+    for (const root of possibleRoots) {
+      const coreSkillsDir = join(root, ".openclaw", "core_skills");
+      if (existsSync(coreSkillsDir)) {
+        const entries = readdirSync(coreSkillsDir);
+        // core_skills with at least one known claw-core skill = strong signal
+        if (entries.some(e =>
+          e.includes("secret-guardian") || e.includes("execution-validator") || e.includes("skill-scope")
+        )) {
+          return true;
+        }
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 /** Actual detection: check if another claw core is running */
@@ -113,6 +144,16 @@ function _doDetect(): CoexistState {
 
   // Check for UDS socket / shared memory
   if (_checkUdsSocket()) {
+    return {
+      mode: 'coexist',
+      timestamp: Date.now(),
+      gatewayVersion: '',
+      gatewayAlive: true,
+    };
+  }
+
+  // v1.8.0: Check for core_skills (XiaoYi claw-core signal)
+  if (_checkCoreSkills()) {
     return {
       mode: 'coexist',
       timestamp: Date.now(),

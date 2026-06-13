@@ -50,6 +50,9 @@ import { createAdaptiveSearchTool } from "../features/adaptive-search/tool.js";
 import { createSkillAnalyticsTool } from "../features/skill-analytics/tool.js";
 /* ── Benchmark (Phase 5) ───────────────────────────── */
 import { createBenchmarkTool } from "../features/benchmark/tool.js";
+
+/* ── Workspace files (v1.8.0) ─────────────────────── */
+import { createWorkspaceTool } from "../features/workspace/tool.js";
 export function registerMemoryTools(api, store, db, storage, embedding, registry) {
     const tools = [];
     // Create SearchPipeline once, share across all search tools

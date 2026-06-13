@@ -1,13 +1,30 @@
 /**
  * utils/coexistence.ts — Coexistence mode detection and monitoring.
  *
- * v1.7.9+: XiaoYi-specific detection removed. Uses generic signals.
+ * v1.8.0: Added gspd_memory + core_skills detection for XiaoYi environments.
  */
+
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
-export function _checkConfigSlotOwner() {
+const STARTUP_GRACE_MS = 600;
+
+let _currentMode = 'unknown';
+let _currentState = {
+    mode: 'unknown',
+    timestamp: Date.now(),
+    gatewayVersion: '',
+    gatewayAlive: false,
+};
+let _startedAt = Date.now();
+let _changeHandlers = [];
+
+function _isInStartupGrace() {
+    return Date.now() - _startedAt < STARTUP_GRACE_MS;
+}
+
+function _checkConfigSlotOwner() {
     try {
         const configPath = join(homedir(), ".openclaw", "openclaw.json");
         if (!existsSync(configPath)) return false;
@@ -22,17 +39,18 @@ export function _checkConfigSlotOwner() {
         if (entries) {
             for (const val of Object.values(entries)) {
                 const name = (val?.name || '').toLowerCase();
-                if (name.includes("claw-core") || name.includes("memory-core")) {
+                if (name.includes("claw-core") || name.includes("memory-core") || name.includes("gspd_memory") || name.includes("gspd-memory")) {
                     return true;
                 }
             }
         }
         return false;
+    } catch {
+        return false;
     }
-    catch { return false; }
 }
 
-export function _checkUdsSocket() {
+function _checkUdsSocket() {
     const tmpDir = "/tmp";
     if (existsSync(tmpDir)) {
         try {
@@ -50,29 +68,45 @@ export function _checkUdsSocket() {
                 const varDir = join(extDir, "claw-core", "var");
                 if (existsSync(varDir)) return true;
             }
+            if (entries.includes("gspd_memory") || entries.includes("gspd-memory")) {
+                return true;
+            }
         }
     } catch { }
     return false;
 }
 
-export function _doDetect() {
+function _checkCoreSkills() {
+    try {
+        const possibleRoots = [process.env.OPENCLAW_HOME, homedir()].filter(Boolean);
+        for (const root of possibleRoots) {
+            const coreSkillsDir = join(root, ".openclaw", "core_skills");
+            if (existsSync(coreSkillsDir)) {
+                const entries = readdirSync(coreSkillsDir);
+                if (entries.some(e =>
+                    e.includes("secret-guardian") || e.includes("execution-validator") || e.includes("skill-scope")
+                )) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+function _doDetect() {
     if (_checkConfigSlotOwner()) {
         return { mode: 'coexist', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: true };
     }
     if (_checkUdsSocket()) {
         return { mode: 'coexist', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: true };
     }
+    if (_checkCoreSkills()) {
+        return { mode: 'coexist', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: true };
+    }
     return { mode: 'standalone', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: false };
-}
-
-const STARTUP_GRACE_MS = 600;
-let _currentMode = 'unknown';
-let _currentState = { mode: 'unknown', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: false };
-let _startedAt = Date.now();
-let _changeHandlers = [];
-
-function _isInStartupGrace() {
-    return Date.now() - _startedAt < STARTUP_GRACE_MS;
 }
 
 export function detectCoexistence() {
@@ -83,7 +117,12 @@ export function detectCoexistence() {
 export function setCoexistMode(mode) {
     const prev = { ..._currentState };
     _currentMode = mode;
-    _currentState = { mode, timestamp: Date.now(), gatewayVersion: _currentState.gatewayVersion, gatewayAlive: _currentState.gatewayAlive };
+    _currentState = {
+        mode,
+        timestamp: Date.now(),
+        gatewayVersion: _currentState.gatewayVersion,
+        gatewayAlive: _currentState.gatewayAlive,
+    };
     if (!_isInStartupGrace()) {
         for (const handler of _changeHandlers) {
             handler(prev, _currentState);
