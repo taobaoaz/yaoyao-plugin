@@ -51,39 +51,6 @@ export function detectChannelInfo(ctx: unknown): ChannelInfo {
   return { channel, deviceType, ...(Object.keys(c).length > 0 ? { raw: c } : {}) };
 }
 
-/**
- * Extract channel info from an agent_end event object.
- * Some OpenClaw versions embed channel metadata in the event itself.
- */
-export function detectChannelFromEvent(event: unknown): ChannelInfo {
-  if (!event || typeof event !== "object") {
-    return { channel: "unknown", deviceType: "unknown" };
-  }
-  const e = event as Record<string, unknown>;
-
-  // Try event-level fields first
-  const fromEvent = detectChannelInfo(e);
-  if (fromEvent.channel !== "unknown" || fromEvent.deviceType !== "unknown") {
-    return fromEvent;
-  }
-
-  // Try nested session/context object
-  const session = e.session as Record<string, unknown> | undefined;
-  if (session) {
-    const fromSession = detectChannelInfo(session);
-    if (fromSession.channel !== "unknown" || fromSession.deviceType !== "unknown") {
-      return fromSession;
-    }
-  }
-
-  const context = e.context as Record<string, unknown> | undefined;
-  if (context) {
-    return detectChannelInfo(context);
-  }
-
-  return { channel: "unknown", deviceType: "unknown" };
-}
-
 /** Get first non-empty string value from multiple possible keys in one or two objects */
 function _firstString(
   primary: Record<string, unknown>,

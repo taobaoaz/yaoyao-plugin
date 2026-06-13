@@ -6,7 +6,7 @@
 import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
 import { bootstrapYaoyao } from "../core/app.js";
 import { buildPayload, sendHeartbeat } from "../utils/telemetry.js";
-import { detectEnvironment } from "../utils/environment-detector.js";
+import { detectEnvironment, getXiaoYiEnv } from "../utils/environment-detector.js";
 import { createTelemetryTool } from "../features/telemetry/tool.js";
 import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, setCoexistMode, getCoexistMode, getCoexistState } from "../utils/coexistence.js";
 
@@ -19,7 +19,13 @@ export default definePluginEntry({
         try {
             // === Environment Detection ===
             const env = detectEnvironment();
-            api.logger.info?.(`[yaoyao-memory] Detected environment: ${env}`);
+            api.logger.info?.(`[yaoyao-memory] Detected environment: ${env.env} (confidence: ${env.confidence})`);
+                  if (env.xiaoyi?.detected) {
+                    const xy = env.xiaoyi;
+                    api.logger.info?.(
+                      `[yaoyao-memory] XiaoYi environment: device=${xy.deviceType || "unknown"}, channel=${xy.channelActive ? "active" : "inactive"}, skills=${xy.skillsAvailable ? "available" : "unavailable"}, security=${xy.securityLevel}`,
+                    );
+                  }
 
             // === Coexistence Detection ===
             const coexist = detectCoexistence();

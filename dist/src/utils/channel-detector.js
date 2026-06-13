@@ -37,33 +37,6 @@ export function detectChannelInfo(ctx) {
     return { channel, deviceType, ...(Object.keys(c).length > 0 ? { raw: c } : {}) };
 }
 
-export function detectChannelFromEvent(event) {
-    if (!event || typeof event !== "object") {
-        return { channel: "unknown", deviceType: "unknown" };
-    }
-    const e = event;
-
-    const fromEvent = detectChannelInfo(e);
-    if (fromEvent.channel !== "unknown" || fromEvent.deviceType !== "unknown") {
-        return fromEvent;
-    }
-
-    const session = e.session;
-    if (session) {
-        const fromSession = detectChannelInfo(session);
-        if (fromSession.channel !== "unknown" || fromSession.deviceType !== "unknown") {
-            return fromSession;
-        }
-    }
-
-    const context = e.context;
-    if (context) {
-        return detectChannelInfo(context);
-    }
-
-    return { channel: "unknown", deviceType: "unknown" };
-}
-
 function _firstString(primary, secondary, keys) {
     for (const key of keys) {
         if (primary[key] && typeof primary[key] === "string") return primary[key];

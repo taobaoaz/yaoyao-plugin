@@ -24,7 +24,7 @@ import { createCaptureDebouncer, type CaptureDebouncer } from "../utils/capture-
 import { DedupEngine } from "../utils/dedup-engine.ts";
 import { getCoexistMode } from "../utils/coexistence.ts";
 import { detectChannelInfo } from "../utils/channel-detector.ts";
-import { extractDeviceInteractions, hasTimeSensitiveInteraction } from "./capture-content.ts";
+import { extractDeviceInteractions } from "./capture-content.ts";
 import { getSecurityLevel } from "../utils/environment-detector.ts";
 import {
   shouldCaptureTurn, trackSessionActivity,

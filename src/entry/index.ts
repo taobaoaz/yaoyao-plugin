@@ -11,7 +11,7 @@ import type { YaoyaoMemoryConfig } from '../utils/memory-store.ts';
 import { bootstrapYaoyao } from '../core/app.ts';
 import { buildPayload, sendHeartbeat } from '../utils/telemetry.ts';
 import { createTelemetryTool } from '../features/telemetry/tool.ts';
-import { detectEnvironment } from '../utils/environment-detector.ts';
+import { detectEnvironment, getXiaoYiEnv } from '../utils/environment-detector.ts';
 import {
   detectCoexistence,
   startCoexistenceMonitor,
