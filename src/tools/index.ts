@@ -38,6 +38,7 @@ import { createTimelineTool } from "../features/timeline/tool.ts";
 import { createTrendsTool } from "../features/trends/tool.ts";
 import { createQualityTool } from "../features/quality/tool.ts";
 import { createRetainTool } from "../features/retain/tool.ts";
+import { createAnalyzeTool } from "../features/analyze/tool.ts";
 import { createGraphTool } from "../features/graph/tool.ts";
 
 /* ── Multi-signal search (mem0 v3 style) ────────── */

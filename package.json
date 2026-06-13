@@ -45,7 +45,7 @@
     "test:sentiment": "node --experimental-strip-types --test src/__tests__/sentiment.test.ts",
     "test:store": "node --experimental-strip-types --test src/__tests__/memory-store.test.ts",
     "test:core": "node --test src/__tests__/remind-cron.test.ts src/__tests__/trends-core.test.ts src/__tests__/quality-core.test.ts src/__tests__/recommend-core.test.ts src/__tests__/retain-core.test.ts",
-    "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.ts"
+    "benchmark": "node --experimental-strip-types --test src/__tests__/benchmark.test.ts"
   },
   "openclaw": {
     "extensions": [

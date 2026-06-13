@@ -50,7 +50,6 @@ import { createAdaptiveSearchTool } from "../features/adaptive-search/tool.js";
 import { createSkillAnalyticsTool } from "../features/skill-analytics/tool.js";
 /* ── Benchmark (Phase 5) ───────────────────────────── */
 import { createBenchmarkTool } from "../features/benchmark/tool.js";
-
 /* ── Workspace files (v1.8.0) ─────────────────────── */
 import { createWorkspaceTool } from "../features/workspace/tool.js";
 export function registerMemoryTools(api, store, db, storage, embedding, registry) {
@@ -64,7 +63,9 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
         url: process.env.YAOYAO_TELEMETRY_URL,
     }), 
     /* ── Phase 1-5: Advanced memory features ── */
-    createGraphRelationTool(), createAtomicFactTool(), createAdaptiveSearchTool(), createSkillAnalyticsTool(), createBenchmarkTool(), createJudgeTool(db), createConflictsTool(db));
+    createGraphRelationTool(), createAtomicFactTool(), createAdaptiveSearchTool(), createSkillAnalyticsTool(), createBenchmarkTool(), createJudgeTool(db), createConflictsTool(db), 
+    /* ── v1.8.0: Workspace file access ── */
+    createWorkspaceTool(store));
     /* ── Optional tools (gated by FeatureRegistry) ── */
     // Enhanced search — uses SearchPipeline, no longer needs raw embedding
     tools.push(createEnhancedSearchTool(pipeline));

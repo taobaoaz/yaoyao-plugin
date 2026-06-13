@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.8.2 (XiaoYi 架构适配 · 2026-06-14)
+
+### 小艺 Claw 全局架构适配
+- 环境检测分层扩展：openclaw-xiaoyi 作为 openclaw 的加性层
+- Channel/device 上下文感知（a2a / websocket / standard + pad/phone/tablet）
+- Skills 输出和设备工具调用的 capture meta 标记
+- MEMORY.md / USER.md / IDENTITY.md 等 workspace 配置文件读写
+- Hardened 安全环境检测（secret-guardian + execution-validator）
+- 通用 claw-core 共存检测（UDS / 配置槽位 / core_skills）
+
+### 论文驱动的记忆增强
+- **FadeMem**（ICLR 2025）：激活衰减 + 竞争性记忆巩固
+- **MemX**（arXiv 2604.02176）：上下文长度自适应检索（EntropyRouter）
+- **RecMem**（arXiv 2603.02758）：双向参考路径解码
+
+### SmartVector 四信号融合
+- BM25 + 向量 + 时间衰减 + 重要性 的七因子价值函数
+- Dual Process 情景缓存（System 1 快路径 / System 2 慢路径）
+
+### 测试与工具
+- 全功能测试套：**610 个测试全部通过**
+- 已注册工具：**38 个**（含 v1.8.0 memory_workspace + memory_analyze）
+- TypeScript 严格模式零错误
+
 ## v1.7.8 (SRMU 记忆反传播 · 2026-06-08)
 
 ### 🧬 SRMU: 记忆反传播 (Memory Back-Propagation)
