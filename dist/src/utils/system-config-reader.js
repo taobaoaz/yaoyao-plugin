@@ -5,7 +5,6 @@
  */
 import os from "node:os";
 import { detectEnvironment, isOpenClaw } from "./environment-detector.js";
-
 export function detectSystemArchitecture() {
     const env = detectEnvironment();
     const isOC = isOpenClaw();
@@ -17,8 +16,8 @@ export function detectSystemArchitecture() {
         openClawVersion: isOC ? (env.signals.find(s => s.includes('openclaw')) || 'unknown') : 'unknown',
     };
 }
-
 export function getRecommendedStrategy(_arch) {
+    // Single strategy: full capture + hybrid recall
     return {
         name: 'full',
         captureMode: 'async',

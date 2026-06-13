@@ -1,15 +1,22 @@
 /**
  * utils/coexistence.ts — Coexistence mode detection and monitoring.
  *
+ * Detects whether another memory system (claw-core) is active and adjusts
+ * yaoyao's behavior accordingly. Detection is config + filesystem based,
+ * not tied to any specific platform variant.
+ *
+ * v1.7.9+: XiaoYi-specific detection removed. Uses generic signals:
+ *   1. openclaw.json slots.memory ownership
+ *   2. UDS socket file presence
+ *   3. Shared memory segment presence
+ *
  * v1.8.0: Added gspd_memory + core_skills detection for XiaoYi environments.
  */
-
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-
+/** Startup grace period before coexistence detection activates (ms). */
 const STARTUP_GRACE_MS = 600;
-
 let _currentMode = 'unknown';
 let _currentState = {
     mode: 'unknown',
@@ -17,8 +24,8 @@ let _currentState = {
     gatewayVersion: '',
     gatewayAlive: false,
 };
-
 // v1.8.0-fix: Do immediate detection on module load (bypass grace period)
+// This ensures correct mode is available at startup, not after 600ms delay.
 (function _initialDetect() {
     const initial = _doDetect();
     _currentMode = initial.mode;
@@ -26,21 +33,22 @@ let _currentState = {
 })();
 let _startedAt = Date.now();
 let _changeHandlers = [];
-
 function _isInStartupGrace() {
     return Date.now() - _startedAt < STARTUP_GRACE_MS;
 }
-
+/** Read openclaw.json to check if memory slot is owned by another system. */
 function _checkConfigSlotOwner() {
     try {
         const configPath = join(homedir(), ".openclaw", "openclaw.json");
-        if (!existsSync(configPath)) return false;
+        if (!existsSync(configPath))
+            return false;
         const raw = readFileSync(configPath, "utf-8");
         const config = JSON.parse(raw);
         const slots = config.slots;
         if (slots?.memory && slots.memory !== "yaoyao-memory") {
             return true;
         }
+        // Check extensions/plugins for claw-core or gspd_memory (v1.8.0)
         const plugins = config.plugins;
         const entries = plugins?.entries;
         if (entries) {
@@ -52,12 +60,14 @@ function _checkConfigSlotOwner() {
             }
         }
         return false;
-    } catch {
+    }
+    catch {
         return false;
     }
 }
-
+/** Check for UDS socket files indicating claw-core worker is running. */
 function _checkUdsSocket() {
+    // Linux/macOS: /tmp
     const tmpDir = "/tmp";
     if (existsSync(tmpDir)) {
         try {
@@ -65,62 +75,98 @@ function _checkUdsSocket() {
             if (entries.some(e => (e.includes("claw-worker") || e.includes("claw_core")) && e.endsWith(".sock"))) {
                 return true;
             }
-        } catch { }
+        }
+        catch {
+            // ignore
+        }
     }
+    // Windows / cross-platform: extensions directory
     try {
         const extDir = join(homedir(), ".openclaw", "extensions");
         if (existsSync(extDir)) {
             const entries = readdirSync(extDir);
             if (entries.includes("claw-core")) {
                 const varDir = join(extDir, "claw-core", "var");
-                if (existsSync(varDir)) return true;
+                if (existsSync(varDir))
+                    return true;
             }
+            // v1.8.0: gspd_memory plugin presence
             if (entries.includes("gspd_memory") || entries.includes("gspd-memory")) {
                 return true;
             }
         }
-    } catch { }
+    }
+    catch {
+        // ignore
+    }
     return false;
 }
-
+/** v1.8.0: Check for core_skills directory (XiaoYi claw-core strong signal) */
 function _checkCoreSkills() {
     try {
-        const possibleRoots = [process.env.OPENCLAW_HOME, homedir()].filter(Boolean);
+        const possibleRoots = [
+            process.env.OPENCLAW_HOME,
+            homedir(),
+        ].filter(Boolean);
         for (const root of possibleRoots) {
             const coreSkillsDir = join(root, ".openclaw", "core_skills");
             if (existsSync(coreSkillsDir)) {
                 const entries = readdirSync(coreSkillsDir);
-                if (entries.some(e =>
-                    e.includes("secret-guardian") || e.includes("execution-validator") || e.includes("skill-scope")
-                )) {
+                // core_skills with at least one known claw-core skill = strong signal
+                if (entries.some(e => e.includes("secret-guardian") || e.includes("execution-validator") || e.includes("skill-scope"))) {
                     return true;
                 }
             }
         }
         return false;
-    } catch {
+    }
+    catch {
         return false;
     }
 }
-
+/** Actual detection: check if another claw core is running */
 function _doDetect() {
+    // Check config-based ownership
     if (_checkConfigSlotOwner()) {
-        return { mode: 'coexist', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: true };
+        return {
+            mode: 'coexist',
+            timestamp: Date.now(),
+            gatewayVersion: '',
+            gatewayAlive: true,
+        };
     }
+    // Check for UDS socket / shared memory
     if (_checkUdsSocket()) {
-        return { mode: 'coexist', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: true };
+        return {
+            mode: 'coexist',
+            timestamp: Date.now(),
+            gatewayVersion: '',
+            gatewayAlive: true,
+        };
     }
+    // v1.8.0: Check for core_skills (XiaoYi claw-core signal)
     if (_checkCoreSkills()) {
-        return { mode: 'coexist', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: true };
+        return {
+            mode: 'coexist',
+            timestamp: Date.now(),
+            gatewayVersion: '',
+            gatewayAlive: true,
+        };
     }
-    return { mode: 'standalone', timestamp: Date.now(), gatewayVersion: '', gatewayAlive: false };
+    // Default to standalone
+    return {
+        mode: 'standalone',
+        timestamp: Date.now(),
+        gatewayVersion: '',
+        gatewayAlive: false,
+    };
 }
-
 export function detectCoexistence() {
-    if (_isInStartupGrace()) return _currentState;
+    if (_isInStartupGrace()) {
+        return _currentState;
+    }
     return _doDetect();
 }
-
 export function setCoexistMode(mode) {
     const prev = { ..._currentState };
     _currentMode = mode;
@@ -136,18 +182,16 @@ export function setCoexistMode(mode) {
         }
     }
 }
-
 export function getCoexistMode() {
     return _currentMode;
 }
-
 export function getCoexistState() {
     return { ..._currentState };
 }
-
 export function startCoexistenceMonitor(intervalMs) {
     const timer = setInterval(() => {
-        if (_isInStartupGrace()) return;
+        if (_isInStartupGrace())
+            return;
         const current = detectCoexistence();
         if (current.mode !== _currentMode) {
             setCoexistMode(current.mode);
@@ -155,7 +199,6 @@ export function startCoexistenceMonitor(intervalMs) {
     }, intervalMs);
     return () => clearInterval(timer);
 }
-
 export function onCoexistChange(handler) {
     _changeHandlers.push(handler);
 }

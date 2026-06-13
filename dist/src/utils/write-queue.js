@@ -79,7 +79,7 @@ export function createWriteQueue(flushHandler, logger, audit, maxSize = 1000) {
         }
     }
     return { enqueue, get pendingCount() { return pending.length; }, drain: async () => {
-    const drainTimeout = Date.now() + 10000;
+            const drainTimeout = Date.now() + 10000;
             if (flushing) {
                 // Wait for current flush to complete
                 while (flushing && Date.now() < drainTimeout) {

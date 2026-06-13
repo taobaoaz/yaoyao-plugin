@@ -99,7 +99,7 @@ export function createRemindTool() {
                 "```bash",
                 `openclaw cron add "${finalCron}" \\`,
                 `  --message "${finalMessage}" \\`,
-                `  --channel openclaw`,
+                `  --channel default`,
                 "```",
                 ``,
                 `### 常用 cron 示例`,

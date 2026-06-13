@@ -1,0 +1,20 @@
+# Normalize all text files to LF; explicit per-type rules for safety.
+*               text=auto eol=lf
+*.js            text eol=lf
+*.cjs           text eol=lf
+*.mjs           text eol=lf
+*.ts            text eol=lf
+*.json          text eol=lf
+*.jsonc         text eol=lf
+*.md            text eol=lf
+*.yaml          text eol=lf
+*.yml           text eol=lf
+*.sh            text eol=lf
+*.bat           text eol=crlf
+*.ps1           text eol=crlf
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.wasm          binary
