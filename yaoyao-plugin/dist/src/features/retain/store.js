@@ -1,0 +1,59 @@
+/**
+ * features/retain/store.ts — Retain data persistence.
+ *
+ * File I/O for boost records and important tags.
+ */
+import fs from "node:fs";
+import path from "node:path";
+const PIPELINE_DIR = ".pipeline";
+const BOOST_FILE = ".retain-boost.jsonl";
+const IMPORTANT_FILE = ".important-tags.json";
+function boostFilePath(baseDir) {
+    return path.join(baseDir, PIPELINE_DIR, BOOST_FILE);
+}
+function importantTagsFilePath(baseDir) {
+    return path.join(baseDir, PIPELINE_DIR, IMPORTANT_FILE);
+}
+function ensurePipelineDir(baseDir) {
+    const d = path.join(baseDir, PIPELINE_DIR);
+    if (!fs.existsSync(d))
+        fs.mkdirSync(d, { recursive: true });
+}
+export function loadBoostRecords(baseDir) {
+    const fp = boostFilePath(baseDir);
+    const records = [];
+    try {
+        if (!fs.existsSync(fp))
+            return records;
+        const raw = fs.readFileSync(fp, "utf-8");
+        for (const line of raw.split("\n").filter(Boolean)) {
+            try {
+                records.push(JSON.parse(line));
+            }
+            catch { /* skip */ }
+        }
+    }
+    catch { /* best effort */ }
+    return records;
+}
+export function appendBoostRecord(baseDir, record) {
+    ensurePipelineDir(baseDir);
+    const fp = boostFilePath(baseDir);
+    fs.appendFileSync(fp, JSON.stringify(record) + "\n", "utf-8");
+}
+export function loadImportantTags(baseDir) {
+    const fp = importantTagsFilePath(baseDir);
+    try {
+        if (!fs.existsSync(fp))
+            return [];
+        return JSON.parse(fs.readFileSync(fp, "utf-8"));
+    }
+    catch {
+        return [];
+    }
+}
+export function saveImportantTags(baseDir, tags) {
+    ensurePipelineDir(baseDir);
+    const fp = importantTagsFilePath(baseDir);
+    fs.writeFileSync(fp, JSON.stringify(tags, null, 2), "utf-8");
+}

@@ -1,0 +1,20 @@
+{
+  "plugins": {
+    "entries": {
+      "yaoyao-memory": {
+        "name": "yaoyao-memory",
+        "path": "../dist/src/entry/index.js",
+        "config": {
+          "baseDir": "./yaoyao-data",
+          "llm": {
+            "model": "kimi-k2p6",
+            "apiKey": "test-key"
+          }
+        }
+      }
+    }
+  },
+  "gateway": {
+    "port": 19002
+  }
+}

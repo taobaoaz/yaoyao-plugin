@@ -1,3 +1,35 @@
-node_modules/
+# 发布版配置覆盖
+
+# 构建输出
+# 注意：dist/ 需要提交 git，因为编译依赖 OpenClaw SDK 内部类型声明，
+# 外部环境无法独立编译。clone 后直接使用 dist/index.js。
+# 如需重新编译，请在完整 OpenClaw 环境中执行 npx tsc。
+
+# 环境变量
+.env
 *.log
+
+# 用户记忆数据（运行时生成）
+memory/
+
+# 依赖
+node_modules/
+
+# 系统文件
 .DS_Store
+Thumbs.db
+
+# 备份文件
+*.backup
+*.tar.gz
+*.zip
+
+# 基准测试数据
+.yaoyoa.db
+*.db
+
+# L4 反馈学习文件
+.feedback.jsonl
+
+# 内嵌 yaoyao-plugin 已迁移至独立仓库
+/yaoyao-plugin/

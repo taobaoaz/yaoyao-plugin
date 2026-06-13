@@ -1,29 +1,435 @@
 {
   "id": "yaoyao-memory",
   "name": "Yaoyao Memory",
-  "version": "1.7.3",
-  "description": "自适应记忆引擎：FTS5 + 向量搜索 + 时间线 + 云备份",
-  "entry": "./dist/index.js",
-  "hooks": [
-    "./dist/src/hooks/auto-capture.js",
-    "./dist/src/hooks/auto-recall.js"
-  ],
-  "compat": {
-    "pluginApi": ">=2026.4.2"
+  "description": "4-layer AI memory system (FTS5 + sqlite-vec hybrid search) — auto-capture conversations, hybrid search, memory timeline, cloud backup. Powered by Yaoyao Memory Engine. v1.7.3+: L1/L2/L3 LLM pipeline and persona/mood features moved to yaoyao-soul plugin.",
+  "version": "1.7.8",
+  "kind": "memory",
+  "extensions": {
+    "register": "./dist/index.js",
+    "hooks": [
+      "./dist/src/hooks/auto-capture.js",
+      "./dist/src/hooks/auto-recall.js",
+      "./dist/src/hooks/command-new.js",
+      "./dist/src/hooks/heartbeat-recall.js"
+    ]
   },
-  "config": {
-    "capture": {
-      "enabled": true,
-      "mode": "async",
-      "watermark": 0.7
-    },
-    "recall": {
-      "enabled": true,
-      "maxResults": 5,
-      "minScore": 0.3
-    },
-    "embedding": {
-      "provider": "sqlite-vec"
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "capture": {
+        "type": "object",
+        "description": "对话自动捕获设置 (L0)",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用自动对话捕获"
+          },
+          "mode": {
+            "type": "string",
+            "default": "async",
+            "description": "L1/L2 写入模式：sync=同步写入（实时落盘但阻塞），async=异步批量写入（默认，通过 write-queue 缓冲）",
+            "enum": [
+              "sync",
+              "async"
+            ]
+          },
+          "maxContentLen": {
+            "type": "number",
+            "default": 500,
+            "description": "每条捕获内容的最大字符数（默认 500）"
+          },
+          "minContentLen": {
+            "type": "number",
+            "default": 3,
+            "description": "忽略过短的用户输入阈值（字符数，默认 3）"
+          },
+          "batchSize": {
+            "type": "number",
+            "default": 10,
+            "description": "异步模式下的批量写入上限（默认 10）"
+          },
+          "debounceMs": {
+            "type": "number",
+            "default": 300,
+            "description": "异步模式下触发 flush 的最小延迟（毫秒，默认 300）"
+          },
+          "excludeAgents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "不参与捕获的 agent label 列表"
+          }
+        }
+      },
+      "recall": {
+        "type": "object",
+        "description": "记忆自动召回设置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用自动记忆召回"
+          },
+          "strategy": {
+            "type": "string",
+            "default": "hybrid",
+            "description": "召回策略：hybrid=混合搜索（FTS5 + 向量），fts=仅 FTS5，vector=仅向量搜索",
+            "enum": [
+              "hybrid",
+              "fts",
+              "vector"
+            ]
+          },
+          "maxResults": {
+            "type": "number",
+            "default": 3,
+            "description": "召回最大结果数"
+          },
+          "topK": {
+            "type": "number",
+            "default": 5,
+            "description": "向量搜索候选数（默认 5）"
+          },
+          "minScore": {
+            "type": "number",
+            "default": 0.5,
+            "description": "向量搜索结果最低相似度阈值（默认 0.5）"
+          },
+          "cacheTTL": {
+            "type": "number",
+            "default": 30000,
+            "description": "搜索结果缓存有效期（毫秒，默认 30000）"
+          },
+          "maxCacheSize": {
+            "type": "number",
+            "default": 50,
+            "description": "搜索结果缓存最大条目数（默认 50）"
+          },
+          "halfLife": {
+            "type": "number",
+            "default": 30,
+            "description": "时间衰减半衰期（天，默认 30）"
+          },
+          "jaccardBase": {
+            "type": "number",
+            "default": 0.75,
+            "description": "多样化采样 Jaccard 基准阈值（默认 0.75）"
+          },
+          "jaccardMin": {
+            "type": "number",
+            "default": 0.5,
+            "description": "多样化采样 Jaccard 最小阈值（默认 0.5）"
+          },
+          "maxSessions": {
+            "type": "number",
+            "default": 1000,
+            "description": "跨会话上下文累积的最大会话数（默认 1000）"
+          },
+          "maxContextKeywords": {
+            "type": "number",
+            "default": 20,
+            "description": "跨会话上下文累积的最大关键词数（默认 20）"
+          }
+        }
+      },
+      "memoryDir": {
+        "type": "string",
+        "default": "",
+        "description": "自定义记忆目录路径（默认：~/.openclaw/workspace/memory/）"
+      },
+      "embedding": {
+        "type": "object",
+        "description": "向量嵌入配置（可选，开启后支持向量+混合搜索）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否启用向量嵌入"
+          },
+          "provider": {
+            "type": "string",
+            "default": "openai",
+            "description": "嵌入 API provider"
+          },
+          "baseUrl": {
+            "type": "string",
+            "default": "",
+            "description": "嵌入 API base URL"
+          },
+          "apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "嵌入 API key"
+          },
+          "model": {
+            "type": "string",
+            "default": "",
+            "description": "嵌入模型名称（留空则根据 provider 自动选择，或从 providerModels 映射表中查找）"
+          },
+          "dimensions": {
+            "type": "number",
+            "default": 1024,
+            "description": "向量维度"
+          },
+          "vectorBackend": {
+            "type": "string",
+            "default": "sqlite-vec",
+            "description": "向量后端引擎。sqlite-vec=零依赖默认（brute-force L2）；hnswlib=高性能 ANN（需手动安装 hnswlib-node，C++ addon）",
+            "enum": [
+              "sqlite-vec",
+              "hnswlib"
+            ]
+          },
+          "hnswMaxElements": {
+            "type": "number",
+            "default": 50000,
+            "description": "HNSW 索引最大元素数（仅 vectorBackend=hnswlib 时生效）。范围 1000–500000。超过后需重建索引。"
+          },
+          "providerModels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "自定义 provider → 嵌入模型映射表。键为 provider 标识，值为模型名。覆盖内置默认值。"
+          },
+          "timeoutMs": {
+            "type": "number",
+            "default": 15000,
+            "description": "单次请求超时（毫秒，默认 15000）"
+          },
+          "retries": {
+            "type": "number",
+            "default": 1,
+            "description": "网络/超时错误时的重试次数（默认 1）"
+          },
+          "maxInputChars": {
+            "type": "number",
+            "default": 4000,
+            "description": "每次嵌入的最大输入字符数（默认 4000）"
+          },
+          "backoffBaseMs": {
+            "type": "number",
+            "default": 1000,
+            "description": "重试退避基数（毫秒，默认 1000，即第一次等 1s，第二次等 2s）"
+          }
+        }
+      },
+      "llm": {
+        "type": "object",
+        "description": "LLM 配置（可选，开启后支持 L1/L2/L3 管线）。如未配置但已启用 embedding，将自动复用 embedding 的 apiKey/baseUrl。设置 enabled: false 可强制关闭",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用 LLM 管线（设为 false 可强行关闭）"
+          },
+          "apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "LLM API key（留空则自动检测 embedding 配置）"
+          },
+          "baseUrl": {
+            "type": "string",
+            "default": "",
+            "description": "LLM API base URL（留空则自动检测 embedding 配置）"
+          },
+          "model": {
+            "type": "string",
+            "default": "",
+            "description": "LLM 模型名称（留空则根据 baseUrl 自动选择，或从 providerModels 映射表中查找）"
+          },
+          "providerModels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "description": "自定义 provider → model 映射表。键为 provider 标识（如 openai、deepseek、gitee），值为模型名。覆盖内置默认值。"
+          }
+        }
+      },
+      "cleanup": {
+        "type": "object",
+        "description": "记忆清理配置（可选）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用每日清理"
+          },
+          "l0l1RetentionDays": {
+            "type": "number",
+            "default": 30,
+            "description": "每日日志保留天数（0=不清理，默认30天）"
+          },
+          "allowAggressiveCleanup": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否允许激进清理（retentionDays=1或2）"
+          },
+          "maxBackups": {
+            "type": "number",
+            "default": 10,
+            "description": "保留的最大备份数量（默认 10）"
+          }
+        }
+      },
+      "snippetMaxLen": {
+        "type": "number",
+        "default": 500,
+        "description": "搜索结果片段最大字符数（默认 500）"
+      },
+      "searchMaxLimit": {
+        "type": "number",
+        "default": 100,
+        "description": "单次搜索绝对上限（默认 100）"
+      },
+      "likeFallbackScore": {
+        "type": "number",
+        "default": 0.5,
+        "description": "FTS5 降级到 LIKE 时的基础分数（默认 0.5）"
+      },
+      "blockLabels": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [],
+        "description": "排除的 session label 列表，匹配的 session 不会被捕获/召回"
+      },
+      "verify": {
+        "type": "object",
+        "description": "防幻觉检测配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否在 auto-capture 中启用推测性/纠正检测标记"
+          }
+        }
+      },
+      "quality": {
+        "type": "object",
+        "description": "记忆质量分析配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否注册 memory_quality 工具"
+          }
+        }
+      },
+      "retain": {
+        "type": "object",
+        "description": "记忆保留检查配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否注册 memory_retain 工具"
+          }
+        }
+      },
+      "graph": {
+        "type": "object",
+        "description": "知识图谱配置",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否注册 memory_graph 工具（需要 scenes/ 目录存在）"
+          }
+        }
+      },
+      "autoSaveImage": {
+        "type": "boolean",
+        "default": false,
+        "description": "启用后，AI 在收到图片并理解其内容后会自动调用 memory_save 将图片描述存入记忆"
+      },
+      "cloud": {
+        "type": "object",
+        "description": "云备份同步配置（凭证存储在 ~/.openclaw/credentials/secrets.env）",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否启用云备份功能"
+          },
+          "autoSync": {
+            "type": "boolean",
+            "default": false,
+            "description": "是否启用每日自动同步（上传）"
+          },
+          "conflictPolicy": {
+            "type": "string",
+            "default": "newer",
+            "description": "双向同步冲突策略: newer=保留更新的文件, keep_both=保留双方",
+            "enum": [
+              "newer",
+              "keep_both"
+            ]
+          },
+          "excludePatterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [],
+            "description": "排除同步的文件名模式（如 [\"*.log\", \".tmp\"]）"
+          },
+          "cmdTimeoutMs": {
+            "type": "number",
+            "default": 30000,
+            "description": "云同步命令超时（毫秒，默认 30000）"
+          }
+        }
+      }
     }
+  },
+  "contracts": {
+    "tools": [
+      "memory_adaptive_search",
+      "memory_analyze",
+      "memory_atomic_fact",
+      "memory_backup",
+      "memory_benchmark",
+      "memory_call",
+      "memory_cloud_sync",
+      "memory_cron",
+      "memory_export",
+      "memory_forget",
+      "memory_get",
+      "memory_graph",
+      "memory_graph_relation",
+      "memory_healthcheck",
+      "memory_import",
+      "memory_import_oc",
+      "memory_import_workspace",
+      "memory_conflicts",
+      "memory_list",
+      "memory_note",
+      "memory_quality",
+      "memory_recommend",
+      "memory_remind",
+      "memory_retain",
+      "memory_save",
+      "memory_search",
+      "memory_search_enhanced",
+      "memory_search_multi",
+      "memory_search_timeline",
+      "memory_skill_analytics",
+      "memory_stats",
+      "memory_tag",
+      "memory_telemetry",
+      "memory_timeline",
+      "memory_trends",
+      "memory_unify",
+      "memory_verify"
+    ]
   }
 }

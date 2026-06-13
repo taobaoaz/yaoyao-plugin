@@ -2,9 +2,9 @@ name: Lifecycle Check
 
 on:
   push:
-    branches: [master, main]
+    branches: [main]
   pull_request:
-    branches: [master, main]
+    branches: [main]
   workflow_dispatch:
 
 env:
@@ -24,9 +24,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Build TypeScript
-        run: npm run build
 
       - name: Run lifecycle check
         run: |
