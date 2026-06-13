@@ -1,11 +1,11 @@
-# Yaoyao Memory Plugin v1.8.3
+# Yaoyao Memory Plugin v1.8.4
 
 > 摇摇 · 4 层 AI 记忆引擎 — FTS5 + sqlite-vec 混合检索、自动捕获、时间线、云备份、主题趋势。
-> v1.8.x：全面适配小艺 Claw 架构（环境/通道/技能/设备/安全），论文驱动的记忆增强，SmartVector 四信号融合 + Dual Process 情景缓存。
+> v1.8.x：全面适配小艺 Claw 架构（环境/通道/技能/设备/安全），论文驱动的记忆增强，SmartVector 四信号融合 + Dual Process 情景缓存 + 多模态记忆（hidden，测试中）。
 
-[![Version](https://img.shields.io/badge/version-1.8.3-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.8.4-blue)](#)
 [![Tools](https://img.shields.io/badge/tools-38%20%2B%201%20hidden-orange)](#-registered-tools)
-[![Tests](https://img.shields.io/badge/tests-670%20passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/tests-732%20passing-brightgreen)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518.0.0-339933)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -99,7 +99,7 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.8.2  ·  38 Tools  ·  4 Hooks
+🎲    v1.8.4  ·  38 Tools  ·  4 Hooks
 🎲    FTS5 + sqlite-vec + 时间线 + 云备份
 🎲    记忆目录: ~/.openclaw/workspace/memory/
 🎲    环境检测: 全部通过
@@ -307,14 +307,14 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 ## 🧪 测试
 
 ```bash
-npm test                  # 全部 610 单元测试
+npm test                  # 全部 732 单元测试
 npm run test:ci           # CI 子集（排除 parallel）
 npm run test:db           # 仅 DB 层
 npm run test:store        # 仅 memory-store
 npm run benchmark         # 性能基准
 ```
 
-**当前状态：610 测试全部通过**，覆盖 73 个测试模块，覆盖率重点模块包括：
+**当前状态：732 测试全部通过**，覆盖 176 个测试模块，覆盖率重点模块包括：
 
 - SmartVector 多信号融合（BM25 + 向量 + 时间衰减 + 重要性）
 - 七因子价值函数（7 个独立因子 + 加权综合）
@@ -376,7 +376,7 @@ npm run benchmark         # 性能基准
 - [x] v1.8.1 — 论文驱动增强（FadeMem / MemX / RecMem）
 - [x] v1.8.2 — SmartVector 四信号融合 + 七因子价值函数 + Dual Process 情景缓存
 - [x] v1.8.2-hotfix — TypeScript 严格模式零错误 + 4 项功能 bug 修复
-- [x] 38 个工具 + 4 个 hook + 610 单元测试
+- [x] 38 个工具 + 4 个 hook + 732 单元测试
 
 ### 📋 v1.9（计划）
 
@@ -416,7 +416,7 @@ npm run benchmark         # 性能基准
 
 欢迎 PR。所有改动请附带：
 
-1. `npm test` 全通过（610 测试）
+1. `npm test` 全通过（732 测试）
 2. `npm run build` 零错误
 3. 新功能对应单元测试
 4. CHANGELOG.md 更新

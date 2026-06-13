@@ -54,6 +54,7 @@ import { createBenchmarkTool } from "../features/benchmark/tool.js";
 import { createWorkspaceTool } from "../features/workspace/tool.js";
 /* ── Multimodal memory (v1.8.x hidden feature, gated by config) ── */
 import { createMultimodalTool } from "../features/multimodal/tool.js";
+import { recordAndClassify, resolveCurrentModel, isMultimodalCapable, } from "../utils/model-capabilities.js";
 export function registerMemoryTools(api, store, db, storage, embedding, registry, config) {
     const tools = [];
     // Create SearchPipeline once, share across all search tools
@@ -125,14 +126,35 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     }
     // v1.8.x: Multimodal memory — hidden feature, default off.
     if (config?.multimodal?.enabled === true) {
-        try {
-            tools.push(createMultimodalTool({
-                storageDir: config.multimodal.storageDir,
-                maxFileSizeMb: config.multimodal.maxFileSizeMb,
-            }));
+        // v1.8.3+: gate on the active LLM model. If it's not multimodal-capable,
+        // silently skip registration and warn (standard OpenClaw users unaffected).
+        const currentModel = resolveCurrentModel(config);
+        if (!currentModel) {
+            api.logger.warn?.(`[yaoyao-memory] multimodal.enabled=true but no LLM model resolved from config; ` +
+                `memory_multimodal will not be registered. Configure llm.model or embedding.model.`);
         }
-        catch (e) {
-            api.logger.warn?.(`[yaoyao-memory] Multimodal tool skipped: ${e.message}`);
+        else {
+            const caps = recordAndClassify(store.baseDir, currentModel);
+            if (!isMultimodalCapable(caps)) {
+                api.logger.warn?.(`[yaoyao-memory] multimodal.enabled=true but active model "${currentModel}" is not ` +
+                    `multimodal-capable (image=${caps.image}, audio=${caps.audio}, video=${caps.video}, ` +
+                    `source=${caps.source}, note="${caps.note ?? ""}"). memory_multimodal will not be ` +
+                    `registered. Switch to a multimodal model (gpt-4o, claude-3+, gemini-1.5+, qwen-vl, etc.) ` +
+                    `to enable. Detection cached to model-capabilities.json.`);
+            }
+            else {
+                try {
+                    tools.push(createMultimodalTool({
+                        storageDir: config.multimodal.storageDir,
+                        maxFileSizeMb: config.multimodal.maxFileSizeMb,
+                    }));
+                    api.logger.info?.(`[yaoyao-memory] memory_multimodal enabled for model "${currentModel}" ` +
+                        `(caps: image=${caps.image}, audio=${caps.audio}, video=${caps.video}, source=${caps.source})`);
+                }
+                catch (e) {
+                    api.logger.warn?.(`[yaoyao-memory] Multimodal tool skipped: ${e.message}`);
+                }
+            }
         }
     }
     api.logger.info(`[yaoyao-memory] ${tools.length} tools prepared for registration`);
