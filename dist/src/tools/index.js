@@ -52,7 +52,9 @@ import { createSkillAnalyticsTool } from "../features/skill-analytics/tool.js";
 import { createBenchmarkTool } from "../features/benchmark/tool.js";
 /* ── Workspace files (v1.8.0) ─────────────────────── */
 import { createWorkspaceTool } from "../features/workspace/tool.js";
-export function registerMemoryTools(api, store, db, storage, embedding, registry) {
+/* ── Multimodal memory (v1.8.x hidden feature, gated by config) ── */
+import { createMultimodalTool } from "../features/multimodal/tool.js";
+export function registerMemoryTools(api, store, db, storage, embedding, registry, config) {
     const tools = [];
     // Create SearchPipeline once, share across all search tools
     const safeStorage = storage ?? db;
@@ -119,6 +121,18 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
         }
         catch (e) {
             api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${e.message}`);
+        }
+    }
+    // v1.8.x: Multimodal memory — hidden feature, default off.
+    if (config?.multimodal?.enabled === true) {
+        try {
+            tools.push(createMultimodalTool({
+                storageDir: config.multimodal.storageDir,
+                maxFileSizeMb: config.multimodal.maxFileSizeMb,
+            }));
+        }
+        catch (e) {
+            api.logger.warn?.(`[yaoyao-memory] Multimodal tool skipped: ${e.message}`);
         }
     }
     api.logger.info(`[yaoyao-memory] ${tools.length} tools prepared for registration`);

@@ -33,3 +33,6 @@ Thumbs.db
 
 # 内嵌 yaoyao-plugin 已迁移至独立仓库
 /yaoyao-plugin/
+
+# Test output capture (temp)
+.test-output*

@@ -57,9 +57,15 @@ export function bootstrapYaoyao(api, config) {
         api.logger.warn?.(`[yaoyao-memory] Background startup tasks failed: ${e instanceof Error ? e.message : String(e)}`);
     }
     // ── 7. Register tools & hooks ──
-    const toolCount = registerMemoryTools(api, store, storage, storage, embedding, registry);
+    const toolCount = registerMemoryTools(api, store, storage, storage, embedding, registry, config);
+    // toolCount is the number of tools successfully registered
     const health = runHealthcheck(store.baseDir);
-    showBanner(api.logger, { pluginVersion, toolCount, memoryDir: store.baseDir, cap: runInstallCheck(), health });
+    // Compute registered hook count from config (matches register-if-enabled logic below).
+    const hookCount = (config.capture?.enabled !== false ? 1 : 0) +
+        (config.recall?.enabled !== false ? 1 : 0) +
+        (config.hooks?.commandNew?.enabled !== false ? 1 : 0) +
+        (config.hooks?.heartbeat?.enabled !== false ? 1 : 0);
+    showBanner(api.logger, { pluginVersion, toolCount, hookCount, memoryDir: store.baseDir, cap: runInstallCheck(), health });
     let captureDrain;
     if (config.capture?.enabled !== false) {
         const capHandle = registerCaptureHook(api, store, storage, config, registry.isActive("verify"), scopeManager, llmResult?.client ?? null, audit, embedding);

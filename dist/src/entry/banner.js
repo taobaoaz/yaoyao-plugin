@@ -5,17 +5,19 @@
  * produces the 🎲 banner.
  */
 export function buildBanner(ctx) {
-    const { pluginVersion, toolCount, memoryDir, cap, health } = ctx;
+    const { pluginVersion, toolCount, hookCount, memoryDir, cap, health } = ctx;
     const verStr = `v${pluginVersion}`;
     const toolStr = `${toolCount} Tools`;
+    const hookStr = `${hookCount} Hooks`;
     const backendLabel = cap.backend === "node-sqlite" ? "FTS5 + sqlite-vec + 时间线 + 云备份"
         : cap.backend === "better-sqlite3" ? "FTS5 (better-sqlite3) + 时间线 + 云备份"
             : "文件降级模式 — daily markdown + 简单搜索";
     const banner = [
         "🎲 ══════════════════════════════════════════",
         "🎲    摇摇 · 记忆引擎已启动",
-        `🎲    ${verStr}  ·  ${toolStr}  ·  3 Hooks`,
+        `🎲    ${verStr}  ·  ${toolStr}  ·  ${hookStr}`,
         `🎲    ${backendLabel}`,
+        "🎲    能力: SmartVec✅ DualProc✅ 4-Signal 七因子",
         `🎲    记忆目录: ${memoryDir}`,
     ];
     const healthFails = health.checks.filter((c) => c.status === "fail").length;

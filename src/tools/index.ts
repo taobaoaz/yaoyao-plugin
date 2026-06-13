@@ -84,6 +84,10 @@ import { createBenchmarkTool } from "../features/benchmark/tool.ts";
 
 /* ── Workspace files (v1.8.0) ─────────────────────── */
 import { createWorkspaceTool } from "../features/workspace/tool.ts";
+import type { YaoyaoMemoryConfig } from "../utils/memory-store-types.ts";
+
+/* ── Multimodal memory (v1.8.x hidden feature, gated by config) ── */
+import { createMultimodalTool } from "../features/multimodal/tool.ts";
 
 export function registerMemoryTools(
   api: OpenClawPluginApi,
@@ -92,6 +96,7 @@ export function registerMemoryTools(
   storage?: Storage,
   embedding?: EmbeddingService | null,
   registry?: FeatureRegistry,
+  config?: YaoyaoMemoryConfig,
 ) {
   const tools: Array<import("./common.ts").ToolRegistration> = [];
 
@@ -183,6 +188,18 @@ export function registerMemoryTools(
   if (registry?.isActive("verify") ?? true) {
     try { tools.push(createVerifyTool(db)); } catch (e: unknown) {
       api.logger.warn?.(`[yaoyao-memory] Verify tool skipped: ${(e as Error).message}`);
+    }
+  }
+
+  // v1.8.x: Multimodal memory — hidden feature, default off.
+  if (config?.multimodal?.enabled === true) {
+    try {
+      tools.push(createMultimodalTool({
+        storageDir: config.multimodal.storageDir,
+        maxFileSizeMb: config.multimodal.maxFileSizeMb,
+      }));
+    } catch (e: unknown) {
+      api.logger.warn?.(`[yaoyao-memory] Multimodal tool skipped: ${(e as Error).message}`);
     }
   }
 

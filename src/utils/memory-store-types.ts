@@ -88,6 +88,14 @@ export interface YaoyaoMemoryConfig {
       maxContextChars?: number;
     };
   };
+  // v1.8.x: Multimodal memory (hidden feature, default off)
+  multimodal?: {
+    enabled?: boolean;
+    storageDir?: string;
+    maxFileSizeMb?: number;
+    supportedTypes?: Array<"image" | "audio" | "video">;
+    autoExtractText?: boolean;
+  };
   snippetMaxLen?: number;
   searchMaxLimit?: number;
   likeFallbackScore?: number;

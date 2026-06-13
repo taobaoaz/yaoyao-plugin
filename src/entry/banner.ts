@@ -12,15 +12,17 @@ import type { HealthResult } from "../utils/healthcheck.ts";
 export interface BannerContext {
   pluginVersion: string;
   toolCount: number;
+  hookCount: number;
   memoryDir: string;
   cap: CapabilityReport;
   health: HealthResult;
 }
 
 export function buildBanner(ctx: BannerContext): string[] {
-  const { pluginVersion, toolCount, memoryDir, cap, health } = ctx;
+  const { pluginVersion, toolCount, hookCount, memoryDir, cap, health } = ctx;
   const verStr = `v${pluginVersion}`;
   const toolStr = `${toolCount} Tools`;
+  const hookStr = `${hookCount} Hooks`;
   const backendLabel =
     cap.backend === "node-sqlite" ? "FTS5 + sqlite-vec + 时间线 + 云备份"
     : cap.backend === "better-sqlite3" ? "FTS5 (better-sqlite3) + 时间线 + 云备份"
@@ -29,8 +31,9 @@ export function buildBanner(ctx: BannerContext): string[] {
   const banner = [
     "🎲 ══════════════════════════════════════════",
     "🎲    摇摇 · 记忆引擎已启动",
-    `🎲    ${verStr}  ·  ${toolStr}  ·  3 Hooks`,
+    `🎲    ${verStr}  ·  ${toolStr}  ·  ${hookStr}`,
     `🎲    ${backendLabel}`,
+    "🎲    能力: SmartVec✅ DualProc✅ 4-Signal 七因子",
     `🎲    记忆目录: ${memoryDir}`,
   ];
 
