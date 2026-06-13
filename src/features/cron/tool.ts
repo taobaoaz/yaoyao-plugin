@@ -52,6 +52,11 @@ function safeExec(cmd: string): string | null {
 
 import { detectCronRisks, isConflictingJob } from "./detect.ts";
 
+/** Helper: wrap any object as ToolHandlerResult content */
+function toContent(obj: Record<string, unknown>): { content: Array<{ type: string; text: string }> } {
+  return { content: [{ type: "text", text: JSON.stringify(obj, null, 2) }] };
+}
+
 export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
   const homeDir = (api as unknown as Record<string, unknown>).baseDir as string || ".";
 
@@ -100,12 +105,12 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
       const systemdTimers = timersOutput ? timersOutput.split("\n").filter(l => l.trim()) : [];
 
       if (action === "list") {
-        return {
+        return toContent({
           openclawJobs: jobs,
           systemCrontab: systemLines,
           systemdTimers,
           summary: `OpenClaw cron: ${jobs.length} 个 | 系统 crontab: ${systemLines.length} 行 | systemd timers: ${systemdTimers.length} 个`,
-        };
+        });
       }
 
       if (action === "detect") {
@@ -121,10 +126,10 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
             });
           }
         }
-        return {
+        return toContent({
           risks,
           summary: `检测到 ${risks.length} 个风险`,
-        };
+        });
       }
 
       if (action === "suggest") {
@@ -146,21 +151,21 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
 
         suggestions.push("💡 建议：所有记忆相关的定时任务统一由 yaoyao-memory 管理，避免多系统冲突");
 
-        return {
+        return toContent({
           suggestions,
           currentJobCount: jobs.length,
-        };
+        });
       }
 
       if (action === "disable") {
         const targetId = args.jobId as string | undefined;
         if (!targetId) {
-          return { error: "disable 需要 jobId 参数" };
+          return toContent({ error: "disable 需要 jobId 参数" });
         }
 
         const jobIndex = jobs.findIndex(j => j.id === targetId);
         if (jobIndex === -1) {
-          return { error: `未找到 cron job: ${targetId}` };
+          return toContent({ error: `未找到 cron job: ${targetId}` });
         }
 
         const job = jobs[jobIndex];
@@ -168,7 +173,7 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
 
         // Only allow disabling memory-related conflicting jobs
         if (!isConflictingJob(job)) {
-          return { error: `该任务 (${targetId}) 不涉及记忆操作，不在 yaoyao 接管范围内` };
+          return toContent({ error: `该任务 (${targetId}) 不涉及记忆操作，不在 yaoyao 接管范围内` });
         }
 
         // Generate modified config (do NOT write to disk — user must confirm and restart gateway)
@@ -176,7 +181,7 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
           idx === jobIndex ? { ...j, enabled: false } : j
         );
 
-        return {
+        return toContent({
           message: `检测到与 yaoyao-memory 冲突的定时任务: "${task}"`,
           action: "请确认是否禁用该任务",
           originalJob: job,
@@ -189,10 +194,10 @@ export function createCronTool(api: OpenClawPluginApi): ToolRegistration {
             })),
           },
           instruction: "将上述 modifiedConfig.cron 替换 openclaw.json 中的 cron 数组，然后重启 OpenClaw gateway 生效",
-        };
+        });
       }
 
-      return { error: "Unknown action" };
+      return toContent({ error: "Unknown action" });
     }),
   };
 }

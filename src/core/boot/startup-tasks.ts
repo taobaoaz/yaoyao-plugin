@@ -43,7 +43,7 @@ export function runStartupTasks(
     if (cfg.enabled && allEntries.length > 0) {
       const result = runTextCompaction(
         allEntries.map(e => ({
-          id: String(e.id), text: (e.snippet ?? e.filename), category: "general" as const,
+          id: String(e.id), text: e.filename, category: "general" as const,
           importance: 0.5, timestamp: Date.now(), scope: "global",
         })),
         cfg,

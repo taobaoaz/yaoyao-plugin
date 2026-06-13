@@ -26,7 +26,7 @@ export function runStartupTasks(api, config, storage, store) {
         };
         if (cfg.enabled && allEntries.length > 0) {
             const result = runTextCompaction(allEntries.map(e => ({
-                id: String(e.id), text: (e.snippet ?? e.filename), category: "general",
+                id: String(e.id), text: e.filename, category: "general",
                 importance: 0.5, timestamp: Date.now(), scope: "global",
             })), cfg);
             if (result.clustersFound > 0) {

@@ -14,15 +14,18 @@ export function adaptEnvironment(api: OpenClawPluginApi): {
   logger: { info?: (msg: string) => void; error?: (msg: string) => void };
   config: Record<string, unknown>;
 } {
-  const env = detectEnvironment();
+  detectEnvironment(); // ensure side effects run
 
   return {
     type: "openclaw",
-    registerTool: (tool) => api.registerTool(tool as never),
+    registerTool: (tool) => {
+      // OpenClawPluginApi types registerTool with no params; use safe call to bypass type check
+      const fn = (api as unknown as { registerTool?: (t: unknown) => void }).registerTool;
+      if (typeof fn === "function") fn(tool);
+    },
     registerHook: (hook) => {
-      if ("registerHook" in api) {
-        (api as Record<string, unknown>).registerHook?.(hook);
-      }
+      const fn = (api as unknown as { registerHook?: (h: unknown) => void }).registerHook;
+      if (typeof fn === "function") fn(hook);
     },
     logger: api.logger || { info: console.log, error: console.error },
     config: (api.pluginConfig || {}) as Record<string, unknown>,
