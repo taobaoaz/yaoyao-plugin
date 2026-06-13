@@ -1,7 +1,7 @@
 {
   "name": "yaoyao-memory-plugin",
-  "version": "1.8.0",
-  "description": "Yaoyao Memory \u2014 4-layer AI memory system with FTS5 + sqlite-vec hybrid search, sentiment analysis, timeline, cloud backup, and topic trends. Minimal external deps (sqlite-vec).",
+  "version": "1.8.2",
+  "description": "Yaoyao Memory — 4-layer AI memory system with FTS5 + sqlite-vec hybrid search, sentiment analysis, timeline, cloud backup, and topic trends. Minimal external deps (sqlite-vec).",
   "type": "module",
   "main": "dist/index.js",
   "exports": {
@@ -82,7 +82,7 @@
         "mitigation": "Cloud tools require explicit credential configuration in ~/.openclaw/credentials/secrets.env"
       },
       "llm_suspicious": {
-        "reason": "Optional LLM API calls for memory extraction pipeline (L1\u2192L2\u2192L3). Only active when user configures llm.apiKey. No telemetry or data transmission without explicit configuration.",
+        "reason": "Optional LLM API calls for memory extraction pipeline (L1→L2→L3). Only active when user configures llm.apiKey. No telemetry or data transmission without explicit configuration.",
         "files": [
           "src/utils/llm-client.ts"
         ],
