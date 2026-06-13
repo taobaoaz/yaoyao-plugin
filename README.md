@@ -1,11 +1,11 @@
-# Yaoyao Memory Plugin v1.8.2
+# Yaoyao Memory Plugin v1.8.3
 
 > 摇摇 · 4 层 AI 记忆引擎 — FTS5 + sqlite-vec 混合检索、自动捕获、时间线、云备份、主题趋势。
 > v1.8.x：全面适配小艺 Claw 架构（环境/通道/技能/设备/安全），论文驱动的记忆增强，SmartVector 四信号融合 + Dual Process 情景缓存。
 
-[![Version](https://img.shields.io/badge/version-1.8.2-blue)](#)
-[![Tools](https://img.shields.io/badge/tools-38-green)](#-registered-tools)
-[![Tests](https://img.shields.io/badge/tests-610%20passing-brightgreen)](#-testing)
+[![Version](https://img.shields.io/badge/version-1.8.3-blue)](#)
+[![Tools](https://img.shields.io/badge/tools-38%20%2B%201%20hidden-orange)](#-registered-tools)
+[![Tests](https://img.shields.io/badge/tests-670%20passing-brightgreen)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518.0.0-339933)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -197,6 +197,36 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 | 36 | `memory_import_workspace` | 从 workspace 全量导入 |
 | 37 | `memory_trends` | 主题趋势（词频变化 / 上升 / 衰减） |
 | 38 | `memory_cloud_sync` | 云备份同步（SFTP / Samba / S3 / WebDAV） |
+
+---
+
+## 🧪 测试功能（Hidden · 默认关闭）
+
+> **配套隐藏声明**：本节列出的工具处于测试状态，**默认不在 runtime 注册，也不会出现在上文「已注册工具」主表里**。只有当你在 `openclaw.json` 里把对应配置块的 `enabled` 显式置为 `true`，工具才会被注册、才会在主表里被计入。
+>
+> 上方 badge `tools-38 + 1 hidden` 中「+1 hidden」指的就是这一节列出的测试工具；主表 38 个始终是默认交付。
+
+| # | 工具 | 触发配置 | 状态 | 说明 |
+|---|---|---|---|---|
+| 🧪 1 | `memory_multimodal` | `config.multimodal.enabled = true` | 测试 | 多模态记忆（image / audio / video），仅在显式开启后注册 |
+
+**启用方式（仅在你确认需要时开启）**
+
+```jsonc
+// openclaw.json
+{
+  "multimodal": {
+    "enabled": true,
+    "storageDir": "~/.openclaw/workspace/memory/multimodal",
+    "maxFileSizeMb": 50
+  }
+}
+```
+
+**配套规则**
+
+- `enabled` 默认 `false`，不开启时插件行为与 v1.8.x 完全一致
+- 测试功能不进入主表、不计入默认工具数、不参与核心契约回归
 
 ---
 
