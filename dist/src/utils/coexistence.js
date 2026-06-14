@@ -5,12 +5,20 @@
  * yaoyao's behavior accordingly. Detection is config + filesystem based,
  * not tied to any specific platform variant.
  *
- * v1.7.9+: XiaoYi-specific detection removed. Uses generic signals:
- *   1. openclaw.json slots.memory ownership
- *   2. UDS socket file presence
- *   3. Shared memory segment presence
+ * History:
+ *   v1.7.9: Stripped the XiaoYi-specific adapter (entry/xiaoyi-adapter.ts)
+ *            and XiaoYi-flavored detection branches. Detection is now
+ *            platform-agnostic.
+ *   v1.8.0: Added generic claw-core coexistence signals (gspd_memory
+ *            plugin presence, core_skills/ directory with claw-core
+ *            skills). These happen to fire on XiaoYi environments but
+ *            are not XiaoYi-specific — they detect any claw-core.
  *
- * v1.8.0: Added gspd_memory + core_skills detection for XiaoYi environments.
+ * Active generic signals:
+ *   1. openclaw.json slots.memory ownership
+ *   2. openclaw.json plugins.entries (claw-core / gspd_memory)
+ *   3. UDS socket file presence
+ *   4. core_skills/ directory with claw-core skills
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -101,7 +109,7 @@ function _checkUdsSocket() {
     }
     return false;
 }
-/** v1.8.0: Check for core_skills directory (XiaoYi claw-core strong signal) */
+/** v1.8.0: Check for core_skills directory (generic claw-core signal) */
 function _checkCoreSkills() {
     try {
         const possibleRoots = [
@@ -144,7 +152,7 @@ function _doDetect() {
             gatewayAlive: true,
         };
     }
-    // v1.8.0: Check for core_skills (XiaoYi claw-core signal)
+    // v1.8.0: Check for core_skills (generic claw-core signal)
     if (_checkCoreSkills()) {
         return {
             mode: 'coexist',
