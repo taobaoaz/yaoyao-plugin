@@ -8,7 +8,7 @@
  * - Peripheral (decay floor 0.5): Low-priority or aging memories
  */
 /**
- * v1.9.0 鈥?Adaptive TTL by MemoryType (factual / episodic /
+ * v1.9.0 — Adaptive TTL by MemoryType (factual / episodic /
  * procedural / emotional / etc). Each memory type gets its own
  * half-life in days; the cleaner uses this when it scores decay
  * instead of the single-tier default. The map is exported so

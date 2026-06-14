@@ -65,7 +65,7 @@ function markMigrationDone(db) {
  */
 export function runMigrationV190(opts) {
     const legacyPath = resolveLegacyDbPath(opts.memoryDir);
-    const targetPath = resolveTargetDbPath();
+    const targetPath = opts.targetPath ?? resolveTargetDbPath();
     const noop = (reason) => ({
         ran: false,
         reason,
@@ -166,11 +166,21 @@ function copyTableIfPresent(db, src, dst) {
     if (!exists)
         return 0;
     // Use INSERT OR IGNORE so re-runs (e.g. partial migration + retry)
-    // are safe. We assume primary key uniqueness holds across both
-    // tables — true for `yaoyao_meta.id` (autoinc) and
-    // `yaoyao_tags.id`. For FTS5 content tables the `rowid` matches
-    // `yaoyao_meta.id`; if the row already exists the ignore is a no-op.
-    const sql = `INSERT OR IGNORE INTO ${dst} SELECT * FROM legacy.${src}`;
+    // are safe. v1.9.0 added new columns to yaoyao_meta (meta,
+    // access_count, tier, importance) that do not exist in legacy
+    // memory_meta. SELECT * would then blow up with a column-count
+    // mismatch, so we explicitly intersect the column lists of the
+    // source and destination tables. New columns keep their default
+    // values (e.g. meta = NULL, importance = 0.5).
+    const srcCols = db.prepare(`PRAGMA legacy.table_info("${src}")`).all()
+        .map(r => r.name);
+    const dstCols = db.prepare(`PRAGMA table_info("${dst}")`).all()
+        .map(r => r.name);
+    const common = srcCols.filter(n => dstCols.includes(n));
+    if (common.length === 0)
+        return 0;
+    const colList = common.map(n => `"${n}"`).join(", ");
+    const sql = `INSERT OR IGNORE INTO ${dst} (${colList}) SELECT ${colList} FROM legacy.${src}`;
     try {
         db.exec(sql);
         // Approximate "rows moved" by counting source rows (best-effort).
