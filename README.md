@@ -5,7 +5,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.9.0-blue)](#)
 [![Tools](https://img.shields.io/badge/tools-38%20%2B%201%20hidden-orange)](#-registered-tools)
-[![Tests](https://img.shields.io/badge/tests-761%20passing-brightgreen)](#-testing)
+[![Tests](https://img.shields.io/badge/tests-768%20passing-brightgreen)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518.0.0-339933)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -307,14 +307,15 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 ## 🧪 测试
 
 ```bash
-npm test                  # 全部 761 单元测试
+npm test                  # 全部 768 单元测试（pretest 钩子自动跑 dist-check）
 npm run test:ci           # CI 子集（排除 parallel）
 npm run test:db           # 仅 DB 层
 npm run test:store        # 仅 memory-store
+npm run dist-check        # 验证 dist/ 与 src/ 同步（mtime + 文件存在）
 npm run benchmark         # 性能基准
 ```
 
-**当前状态：761 测试全部通过**，覆盖 186 个测试模块，覆盖率重点模块包括：
+**当前状态：768 测试全部通过**，覆盖 186 个测试模块，覆盖率重点模块包括：
 
 - SmartVector 多信号融合（BM25 + 向量 + 时间衰减 + 重要性）
 - 七因子价值函数（7 个独立因子 + 加权综合）
@@ -329,6 +330,7 @@ npm run benchmark         # 性能基准
 - SRMU 三层守卫（RelevanceGate / SemanticShiftDetector / MemoryBackprop）
 - MemGAS 多粒度（GMM 聚类 + 熵路由）
 - SkVM 工具调用缓存
+- dist-check 同步校验（mtime + 文件存在）
 
 ---
 
@@ -378,7 +380,7 @@ npm run benchmark         # 性能基准
 - [x] v1.8.2-hotfix — TypeScript 严格模式零错误 + 4 项功能 bug 修复
 - [x] v1.8.3 — 多模态记忆（hidden，image / audio / video）
 - [x] v1.8.4 — 本地 OpenClaw SDK stub，42 模块脱离外部包依赖
-- [x] 39 个工具 + 4 个 hook + 761 单元测试
+- [x] 38 个工具 + 4 个 hook + 768 单元测试
 
 ### ✅ v1.9.0（已发）
 - [x] L2 接管：DB 统一到 `main.sqlite`（`yaoyao_` 前缀，3 视图，一次性幂等迁移）
@@ -421,7 +423,7 @@ npm run benchmark         # 性能基准
 
 欢迎 PR。所有改动请附带：
 
-1. `npm test` 全通过（761 测试）
+1. `npm test` 全通过（768 测试）
 2. `npm run build` 零错误
 3. 新功能对应单元测试
 4. CHANGELOG.md 更新
