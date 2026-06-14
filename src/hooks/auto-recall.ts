@@ -65,6 +65,12 @@ export function registerRecallHook(
   });
   const stats = globalRetrievalStats;
 
+  // v1.8.x fix: persistent across-call state for repeat-query detection.
+  // checkRepeatQuery/recordRecentQuery need to mutate a shared array so they
+  // can spot a query that has been tried before. (Previously this was a
+  // local array inside doPostProcess and the check was effectively dead.)
+  const recentQueries: Array<{ query: string; maxResults: number; minScore: number; hitCount: number }> = [];
+
   const handler = async (event: unknown, ctx: unknown) => {
     const recallAsync = async () => {
       try {
@@ -79,7 +85,8 @@ export function registerRecallHook(
 
         const e = event as Record<string, unknown>;
         const userMessage = e?.message || e?.prompt;
-        if (!userMessage || isTrivial(userMessage as string)) return;
+        const trivialCheck = isTrivial(userMessage as string);
+        if (!userMessage || trivialCheck.isTrivial) return;
 
         const userText = String(userMessage);
 
@@ -129,6 +136,7 @@ export function registerRecallHook(
           results, mode, userText, cfg as PostProcessConfig,
           scopeManager, agentId, intent,
           resultCache, stats, startMs, audit, sessionKey, api.logger, db,
+          recentQueries,
         );
         return ppResult;
       } catch (err) {

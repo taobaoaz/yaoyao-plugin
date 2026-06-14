@@ -51,12 +51,16 @@ export function createEmbeddingService(config: EmbeddingConfig) {
   async function acquire() {
     if (_inflight < 2) { _inflight++; return; }
     await new Promise<void>((r) => _queue.push(r));
-    _inflight++;
+    // Slot transferred from releaser; do not increment again or count drifts.
   }
   function release() {
-    _inflight--;
     const next = _queue.shift();
-    if (next) next();
+    if (next) {
+      // Hand the slot to the next waiter; _inflight stays the same.
+      next();
+    } else {
+      _inflight--;
+    }
   }
 
   /**

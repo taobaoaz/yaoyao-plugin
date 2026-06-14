@@ -243,7 +243,7 @@ export function registerCaptureHook(
       });
 
       // Build L0 markdown entry string
-      const entry = `\\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;
+      const entry = `\n### ${timestamp}\n**User:** ${userContent}${corrCheck.isCorrection ? " [纠正]" : ""}\n**AI:** ${displayAsst}${riskTag}\n`;
 
       // Push to debouncer instead of writing directly
       // If another capture for same session comes within debounceMs, they merge

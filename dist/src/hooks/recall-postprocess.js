@@ -3,6 +3,8 @@ import { INTENT_WEIGHTS } from "../core/search/intent.js";
 import { applyTimeDecay, applyScoring, applyDiversitySampling, applyMmrDiversity, filterByScope, accumulateKeywords, runRecallFilter, checkRepeatQuery, recordRecentQuery, } from "./recall-utils.js";
 import { buildRecallContext, buildHookResult, makeSimpleTrace } from "./recall-formatter.js";
 export async function doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, logger, db) {
+    // Optional trailing arg: persistent recent-queries array owned by caller.
+    // Older callers omit it; we fall back to a throwaway local array.
     let processed = filterByScope(results, scopeManager, agentId);
     processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode, cfg.fadeMemAccessFactor);
     processed = applyScoring(processed, userText, cfg.enableFourSignal, cfg.fourSignalWeights);
@@ -37,18 +39,19 @@ export async function doPostProcess(results, mode, userText, cfg, scopeManager, 
             return;
         }
     }
-    const confidence = scoreConfidenceSupport(userText, userText);
+    const memoryTexts = limited.map(r => (r.snippet || r.asst_text || "")).join("\n");
+    const confidence = scoreConfidenceSupport(memoryTexts, userText);
     if (confidence.score < cfg.scoreThreshold) {
         logger.debug?.(`[yaoyao-memory:recall] Confidence ${confidence.score.toFixed(2)} < threshold ${cfg.scoreThreshold}`);
         return;
     }
     const filtered = await runRecallFilter(limited, userText, cfg);
-    const recentQueries = [];
-    const repeatNote = checkRepeatQuery(userText, cfg.maxResults, cfg.scoreThreshold, recentQueries);
+    const recentQueriesRef = arguments[14] ?? [];
+    const repeatNote = checkRepeatQuery(userText, cfg.maxResults, cfg.scoreThreshold, recentQueriesRef);
     if (repeatNote) {
         logger.debug?.(`[yaoyao-memory:recall] ${repeatNote}`);
     }
-    recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length, recentQueries);
+    recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length, recentQueriesRef);
     accumulateKeywords(sessionKey, userText, cfg.maxContextKeywords);
     if (filtered.length > 0) {
         resultCache.set(`${agentId || "default"}:${userText.slice(0, 120)}`, filtered);

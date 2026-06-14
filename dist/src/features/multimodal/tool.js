@@ -102,8 +102,8 @@ export function createMultimodalTool(cfg) {
                 const limit = params.limit ? Number(params.limit) : 10;
                 const r = processor.search(query, { type, limit });
                 if (r.length === 0)
-                    return { content: [{ type: "text", text: "🔍 没有匹配 \"\" + query + \"\" 的多模态记忆" }] };
-                const lines = ["🔍 多模态搜索结果 (\"\" + query + \"\", " + r.length + " 条):"];
+                    return { content: [{ type: "text", text: `🔍 没有匹配 "${query}" 的多模态记忆` }] };
+                const lines = [`🔍 多模态搜索结果 ("${query}", ${r.length} 条):`];
                 for (const e of r)
                     lines.push(processor.formatEntry(e, e.snippet));
                 return { content: [{ type: "text", text: lines.join("\n") }] };

@@ -24,6 +24,13 @@ import {
 import { buildRecallContext, buildHookResult, makeSimpleTrace } from "./recall-formatter.ts";
 import type { SimpleScopeManager } from "../utils/scope-manager.ts";
 
+export interface RecentQueryRecord {
+  query: string;
+  maxResults: number;
+  minScore: number;
+  hitCount: number;
+}
+
 export interface PostProcessConfig extends RecallThresholds {
   enableIntentDriven: boolean;
   enableMmr: boolean;
@@ -45,6 +52,7 @@ export async function doPostProcess(
   sessionKey: string,
   logger: { debug?: (msg: string) => void; error?: (msg: string) => void },
   db?: DBBridge,
+  recentQueries?: RecentQueryRecord[],
 ): Promise<unknown | undefined> {
   let processed = filterByScope(results, scopeManager, agentId);
   processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode, cfg.fadeMemAccessFactor);
@@ -83,7 +91,8 @@ export async function doPostProcess(
     }
   }
 
-  const confidence = scoreConfidenceSupport(userText, userText);
+  const memoryTexts = limited.map(r => (r.snippet || r.asst_text || "")).join("\n");
+  const confidence = scoreConfidenceSupport(memoryTexts, userText);
   if (confidence.score < cfg.scoreThreshold) {
     logger.debug?.(`[yaoyao-memory:recall] Confidence ${confidence.score.toFixed(2)} < threshold ${cfg.scoreThreshold}`);
     return;
@@ -91,12 +100,15 @@ export async function doPostProcess(
 
   const filtered = await runRecallFilter(limited, userText, cfg);
 
-  const recentQueries: Array<{ query: string; maxResults: number; minScore: number; hitCount: number }> = [];
-  const repeatNote = checkRepeatQuery(userText, cfg.maxResults, cfg.scoreThreshold, recentQueries);
+  // Caller owns the recent-queries array so repeat detection persists across
+  // hook invocations. Creating a fresh array here (the old behavior) made the
+  // repeat-query check dead code.
+  const recentQueriesRef = recentQueries ?? [];
+  const repeatNote = checkRepeatQuery(userText, cfg.maxResults, cfg.scoreThreshold, recentQueriesRef);
   if (repeatNote) {
     logger.debug?.(`[yaoyao-memory:recall] ${repeatNote}`);
   }
-  recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length, recentQueries);
+  recordRecentQuery(userText, cfg.maxResults, cfg.scoreThreshold, filtered.length, recentQueriesRef);
 
   accumulateKeywords(sessionKey, userText, cfg.maxContextKeywords);
 

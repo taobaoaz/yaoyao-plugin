@@ -105,6 +105,19 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
     try { fs.chmodSync(fp, 0o600); } catch { /* ignore on Windows */ }
   }
 
+  /**
+   * Heuristic importance score (0–1) for a memory file.
+   * 70% recency (30-day half-life) + 30% size (log scale, cap 10 MB).
+   * Surfaces a non-zero value so list/tool sort-by-score is no longer
+   * a silent no-op.
+   */
+  function _estimateImportance(modifiedMs: number, sizeBytes: number): number {
+    const ageDays = Math.max(0, (Date.now() - modifiedMs) / (1000 * 60 * 60 * 24));
+    const recency = Math.max(0, 1 - ageDays / 30);
+    const size = Math.min(1, Math.log10(sizeBytes + 1) / 5);
+    return Math.round((recency * 0.7 + size * 0.3) * 100) / 100;
+  }
+
   /** List all memory files in the directory. */
   function listFiles(): MemoryEntry[] {
     ensureDir(baseDir);
@@ -126,6 +139,7 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
           date: /^\d{4}-\d{2}-\d{2}/.test(f) ? f.slice(0, 10) : undefined,
           size: stat.size,
           modified: stat.mtimeMs,
+          importance: _estimateImportance(stat.mtimeMs, stat.size),
         });
       } catch {
         // skip unreadable

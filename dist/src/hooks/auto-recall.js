@@ -24,6 +24,8 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
         ttlMs: baseCfg.cacheTTL,
     });
     const stats = globalRetrievalStats;
+    // v1.8.x fix: persistent across-call state for repeat-query detection.
+    const recentQueries = [];
     const handler = async (event, ctx) => {
         const recallAsync = async () => {
             try {
@@ -36,7 +38,8 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
                 const cfg = applyAgentOverrides(baseCfg, agentId);
                 const e = event;
                 const userMessage = e?.message || e?.prompt;
-                if (!userMessage || isTrivial(userMessage))
+                const trivialCheck = isTrivial(userMessage);
+                if (!userMessage || trivialCheck.isTrivial)
                     return;
                 const userText = String(userMessage);
                 // v1.8.2 (Dual Process): Check episodic cache first — fast exact/near-match for recent context
@@ -76,7 +79,7 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
                 };
                 const { results, mode } = await doRecallSearch(db, primaryQuery, searchCfg, embedding, api.logger);
                 // ── Post-processing pipeline ──
-                const ppResult = await doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, api.logger, db);
+                const ppResult = await doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, api.logger, db, recentQueries);
                 return ppResult;
             }
             catch (err) {

@@ -47,13 +47,17 @@ export function createEmbeddingService(config) {
             return;
         }
         await new Promise((r) => _queue.push(r));
-        _inflight++;
+        // Slot transferred from releaser; do not increment again or count drifts.
     }
     function release() {
-        _inflight--;
         const next = _queue.shift();
-        if (next)
+        if (next) {
+            // Hand the slot to the next waiter; _inflight stays the same.
             next();
+        }
+        else {
+            _inflight--;
+        }
     }
     /**
      * Generate an embedding vector for the given text.

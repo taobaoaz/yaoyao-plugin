@@ -12,14 +12,14 @@ export function createListTool(store: MemoryStore): ToolRegistration {
     id: "memory_list",
     name: "memory_list",
     label: "Memory List",
-    description: "List available memory files with metadata (type, date, size, modified time).",
+    description: "List available memory files with metadata (type, date, size, modified time, importance).",
     parameters: {
       type: "object",
       properties: {
         type: { type: "string", enum: ["daily", "memory", "archive"], description: "Filter by file type" },
         limit: { type: "number", description: "Max results (default: 20)", default: 20 },
         offset: { type: "number", description: "Skip N results (default: 0)", default: 0 },
-        sort: { type: "string", enum: ["score", "date"], description: "Sort by score or date (default: date)", default: "date" },
+        sort: { type: "string", enum: ["score", "date"], description: "Sort by importance score (recency + size) or date (default: date)", default: "date" },
       },
     },
     execute: withErrorHandling(async (_id: string, params: Record<string, unknown>) => {

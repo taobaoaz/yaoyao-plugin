@@ -536,4 +536,22 @@ describe("multimodal/tool", () => {
     const out = await exec(t, { action: "search", query: "rainbow" });
     assert.match(out, /rainbow/);
   });
+
+  it("search header embeds actual query text (regression: literal 'query' identifier)", async () => {
+    const t = make();
+    await exec(t, { action: "save", type: "image", description: "red apple", sourceType: "url", source: "https://e.com/a" });
+    const out = await exec(t, { action: "search", description: "apple" });
+    // Header must contain the user's query text inside quotes, not the literal
+    // JavaScript identifier `query` or the concatenation operator `+`.
+    assert.match(out, /\("apple", 1 条\)/);
+    assert.doesNotMatch(out, /\+\s*query\s*\+/);
+    assert.doesNotMatch(out, /""\s*\+\s*query\s*\+\s*""/);
+  });
+
+  it("search no-match header embeds actual query text", async () => {
+    const t = make();
+    const out = await exec(t, { action: "search", description: "missing-term" });
+    assert.match(out, /没有匹配 "missing-term" 的多模态记忆/);
+    assert.doesNotMatch(out, /\+\s*query\s*\+/);
+  });
 });
