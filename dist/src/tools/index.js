@@ -20,6 +20,7 @@ import { createTimelineTool } from "../features/timeline/tool.js";
 import { createTrendsTool } from "../features/trends/tool.js";
 import { createQualityTool } from "../features/quality/tool.js";
 import { createRetainTool } from "../features/retain/tool.js";
+import { createAnalyzeTool } from "../features/analyze/tool.js";
 import { createGraphTool } from "../features/graph/tool.js";
 /* ── Multi-signal search (mem0 v3 style) ────────── */
 import { createMultiSignalSearchTool } from "../features/multi-signal/tool.js";
@@ -71,7 +72,9 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     /* ── v1.9.0: Auto-resolve conflict pairs based on recency + source + access + importance ── */
     createAutoResolveTool(db), 
     /* ── v1.8.0: Workspace file access ── */
-    createWorkspaceTool(store));
+    createWorkspaceTool(store), 
+    /* ── v1.8.3: memory_analyze placeholder (redirects to yaoyao-soul plugin) ── */
+    createAnalyzeTool());
     /* ── Optional tools (gated by FeatureRegistry) ── */
     // Enhanced search — uses SearchPipeline, no longer needs raw embedding
     tools.push(createEnhancedSearchTool(pipeline));

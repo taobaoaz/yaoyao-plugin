@@ -3,7 +3,7 @@
  *
  * 向 .yaoyoa.db 写入 ~500 条模拟记忆数据
  *
- * 运行: node src/__tests__/seed-benchmark.ts
+ * 运行: node --experimental-strip-types scripts/seed-benchmark.ts
  */
 import { createRequire } from "node:module";
 import path from "node:path";

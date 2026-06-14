@@ -3,7 +3,7 @@
  *
  * Measures search latency, FTS5 vs LIKE fallback, vector storage, and hook overhead.
  *
- * Run: node --experimental-strip-types src/__tests__/benchmark.ts
+ * Run: node --experimental-strip-types scripts/benchmark.ts
  */
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";

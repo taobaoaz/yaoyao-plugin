@@ -53,7 +53,9 @@
     "extensions": [
       "./dist/index.js",
       "./dist/src/hooks/auto-capture.js",
-      "./dist/src/hooks/auto-recall.js"
+      "./dist/src/hooks/auto-recall.js",
+      "./dist/src/hooks/command-new.js",
+      "./dist/src/hooks/heartbeat-recall.js"
     ],
     "compat": {
       "pluginApi": ">=2026.4.2"

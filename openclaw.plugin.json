@@ -453,6 +453,7 @@
       "memory_import",
       "memory_import_oc",
       "memory_import_workspace",
+      "memory_judge",
       "memory_conflicts",
       "memory_auto_resolve",
       "memory_list",

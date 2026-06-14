@@ -152,6 +152,8 @@ export function registerMemoryTools(
 
     /* ── v1.8.0: Workspace file access ── */
     createWorkspaceTool(store),
+    /* ── v1.8.3: memory_analyze placeholder (redirects to yaoyao-soul plugin) ── */
+    createAnalyzeTool(),
   );
 
   /* ── Optional tools (gated by FeatureRegistry) ── */

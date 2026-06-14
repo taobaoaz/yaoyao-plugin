@@ -4,7 +4,7 @@
 > v1.8.x：全面适配小艺 Claw 架构（环境/通道/技能/设备/安全），论文驱动的记忆增强，SmartVector 四信号融合 + Dual Process 情景缓存 + 多模态记忆（hidden，测试中）。
 
 [![Version](https://img.shields.io/badge/version-1.9.0-blue)](#)
-[![Tools](https://img.shields.io/badge/tools-38%20%2B%201%20hidden-orange)](#-registered-tools)
+[![Tools](https://img.shields.io/badge/tools-40%20%2B%201%20hidden-orange)](#-registered-tools)
 [![Tests](https://img.shields.io/badge/tests-768%20passing-brightgreen)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518.0.0-339933)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
@@ -204,7 +204,7 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 
 > **配套隐藏声明**：本节列出的工具处于测试状态，**默认不在 runtime 注册，也不会出现在上文「已注册工具」主表里**。只有当你在 `openclaw.json` 里把对应配置块的 `enabled` 显式置为 `true`，工具才会被注册、才会在主表里被计入。
 >
-> 上方 badge `tools-38 + 1 hidden` 中「+1 hidden」指的就是这一节列出的测试工具；主表 38 个始终是默认交付。
+> 上方 badge `tools-40 + 1 hidden` 中「+1 hidden」指的就是这一节列出的测试工具；主表 40 个始终是默认交付。
 
 | # | 工具 | 触发配置 | 状态 | 说明 |
 |---|---|---|---|---|
@@ -380,7 +380,7 @@ npm run benchmark         # 性能基准
 - [x] v1.8.2-hotfix — TypeScript 严格模式零错误 + 4 项功能 bug 修复
 - [x] v1.8.3 — 多模态记忆（hidden，image / audio / video）
 - [x] v1.8.4 — 本地 OpenClaw SDK stub，42 模块脱离外部包依赖
-- [x] 38 个工具 + 4 个 hook + 768 单元测试
+- [x] 40 个工具 + 4 个 hook + 768 单元测试
 
 ### ✅ v1.9.0（已发）
 - [x] L2 接管：DB 统一到 `main.sqlite`（`yaoyao_` 前缀，3 视图，一次性幂等迁移）
