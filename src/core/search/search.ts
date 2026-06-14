@@ -20,9 +20,9 @@ export function searchFTS(db: UnifiedDB, query: string, limit: number): SearchRe
   if (!Number.isFinite(limit) || limit < 1) limit = 10;
 
   const sql = `SELECT m.id, m.date, m.user_text, m.asst_text, f.rank AS score
-    FROM memory_fts f
-    JOIN memory_meta m ON f.rowid = m.id
-    WHERE memory_fts MATCH ?
+    FROM yaoyao_fts f
+    JOIN yaoyao_meta m ON f.rowid = m.id
+    WHERE yaoyao_fts MATCH ?
     ORDER BY f.rank
     LIMIT ?`;
   const rows = db.prepare(sql).all(query, limit);

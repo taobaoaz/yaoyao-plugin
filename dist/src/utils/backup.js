@@ -1,11 +1,15 @@
 /**
  * Backup Manager — creates and restores snapshots of memory data.
+ *
+ * v1.9.0: Accepts an explicit `dbPath` so the unified DB at
+ * `~/.openclaw/memory/main.sqlite` can be backed up. Falls back to
+ * the legacy `baseDir/.yaoyao.db` location for backward compatibility.
  */
 import path from "node:path";
 import fs from "node:fs";
 import { createBackup } from "./backup-create.js";
 import { restoreBackup } from "./backup-restore.js";
-export function createBackupManager(baseDir, logger) {
+export function createBackupManager(baseDir, logger, dbPath) {
     const backupDir = path.join(baseDir, ".backups");
     const log = (msg) => logger?.info?.(`[yaoyao-memory:backup] ${msg}`);
     function ensureDir(dir) {
@@ -13,7 +17,7 @@ export function createBackupManager(baseDir, logger) {
             fs.mkdirSync(dir, { recursive: true });
     }
     return {
-        createBackup: (mode = "full") => createBackup(baseDir, backupDir, mode, logger),
+        createBackup: (mode = "full") => createBackup(baseDir, backupDir, mode, logger, dbPath),
         listBackups: () => {
             try {
                 ensureDir(backupDir);

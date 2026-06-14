@@ -39,7 +39,7 @@ export class SqliteVecBackend {
                 db.enableLoadExtension(true);
                 sqliteVec.load(db._raw || db);
             }
-            db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
+            db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_vec USING vec0(" +
                 `embedding float[${this.dimensions}]` +
                 ")");
             db.exec("CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
@@ -75,8 +75,8 @@ export class SqliteVecBackend {
             const jsonArr = "[" + Array.from(normalized).join(",") + "]";
             this.db.exec("BEGIN");
             try {
-                this.db.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
-                this.db.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+                this.db.prepare("DELETE FROM yaoyao_vec WHERE rowid = ?").run(metaId);
+                this.db.prepare("INSERT INTO yaoyao_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
                 this.db.exec("COMMIT");
             }
             catch (txErr) {
@@ -99,8 +99,8 @@ export class SqliteVecBackend {
         try {
             const jsonArr = "[" + Array.from(embedding).join(",") + "]";
             const stmt = this.db.prepare("SELECT v.rowid, m.date, m.user_text, m.asst_text, v.distance " +
-                "FROM memory_vec v " +
-                "JOIN memory_meta m ON v.rowid = m.id " +
+                "FROM yaoyao_vec v " +
+                "JOIN yaoyao_meta m ON v.rowid = m.id " +
                 "WHERE v.embedding MATCH ? AND k = ?");
             const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), this.searchMaxLimit));
             return rows.map(row => {
@@ -124,12 +124,12 @@ export class SqliteVecBackend {
             return [];
         }
     }
-    /** Delete vectors whose rowid no longer exists in memory_meta */
+    /** Delete vectors whose rowid no longer exists in yaoyao_meta */
     deleteOrphans() {
         if (!this.isAvailable || !this.db)
             return;
         try {
-            this.db.exec("DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)");
+            this.db.exec("DELETE FROM yaoyao_vec WHERE NOT EXISTS (SELECT 1 FROM yaoyao_meta WHERE yaoyao_meta.id = yaoyao_vec.rowid)");
         }
         catch { /* best effort */ }
     }
@@ -137,7 +137,7 @@ export class SqliteVecBackend {
         if (!this.isAvailable || !this.db)
             return 0;
         try {
-            const row = this.db.prepare("SELECT COUNT(*) as c FROM memory_vec").get();
+            const row = this.db.prepare("SELECT COUNT(*) as c FROM yaoyao_vec").get();
             return row?.c ?? 0;
         }
         catch {

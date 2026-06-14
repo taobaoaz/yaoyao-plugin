@@ -31,19 +31,19 @@ describe("ensureSchema", () => {
     assert.doesNotThrow(() => ensureSchema(db));
   });
 
-  it("creates memory_meta table", () => {
-    const r = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_meta'").get() as any;
-    assert.ok(r && r.name === "memory_meta");
+  it("creates yaoyao_meta table", () => {
+    const r = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='yaoyao_meta'").get() as any;
+    assert.ok(r && r.name === "yaoyao_meta");
   });
 
-  it("creates memory_fts virtual table", () => {
-    const r = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_fts'").get() as any;
+  it("creates yaoyao_fts virtual table", () => {
+    const r = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='yaoyao_fts'").get() as any;
     assert.ok(r);
   });
 
-  it("creates memory_tags and memory_config tables", () => {
-    const t = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_tags'").get() as any;
-    const c = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_config'").get() as any;
+  it("creates yaoyao_tags and yaoyao_config tables", () => {
+    const t = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='yaoyao_tags'").get() as any;
+    const c = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='yaoyao_config'").get() as any;
     assert.ok(t);
     assert.ok(c);
   });

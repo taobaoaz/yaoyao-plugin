@@ -7,6 +7,7 @@ import { detectLegacy, cleanupOldSkills } from "../../entry/migration.js";
 import { createMemoryCleaner, getNextCleanTimeMs } from "../../utils/memory-cleaner.js";
 import { SimpleScopeManager } from "../../utils/scope-manager.js";
 import { resolveSessionSearchDirs, readCrossSessionMemories } from "../../utils/session-recovery.js";
+import { runMigrationV190 } from "../../storage/migration-v190.js";
 export function stepInstallCheck(api, config) {
     const cap = runInstallCheck();
     api.logger.info?.(`[yaoyao-memory] ${formatInstallCheck(cap)}`);
@@ -64,6 +65,24 @@ export function stepMigration(api, config) {
     if (m.hasLegacy)
         m.bannerLines.forEach(l => api.logger.warn?.(`[yaoyao-memory:migration] ${l}`));
     cleanupOldSkills(api.logger);
+    // v1.9.0: also run the DB-unification migration. This is independent
+    // of the v1.4.x→v1.5.0 detection above; it only touches the SQLite
+    // file (legacy `.yaoyao.db` → shared `main.sqlite`) and is fully
+    // idempotent.
+    try {
+        const memoryDir = config.memoryDir || ".";
+        const res = runMigrationV190({ memoryDir, logger: api.logger });
+        if (res.ran) {
+            api.logger.info?.(`[yaoyao-memory:migrate-v190] Done: ${res.rowsMoved} rows from ${res.legacyPath} → ${res.targetPath}` +
+                (res.backupPath ? ` (backup: ${res.backupPath})` : ""));
+        }
+        else {
+            api.logger.debug?.(`[yaoyao-memory:migrate-v190] Skipped: ${res.reason}`);
+        }
+    }
+    catch (err) {
+        api.logger.warn?.(`[yaoyao-memory:migrate-v190] Unexpected failure: ${err.message}`);
+    }
 }
 export function stepCleanupScheduler(api, config, storage) {
     let timer = null;

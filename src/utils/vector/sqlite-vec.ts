@@ -51,7 +51,7 @@ export class SqliteVecBackend implements VectorBackend {
       }
 
       db.exec(
-        "CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(" +
+        "CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_vec USING vec0(" +
           `embedding float[${this.dimensions}]` +
         ")"
       );
@@ -93,8 +93,8 @@ export class SqliteVecBackend implements VectorBackend {
 
       this.db.exec("BEGIN");
       try {
-        this.db.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
-        this.db.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+        this.db.prepare("DELETE FROM yaoyao_vec WHERE rowid = ?").run(metaId);
+        this.db.prepare("INSERT INTO yaoyao_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
         this.db.exec("COMMIT");
       } catch (txErr: unknown) {
         try { this.db.exec("ROLLBACK"); } catch { /* ignore secondary failure */ }
@@ -113,8 +113,8 @@ export class SqliteVecBackend implements VectorBackend {
       const jsonArr = "[" + Array.from(embedding).join(",") + "]";
       const stmt = this.db.prepare(
         "SELECT v.rowid, m.date, m.user_text, m.asst_text, v.distance " +
-        "FROM memory_vec v " +
-        "JOIN memory_meta m ON v.rowid = m.id " +
+        "FROM yaoyao_vec v " +
+        "JOIN yaoyao_meta m ON v.rowid = m.id " +
         "WHERE v.embedding MATCH ? AND k = ?"
       );
       const rows = stmt.all(jsonArr, Math.min(Math.max(limit, 1), this.searchMaxLimit));
@@ -140,12 +140,12 @@ export class SqliteVecBackend implements VectorBackend {
     }
   }
 
-  /** Delete vectors whose rowid no longer exists in memory_meta */
+  /** Delete vectors whose rowid no longer exists in yaoyao_meta */
   deleteOrphans(): void {
     if (!this.isAvailable || !this.db) return;
     try {
       this.db.exec(
-        "DELETE FROM memory_vec WHERE NOT EXISTS (SELECT 1 FROM memory_meta WHERE memory_meta.id = memory_vec.rowid)"
+        "DELETE FROM yaoyao_vec WHERE NOT EXISTS (SELECT 1 FROM yaoyao_meta WHERE yaoyao_meta.id = yaoyao_vec.rowid)"
       );
     } catch { /* best effort */ }
   }
@@ -153,7 +153,7 @@ export class SqliteVecBackend implements VectorBackend {
   getVectorCount(): number {
     if (!this.isAvailable || !this.db) return 0;
     try {
-      const row = this.db.prepare("SELECT COUNT(*) as c FROM memory_vec").get() as { c: number } | undefined;
+      const row = this.db.prepare("SELECT COUNT(*) as c FROM yaoyao_vec").get() as { c: number } | undefined;
       return row?.c ?? 0;
     } catch { return 0; }
   }

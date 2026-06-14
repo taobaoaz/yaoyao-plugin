@@ -60,6 +60,7 @@ import { createHealthcheckTool } from "../features/healthcheck/tool.ts";
 
 /* ── Conflict detection ─────────────────────────── */
 import { createJudgeTool, createConflictsTool } from "../features/conflict/tool.ts";
+import { createAutoResolveTool } from "../features/auto-resolve/tool.ts";
 
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.ts";
@@ -146,6 +147,8 @@ export function registerMemoryTools(
     createBenchmarkTool(),
     createJudgeTool(db),
     createConflictsTool(db),
+    /* ── v1.9.0: Auto-resolve conflict pairs based on recency + source + access + importance ── */
+    createAutoResolveTool(db),
 
     /* ── v1.8.0: Workspace file access ── */
     createWorkspaceTool(store),

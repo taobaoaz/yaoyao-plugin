@@ -36,6 +36,7 @@ import { createRemindTool } from "../features/remind/tool.js";
 import { createHealthcheckTool } from "../features/healthcheck/tool.js";
 /* ── Conflict detection ─────────────────────────── */
 import { createJudgeTool, createConflictsTool } from "../features/conflict/tool.js";
+import { createAutoResolveTool } from "../features/auto-resolve/tool.js";
 /* ── Anti-hallucination ───────────────────────────── */
 import { createVerifyTool } from "../features/verify/tool.js";
 /* ── Telemetry ─────────────────────────────────────── */
@@ -64,9 +65,11 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     tools.push(createSearchTool(pipeline), createMultiSignalSearchTool(db, embedding), createMemoryCallTool(safeStorage, embedding), createGetTool(store, db), createListTool(store), createSearchTimelineTool(pipeline), createSaveTool(store, db, true), createNoteTool(store, db), createForgetTool(store, db), createTagTool(store, db), createBackupTool(store), createExportTool(db), createImportTool(store), createImportOCTool(store, db), createImportWorkspaceTool(store, db), createStatsTool(store, db), createTimelineTool(db), createTrendsTool(store), createRecommendTool(db, store.baseDir), createRemindTool(), createHealthcheckTool(), createCronTool(api), createTelemetryTool({
         enabled: process.env.YAOYAO_TELEMETRY !== "0",
         url: process.env.YAOYAO_TELEMETRY_URL,
-    }), 
+    }),
     /* ── Phase 1-5: Advanced memory features ── */
-    createGraphRelationTool(), createAtomicFactTool(), createAdaptiveSearchTool(), createSkillAnalyticsTool(), createBenchmarkTool(), createJudgeTool(db), createConflictsTool(db), 
+    createGraphRelationTool(), createAtomicFactTool(), createAdaptiveSearchTool(), createSkillAnalyticsTool(), createBenchmarkTool(), createJudgeTool(db), createConflictsTool(db),
+    /* ── v1.9.0: Auto-resolve conflict pairs based on recency + source + access + importance ── */
+    createAutoResolveTool(db),
     /* ── v1.8.0: Workspace file access ── */
     createWorkspaceTool(store));
     /* ── Optional tools (gated by FeatureRegistry) ── */

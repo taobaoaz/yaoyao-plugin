@@ -27,6 +27,36 @@ export interface TierConfig {
   workingDecayThreshold: number;
 }
 
+
+/**
+ * v1.9.0 — Adaptive TTL by MemoryType (factual / episodic /
+ * procedural / emotional / etc). Each memory type gets its own
+ * half-life in days; the cleaner uses this when it scores decay
+ * instead of the single-tier default. The map is exported so
+ * tests and other modules can introspect it.
+ */
+export const TTL_DAYS_BY_MEMORY_TYPE: Readonly<Record<string, number>> = Object.freeze({
+  fact: 180,         // objective facts decay slowly
+  preference: 60,    // user likes/dislikes drift; reset on re-confirmation
+  event: 30,         // specific dated events lose value fast
+  entity: 180,       // named entities (people, tools) are durable
+  goal: 90,          // goals/targets usually valid for a quarter
+  relationship: 90,  // relationships evolve but not daily
+  behavior: 90,      // habit patterns are stable
+  general: 90,       // catch-all default
+});
+
+/** Public read-only list of every supported memory type. */
+export const SUPPORTED_MEMORY_TYPES: readonly string[] = Object.freeze(Object.keys(TTL_DAYS_BY_MEMORY_TYPE));
+
+/** Return the TTL (in days) for a given memory type. Unknown types
+ *  fall back to the general default. */
+export function getTtlDaysByType(memoryType: string | null | undefined): number {
+  if (!memoryType) return TTL_DAYS_BY_MEMORY_TYPE.general;
+  const v = TTL_DAYS_BY_MEMORY_TYPE[memoryType];
+  return typeof v === "number" ? v : TTL_DAYS_BY_MEMORY_TYPE.general;
+}
+
 export const DEFAULT_TIER_CONFIG: TierConfig = {
   coreAccessThreshold: 10,
   coreDecayThreshold: 0.7,

@@ -20,12 +20,12 @@ function createDbAndSeed() {
   const db = new DatabaseSync(dbPath, { allowExtension: true });
   db.exec("PRAGMA journal_mode = WAL");
   db.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+    "CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_fts USING fts5(" +
       "date, user_text, asst_text, tokenize='unicode61'" +
     ")"
   );
   db.exec(
-    "CREATE TABLE IF NOT EXISTS memory_meta (" +
+    "CREATE TABLE IF NOT EXISTS yaoyao_meta (" +
       "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
       "date TEXT NOT NULL, " +
       "user_text TEXT, " +
@@ -34,8 +34,8 @@ function createDbAndSeed() {
     ")"
   );
 
-  const insertMeta = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-  const insertFts = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+  const insertMeta = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+  const insertFts = db.prepare("INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
   const entries = [
     { date: "2026-05-01", user: "今天天气不错适合出去散步", asst: "好的" },
     { date: "2026-05-02", user: "完成了项目A的数据库设计", asst: "使用MongoDB" },
@@ -47,7 +47,7 @@ function createDbAndSeed() {
     const r = insertMeta.run(e.date, e.user, e.asst);
     insertFts.run(Number(r.lastInsertRowid), e.date, e.user, e.asst);
   }
-  db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+  db.exec("INSERT INTO yaoyao_fts(yaoyao_fts) VALUES('rebuild')");
   return db;
 }
 
@@ -99,7 +99,7 @@ describe("语义搜索增强 (DB 层)", { concurrency: 1 }, () => {
 
   it("FTS5 搜索返回匹配结果", () => {
     const stmt = db.prepare(
-      "SELECT date, user_text FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank"
+      "SELECT date, user_text FROM yaoyao_fts WHERE yaoyao_fts MATCH ? ORDER BY rank"
     );
     const results = stmt.all("search") as Array<Record<string, unknown>>;
     assert.ok(results.length > 0, `FTS5 should find 'search' results, got ${results.length}`);
@@ -107,7 +107,7 @@ describe("语义搜索增强 (DB 层)", { concurrency: 1 }, () => {
 
   it("CJK 文本通过 LIKE 搜索", () => {
     const stmt = db.prepare(
-      "SELECT date, user_text FROM memory_meta WHERE user_text LIKE '%项目A%'"
+      "SELECT date, user_text FROM yaoyao_meta WHERE user_text LIKE '%项目A%'"
     );
     const results = stmt.all() as Array<Record<string, unknown>>;
     assert.strictEqual(results.length, 1);

@@ -13,10 +13,10 @@ export function createFtsEngine(config) {
             try {
                 db.exec("BEGIN TRANSACTION");
                 try {
-                    const stmt = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)");
+                    const stmt = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)");
                     const result = stmt.run(date, userText.slice(0, cfg.snippetMaxLen), asstText.slice(0, cfg.snippetMaxLen), meta || null);
                     const rowId = Number(result.lastInsertRowid);
-                    const stmt2 = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+                    const stmt2 = db.prepare("INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
                     stmt2.run(rowId, date, userText.slice(0, cfg.snippetMaxLen), asstText.slice(0, cfg.snippetMaxLen));
                     db.exec("COMMIT");
                     return rowId;
@@ -41,8 +41,8 @@ export function createFtsEngine(config) {
             }
             // Try FTS5 first
             const stmt = db.prepare(`SELECT rowid, date, user_text, asst_text,
-                snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank
-         FROM memory_fts WHERE memory_fts MATCH ?
+                snippet(yaoyao_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank
+         FROM yaoyao_fts WHERE yaoyao_fts MATCH ?
          ORDER BY rank LIMIT ?`);
             const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), cfg.searchMaxLimit));
             if (rows.length > 0) {
@@ -62,7 +62,7 @@ export function createFtsEngine(config) {
                 .replace(/_/g, '\\_');
             const cjkBigrams = extractCjkBigrams(query);
             const likeTerms = cjkBigrams.length > 0 ? cjkBigrams : [safeLikeQuery];
-            const likeStmt = db.prepare(`SELECT id, date, user_text, asst_text FROM memory_meta
+            const likeStmt = db.prepare(`SELECT id, date, user_text, asst_text FROM yaoyao_meta
          WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'
          ORDER BY id DESC LIMIT ?`);
             const seenIds = new Set();
@@ -93,7 +93,7 @@ export function createFtsEngine(config) {
         },
         /** Full table scan: latest entries (no filter). */
         searchAll(db, limit = 10) {
-            const rows = db.prepare("SELECT id, date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?").all(Math.min(Math.max(limit, 1), cfg.searchMaxLimit));
+            const rows = db.prepare("SELECT id, date, user_text, asst_text FROM yaoyao_meta ORDER BY id DESC LIMIT ?").all(Math.min(Math.max(limit, 1), cfg.searchMaxLimit));
             return rows.map(r => ({
                 id: r.id,
                 filename: r.date ? `${r.date}.md` : "memory.db",
@@ -106,14 +106,14 @@ export function createFtsEngine(config) {
         /** Schedule FTS5 rebuild (deferred batch). */
         scheduleRebuild(db) {
             try {
-                db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+                db.exec("INSERT INTO yaoyao_fts(yaoyao_fts) VALUES('rebuild')");
             }
             catch { /* best effort */ }
         },
         /** Delete by exact date match. Returns count. */
         deleteByDate(db, date) {
             try {
-                const result = db.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
+                const result = db.prepare("DELETE FROM yaoyao_meta WHERE date = ?").run(date);
                 return Number(result.changes ?? 0);
             }
             catch {
@@ -125,7 +125,7 @@ export function createFtsEngine(config) {
             try {
                 const safe = keyword.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
                 const pattern = `%${safe}%`;
-                const result = db.prepare("DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'").run(pattern, pattern);
+                const result = db.prepare("DELETE FROM yaoyao_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'").run(pattern, pattern);
                 return Number(result.changes ?? 0);
             }
             catch {

@@ -1,11 +1,11 @@
-# Yaoyao Memory Plugin v1.8.4
+# Yaoyao Memory Plugin v1.9.0
 
 > 摇摇 · 4 层 AI 记忆引擎 — FTS5 + sqlite-vec 混合检索、自动捕获、时间线、云备份、主题趋势。
 > v1.8.x：全面适配小艺 Claw 架构（环境/通道/技能/设备/安全），论文驱动的记忆增强，SmartVector 四信号融合 + Dual Process 情景缓存 + 多模态记忆（hidden，测试中）。
 
-[![Version](https://img.shields.io/badge/version-1.8.4-blue)](#)
-[![Tools](https://img.shields.io/badge/tools-38%20%2B%201%20hidden-orange)](#-registered-tools)
-[![Tests](https://img.shields.io/badge/tests-732%20passing-brightgreen)](#-testing)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue)](#)
+[![Tools](https://img.shields.io/badge/tools-39%20%2B%201%20hidden-orange)](#-registered-tools)
+[![Tests](https://img.shields.io/badge/tests-761%20passing-brightgreen)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518.0.0-339933)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
@@ -99,7 +99,7 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.8.4  ·  38 Tools  ·  4 Hooks
+🎲    v1.9.0  ·  39 Tools  ·  4 Hooks
 🎲    FTS5 + sqlite-vec + 时间线 + 云备份
 🎲    记忆目录: ~/.openclaw/workspace/memory/
 🎲    环境检测: 全部通过
@@ -376,14 +376,14 @@ npm run benchmark         # 性能基准
 - [x] v1.8.1 — 论文驱动增强（FadeMem / MemX / RecMem）
 - [x] v1.8.2 — SmartVector 四信号融合 + 七因子价值函数 + Dual Process 情景缓存
 - [x] v1.8.2-hotfix — TypeScript 严格模式零错误 + 4 项功能 bug 修复
-- [x] 38 个工具 + 4 个 hook + 732 单元测试
+- [x] 39 个工具 + 4 个 hook + 761 单元测试
 
 ### 📋 v1.9（计划）
 
 - [ ] 跨设备记忆同步（P0）
 - [ ] LLM 自动情绪曲线生成
-- [ ] 记忆冲突自动消解（基于时间+来源+置信度）
-- [ ] 自适应 TTL（按类别）
+- [x] 记忆冲突自动消解（基于时间+来源+置信度）
+- [x] 自适应 TTL（按类别）
 
 ### 🔮 v2.0（远期）
 

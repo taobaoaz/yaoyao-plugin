@@ -1,4 +1,4 @@
-import { evaluateTier, evaluateAllTiers, DEFAULT_TIER_CONFIG, type TierableMemory } from "../utils/tier-manager.ts";
+import { evaluateTier, evaluateAllTiers, DEFAULT_TIER_CONFIG, type TierableMemory, TTL_DAYS_BY_MEMORY_TYPE, SUPPORTED_MEMORY_TYPES, getTtlDaysByType } from "../utils/tier-manager.ts";
 import { describe, it } from "node:test";
 import assert from "node:assert";
 
@@ -58,5 +58,45 @@ describe("evaluateAllTiers", () => {
     assert.strictEqual(transitions.length, 2);
     assert.strictEqual(transitions[0].toTier, "working");
     assert.strictEqual(transitions[1].toTier, "core");
+  });
+});
+
+
+describe("TTL_DAYS_BY_MEMORY_TYPE", () => {
+  it("is frozen (immutable)", () => {
+    assert.strictEqual(Object.isFrozen(TTL_DAYS_BY_MEMORY_TYPE), true);
+  });
+  it("contains all expected memory types", () => {
+    for (const t of ["fact", "preference", "event", "entity", "goal", "relationship", "behavior", "general"]) {
+      assert.ok(typeof TTL_DAYS_BY_MEMORY_TYPE[t] === "number", `missing TTL for ${t}`);
+    }
+  });
+  it("events have shorter TTL than facts", () => {
+    assert.ok(TTL_DAYS_BY_MEMORY_TYPE.event < TTL_DAYS_BY_MEMORY_TYPE.fact);
+  });
+});
+
+describe("SUPPORTED_MEMORY_TYPES", () => {
+  it("matches TTL_DAYS_BY_MEMORY_TYPE keys", () => {
+    assert.deepStrictEqual(
+      [...SUPPORTED_MEMORY_TYPES].sort(),
+      Object.keys(TTL_DAYS_BY_MEMORY_TYPE).sort()
+    );
+  });
+});
+
+describe("getTtlDaysByType", () => {
+  it("returns known type's TTL", () => {
+    assert.strictEqual(getTtlDaysByType("fact"), 180);
+    assert.strictEqual(getTtlDaysByType("event"), 30);
+    assert.strictEqual(getTtlDaysByType("preference"), 60);
+  });
+  it("falls back to general for unknown types", () => {
+    assert.strictEqual(getTtlDaysByType("nonsense_type"), TTL_DAYS_BY_MEMORY_TYPE.general);
+  });
+  it("handles null / undefined / empty string", () => {
+    assert.strictEqual(getTtlDaysByType(null), TTL_DAYS_BY_MEMORY_TYPE.general);
+    assert.strictEqual(getTtlDaysByType(undefined), TTL_DAYS_BY_MEMORY_TYPE.general);
+    assert.strictEqual(getTtlDaysByType(""), TTL_DAYS_BY_MEMORY_TYPE.general);
   });
 });

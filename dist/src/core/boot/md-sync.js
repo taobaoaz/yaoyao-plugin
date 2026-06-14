@@ -30,7 +30,7 @@ function existsInDb(db, date, userPrefix) {
     try {
         const rawDb = db.getRawDb();
         const prefix = userPrefix.slice(0, 60);
-        const stmt = rawDb.prepare("SELECT 1 FROM memory_meta WHERE date = ? AND user_text LIKE ? LIMIT 1");
+        const stmt = rawDb.prepare("SELECT 1 FROM yaoyao_meta WHERE date = ? AND user_text LIKE ? LIMIT 1");
         const row = stmt.get(date, `${prefix}%`);
         return row !== undefined;
     }
@@ -65,7 +65,7 @@ export function syncMarkdownToFTS(memoryDir, db, logger) {
         let dbRecordCount = 0;
         try {
             const rawDb = db.getRawDb();
-            const countRow = rawDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get();
+            const countRow = rawDb.prepare("SELECT COUNT(*) as c FROM yaoyao_meta").get();
             dbRecordCount = countRow?.c ?? 0;
         }
         catch {

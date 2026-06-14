@@ -57,7 +57,7 @@ export class FileDB implements UnifiedDB {
   prepare(sql: string): UnifiedStatement {
     const lowered = sql.toLowerCase().trim();
 
-    if (lowered.startsWith("insert into memory_meta")) {
+    if (lowered.startsWith("insert into yaoyao_meta")) {
       return {
         run: (...args: unknown[]) => {
           const date = args[0] as string;
@@ -79,7 +79,7 @@ export class FileDB implements UnifiedDB {
       };
     }
 
-    if (lowered.includes("from memory_fts") && lowered.includes("match")) {
+    if (lowered.includes("from yaoyao_fts") && lowered.includes("match")) {
       return {
         run: () => ({ changes: 0 }),
         all: (...args: unknown[]) => this._search(args[0] as string, args[1] as number),
@@ -96,7 +96,7 @@ export class FileDB implements UnifiedDB {
       };
     }
 
-    if (lowered.startsWith("delete from memory_meta")) {
+    if (lowered.startsWith("delete from yaoyao_meta")) {
       return {
         run: (...args: unknown[]) => {
           const date = args[0] as string;

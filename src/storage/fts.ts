@@ -32,13 +32,13 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
         db.exec("BEGIN TRANSACTION");
         try {
           const stmt = db.prepare(
-            "INSERT INTO memory_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)"
+            "INSERT INTO yaoyao_meta (date, user_text, asst_text, meta) VALUES (?, ?, ?, ?)"
           );
           const result = stmt.run(date, userText.slice(0, cfg.snippetMaxLen), asstText.slice(0, cfg.snippetMaxLen), meta || null);
           const rowId = Number(result.lastInsertRowid);
 
           const stmt2 = db.prepare(
-            "INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)"
+            "INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)"
           );
           stmt2.run(rowId, date, userText.slice(0, cfg.snippetMaxLen), asstText.slice(0, cfg.snippetMaxLen));
 
@@ -63,8 +63,8 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
       // Try FTS5 first
       const stmt = db.prepare(
         `SELECT rowid, date, user_text, asst_text,
-                snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank
-         FROM memory_fts WHERE memory_fts MATCH ?
+                snippet(yaoyao_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank
+         FROM yaoyao_fts WHERE yaoyao_fts MATCH ?
          ORDER BY rank LIMIT ?`
       );
       const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), cfg.searchMaxLimit)) as unknown as FtsRow[];
@@ -89,7 +89,7 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
       const likeTerms = cjkBigrams.length > 0 ? cjkBigrams : [safeLikeQuery];
 
       const likeStmt = db.prepare(
-        `SELECT id, date, user_text, asst_text FROM memory_meta
+        `SELECT id, date, user_text, asst_text FROM yaoyao_meta
          WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'
          ORDER BY id DESC LIMIT ?`
       );
@@ -125,7 +125,7 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
     /** Full table scan: latest entries (no filter). */
     searchAll(db: UnifiedDB, limit: number = 10): SearchResult[] {
       const rows = db.prepare(
-        "SELECT id, date, user_text, asst_text FROM memory_meta ORDER BY id DESC LIMIT ?"
+        "SELECT id, date, user_text, asst_text FROM yaoyao_meta ORDER BY id DESC LIMIT ?"
       ).all(Math.min(Math.max(limit, 1), cfg.searchMaxLimit)) as unknown as LikeRow[];
 
       return rows.map(r => ({
@@ -141,14 +141,14 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
     /** Schedule FTS5 rebuild (deferred batch). */
     scheduleRebuild(db: UnifiedDB): void {
       try {
-        db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+        db.exec("INSERT INTO yaoyao_fts(yaoyao_fts) VALUES('rebuild')");
       } catch { /* best effort */ }
     },
 
     /** Delete by exact date match. Returns count. */
     deleteByDate(db: UnifiedDB, date: string): number {
       try {
-        const result = db.prepare("DELETE FROM memory_meta WHERE date = ?").run(date);
+        const result = db.prepare("DELETE FROM yaoyao_meta WHERE date = ?").run(date);
         return Number(result.changes ?? 0);
       } catch {
         return 0;
@@ -161,7 +161,7 @@ export function createFtsEngine(config?: Partial<FtsConfig>) {
         const safe = keyword.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
         const pattern = `%${safe}%`;
         const result = db.prepare(
-          "DELETE FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
+          "DELETE FROM yaoyao_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\'"
         ).run(pattern, pattern);
         return Number(result.changes ?? 0);
       } catch {

@@ -21,11 +21,11 @@ function tryLoadVec(db) {
     }
 }
 function ensureSchema(db) {
-    db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+    db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_fts USING fts5(" +
         "date, user_text, asst_text, " +
         "tokenize='unicode61'" +
         ")");
-    db.exec("CREATE TABLE IF NOT EXISTS memory_meta (" +
+    db.exec("CREATE TABLE IF NOT EXISTS yaoyao_meta (" +
         "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
         "date TEXT NOT NULL, " +
         "user_text TEXT, " +

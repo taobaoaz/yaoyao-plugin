@@ -12,9 +12,9 @@ export function runMemoryStatsCheck(
   try {
     const dbPath = baseDir ? path.join(baseDir, "memory.db") : path.join(memDir, "memory.db");
     const { db: statsDb } = createCompatDB(dbPath);
-    const total = statsDb.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as { c: number } | undefined;
-    const tierDist = statsDb.prepare("SELECT tier, COUNT(*) as c FROM memory_meta GROUP BY tier").all() as { tier: string; c: number }[] | undefined;
-    const avgAge = statsDb.prepare("SELECT AVG(julianday('now') - julianday(created_at)) as d FROM memory_meta").get() as { d: number } | undefined;
+    const total = statsDb.prepare("SELECT COUNT(*) as c FROM yaoyao_meta").get() as { c: number } | undefined;
+    const tierDist = statsDb.prepare("SELECT tier, COUNT(*) as c FROM yaoyao_meta GROUP BY tier").all() as { tier: string; c: number }[] | undefined;
+    const avgAge = statsDb.prepare("SELECT AVG(julianday('now') - julianday(created_at)) as d FROM yaoyao_meta").get() as { d: number } | undefined;
     statsDb.close();
     return {
       name: "记忆统计",

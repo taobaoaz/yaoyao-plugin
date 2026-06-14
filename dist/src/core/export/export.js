@@ -6,7 +6,7 @@ export function queryForExport(db, limit, dateFrom, dateTo, keyword) {
         throw new TypeError("queryForExport: db is required");
     if (!Number.isFinite(limit) || limit < 1)
         limit = 100;
-    let sql = "SELECT date, user_text, asst_text FROM memory_meta WHERE 1=1";
+    let sql = "SELECT date, user_text, asst_text FROM yaoyao_meta WHERE 1=1";
     const args = [];
     if (dateFrom) {
         sql += " AND date >= ?";

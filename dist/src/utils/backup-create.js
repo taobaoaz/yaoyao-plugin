@@ -3,7 +3,7 @@
  */
 import path from "node:path";
 import fs from "node:fs";
-export function createBackup(baseDir, backupDir, mode = "full", logger) {
+export function createBackup(baseDir, backupDir, mode = "full", logger, dbPath) {
     const log = (msg) => logger?.info?.(`[yaoyao-memory:backup] ${msg}`);
     function ensureDir(dir) {
         if (!fs.existsSync(dir))
@@ -69,11 +69,11 @@ export function createBackup(baseDir, backupDir, mode = "full", logger) {
                 }
             }
         }
-        const dbPath = path.join(baseDir, ".yaoyao.db");
-        if (fs.existsSync(dbPath)) {
-            const backupDb = lastBackupMs === 0 || fs.statSync(dbPath).mtimeMs > lastBackupMs;
+        const effectiveDbPath = dbPath || path.join(baseDir, ".yaoyao.db");
+        if (fs.existsSync(effectiveDbPath)) {
+            const backupDb = lastBackupMs === 0 || fs.statSync(effectiveDbPath).mtimeMs > lastBackupMs;
             if (backupDb || fileCount > 0) {
-                fs.copyFileSync(dbPath, path.join(backupPath, ".yaoyao.db"));
+                fs.copyFileSync(effectiveDbPath, path.join(backupPath, "yaoyao.db"));
                 fileCount++;
             }
         }

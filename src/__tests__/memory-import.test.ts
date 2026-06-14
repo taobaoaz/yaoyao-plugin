@@ -20,12 +20,12 @@ function createEmptyDb() {
   const db = new DatabaseSync(dbPath, { allowExtension: true });
   db.exec("PRAGMA journal_mode = WAL");
   db.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+    "CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_fts USING fts5(" +
       "date, user_text, asst_text, tokenize='unicode61'" +
     ")"
   );
   db.exec(
-    "CREATE TABLE IF NOT EXISTS memory_meta (" +
+    "CREATE TABLE IF NOT EXISTS yaoyao_meta (" +
       "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
       "date TEXT NOT NULL, " +
       "user_text TEXT, " +
@@ -65,8 +65,8 @@ describe("记忆导入 (DB 层)", { concurrency: 1 }, () => {
     assert.strictEqual(entries[0].date, "2026-06-01");
     assert.strictEqual(entries[2].user_text, "测试导入3");
 
-    const insertMeta = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-    const insertFts = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+    const insertMeta = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+    const insertFts = db.prepare("INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
     let count = 0;
     db.exec("BEGIN");
     for (const e of entries) {
@@ -76,7 +76,7 @@ describe("记忆导入 (DB 层)", { concurrency: 1 }, () => {
     }
     db.exec("COMMIT");
 
-    const total = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as unknown;
+    const total = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta").get() as unknown;
     assert.strictEqual(total.c, 3);
     assert.strictEqual(count, 3);
     db.close();

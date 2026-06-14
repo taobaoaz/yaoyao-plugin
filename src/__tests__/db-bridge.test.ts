@@ -44,14 +44,14 @@ function createTestDB(): { db: any; dbPath: string } {
 
   // FTS5
   db.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+    "CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_fts USING fts5(" +
     "date, user_text, asst_text, " +
     "tokenize='unicode61')"
   );
 
   // Meta table
   db.exec(
-    "CREATE TABLE IF NOT EXISTS memory_meta (" +
+    "CREATE TABLE IF NOT EXISTS yaoyao_meta (" +
     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
     "date TEXT NOT NULL, " +
     "user_text TEXT, " +
@@ -65,7 +65,7 @@ function createTestDB(): { db: any; dbPath: string } {
       const sqliteVec = _require("sqlite-vec") as unknown;
       db.enableLoadExtension(true);
       sqliteVec.load(db);
-      db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(embedding float[1024])");
+      db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_vec USING vec0(embedding float[1024])");
       db.exec(
         "CREATE TABLE IF NOT EXISTS memory_vec_meta (" +
         "id INTEGER PRIMARY KEY, " +
@@ -103,8 +103,8 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
   describe("FTS5 operations", { concurrency: 1 }, () => {
     before(() => {
       // Insert test data
-      const metaStmt = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-      const ftsStmt = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+      const metaStmt = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+      const ftsStmt = db.prepare("INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
 
       const data = [
         ["2026-01-01", "今天很开心，天气很好", "是的，天气不错"],
@@ -124,14 +124,14 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
     });
 
     it("counts total entries", () => {
-      const row = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get();
+      const row = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta").get();
       assert.ok((row as unknown).c >= 6);
     });
 
     it("FTS5 search with English query returns results", () => {
       const stmt = db.prepare(
-        "SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
-        "FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank LIMIT 5"
+        "SELECT date, snippet(yaoyao_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
+        "FROM yaoyao_fts WHERE yaoyao_fts MATCH ? ORDER BY rank LIMIT 5"
       );
       const rows = stmt.all("happy") as Array<{ date: string; snippet: string; rank: number }>;
       assert.ok(rows.length > 0);
@@ -140,8 +140,8 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
 
     it("FTS5 search with multi-word query", () => {
       const stmt = db.prepare(
-        "SELECT date, snippet(memory_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
-        "FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank LIMIT 5"
+        "SELECT date, snippet(yaoyao_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank " +
+        "FROM yaoyao_fts WHERE yaoyao_fts MATCH ? ORDER BY rank LIMIT 5"
       );
       // For FTS5, MATCH treats consecutive words as AND by default
       const rows = stmt.all("birthday you") as unknown[];
@@ -155,7 +155,7 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
       // but succeeds via LIKE fallback
       const query = "%开心%";
       const stmt = db.prepare(
-        "SELECT COUNT(*) as c FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\'"
+        "SELECT COUNT(*) as c FROM yaoyao_meta WHERE user_text LIKE ? ESCAPE '\\'"
       );
       const row = stmt.get(query) as { c: number };
       assert.ok((row.c || 0) > 0);
@@ -164,7 +164,7 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
     it("LIKE fallback for multi-char Chinese", () => {
       const query = "%今天%";
       const stmt = db.prepare(
-        "SELECT COUNT(*) as c FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\'"
+        "SELECT COUNT(*) as c FROM yaoyao_meta WHERE user_text LIKE ? ESCAPE '\\'"
       );
       const row = stmt.get(query) as { c: number };
       assert.ok((row.c || 0) > 0);
@@ -172,25 +172,25 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
 
     it("deleteByDate removes entries", () => {
       // Count before
-      const before = db.prepare("SELECT COUNT(*) as c FROM memory_meta WHERE date = '2026-01-01'").get() as { c: number };
+      const before = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta WHERE date = '2026-01-01'").get() as { c: number };
       const beforeCount = before.c;
       if (beforeCount > 0) {
         // Direct SQL deletion
-        const r = db.prepare("DELETE FROM memory_meta WHERE date = '2026-01-01'").run();
+        const r = db.prepare("DELETE FROM yaoyao_meta WHERE date = '2026-01-01'").run();
         // Rebuild FTS5
-        db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
+        db.exec("INSERT INTO yaoyao_fts(yaoyao_fts) VALUES('rebuild')");
         // Verify removed
-        const after = db.prepare("SELECT COUNT(*) as c FROM memory_meta WHERE date = '2026-01-01'").get() as { c: number };
+        const after = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta WHERE date = '2026-01-01'").get() as { c: number };
         assert.strictEqual(after.c, 0);
       }
     });
 
     it("deleteByKeyword removes matching entries", () => {
-      const before = db.prepare("SELECT COUNT(*) as c FROM memory_meta WHERE user_text LIKE '%bug%'").get() as { c: number };
+      const before = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta WHERE user_text LIKE '%bug%'").get() as { c: number };
       if ((before.c || 0) > 0) {
-        db.prepare("DELETE FROM memory_meta WHERE user_text LIKE '%bug%'").run();
-        db.exec("INSERT INTO memory_fts(memory_fts) VALUES('rebuild')");
-        const after = db.prepare("SELECT COUNT(*) as c FROM memory_meta WHERE user_text LIKE '%bug%'").get() as { c: number };
+        db.prepare("DELETE FROM yaoyao_meta WHERE user_text LIKE '%bug%'").run();
+        db.exec("INSERT INTO yaoyao_fts(yaoyao_fts) VALUES('rebuild')");
+        const after = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta WHERE user_text LIKE '%bug%'").get() as { c: number };
         assert.strictEqual(after.c, 0);
       }
     });
@@ -208,8 +208,8 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
 
     it("vec0 table exists", () => {
       if (!VEC_AVAILABLE) return;
-      const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='memory_vec'").get();
-      assert.ok(row, "memory_vec table should exist");
+      const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='yaoyao_vec'").get();
+      assert.ok(row, "yaoyao_vec table should exist");
     });
 
     it("stores and retrieves vector", () => {
@@ -220,14 +220,14 @@ describe("DB operations (FTS5 + vec)", { concurrency: 1 }, () => {
       const jsonArr = "[" + Array.from(vector).join(",") + "]";
 
       // Vec0 stores vectors with specific constraints; skip if not met
-      const metaR = db.prepare("INSERT INTO memory_meta (date, user_text) VALUES (?, ?)").run("2026-01-01", "test vector store");
+      const metaR = db.prepare("INSERT INTO yaoyao_meta (date, user_text) VALUES (?, ?)").run("2026-01-01", "test vector store");
       const metaId = Number(metaR.lastInsertRowid);
       if (!metaId || metaId < 1) return;
 
-      db.prepare("DELETE FROM memory_vec WHERE rowid = ?").run(metaId);
+      db.prepare("DELETE FROM yaoyao_vec WHERE rowid = ?").run(metaId);
       try {
-        db.prepare("INSERT INTO memory_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
-        const row = db.prepare("SELECT rowid, embedding FROM memory_vec WHERE rowid = ?").get(metaId) as unknown;
+        db.prepare("INSERT INTO yaoyao_vec(rowid, embedding) VALUES(?, ?)").run(metaId, jsonArr);
+        const row = db.prepare("SELECT rowid, embedding FROM yaoyao_vec WHERE rowid = ?").get(metaId) as unknown;
         assert.ok(row, "vector should exist after insert");
         assert.strictEqual(row.rowid, metaId);
       } catch (e: unknown) {

@@ -20,12 +20,12 @@ function createDbAndSeed() {
   const db = new DatabaseSync(dbPath, { allowExtension: true });
   db.exec("PRAGMA journal_mode = WAL");
   db.exec(
-    "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+    "CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_fts USING fts5(" +
       "date, user_text, asst_text, tokenize='unicode61'" +
     ")"
   );
   db.exec(
-    "CREATE TABLE IF NOT EXISTS memory_meta (" +
+    "CREATE TABLE IF NOT EXISTS yaoyao_meta (" +
       "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
       "date TEXT NOT NULL, " +
       "user_text TEXT, " +
@@ -43,8 +43,8 @@ function createDbAndSeed() {
     { date: "2026-05-06", user: "测试环境搭建", asst: "使用Docker Compose" },
   ];
 
-  const insertMeta = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-  const insertFts = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+  const insertMeta = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+  const insertFts = db.prepare("INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
 
   for (const e of entries) {
     const r = insertMeta.run(e.date, e.user, e.asst);
@@ -74,7 +74,7 @@ describe("记忆关联图谱 (DB 层)", { concurrency: 1 }, () => {
 
   it("FTS5 搜索找到关联记忆 (LIKE for CJK)", () => {
     const stmt = ctx.db.prepare(
-      "SELECT date, user_text FROM memory_meta WHERE user_text LIKE ? OR asst_text LIKE ? ORDER BY date"
+      "SELECT date, user_text FROM yaoyao_meta WHERE user_text LIKE ? OR asst_text LIKE ? ORDER BY date"
     );
     const results = stmt.all("%项目A%", "%项目A%") as Array<Record<string, unknown>>;
     assert.ok(results.length >= 3, `Expected >= 3 results for '项目A', got ${results.length}`);
@@ -97,7 +97,7 @@ describe("记忆关联图谱 (DB 层)", { concurrency: 1 }, () => {
 
   it("搜索跨项目结果", () => {
     const stmt = ctx.db.prepare(
-      "SELECT date, user_text FROM memory_meta WHERE user_text LIKE ? ORDER BY date DESC"
+      "SELECT date, user_text FROM yaoyao_meta WHERE user_text LIKE ? ORDER BY date DESC"
     );
     const results = stmt.all("%项目%") as Array<Record<string, unknown>>;
     assert.ok(results.length >= 5, `Expected >= 5 results for '项目', got ${results.length}`);

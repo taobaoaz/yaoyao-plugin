@@ -130,7 +130,7 @@ export class HnswlibBackend implements VectorBackend {
 
       const placeholders = result.neighbors.map(() => "?").join(",");
       const stmt = this.db.prepare(
-        `SELECT id, date, user_text, asst_text FROM memory_meta WHERE id IN (${placeholders})`
+        `SELECT id, date, user_text, asst_text FROM yaoyao_meta WHERE id IN (${placeholders})`
       );
       const rows = stmt.all(...result.neighbors) as Array<{ id: number; date: string; user_text: string; asst_text: string }>;
 
@@ -175,7 +175,7 @@ export class HnswlibBackend implements VectorBackend {
   deleteOrphans(): void {
     if (!this.isAvailable || !this.index || !this.db) return;
     try {
-      const rows = this.db.prepare("SELECT id FROM memory_meta").all() as Array<{ id: number }>;
+      const rows = this.db.prepare("SELECT id FROM yaoyao_meta").all() as Array<{ id: number }>;
       const validIds = new Set(rows.map(r => r.id));
       const count = this.index.getCurrentCount?.() ?? 0;
       this.logger?.debug?.("[yaoyao-memory:vec] HNSW deleteOrphans: no-op (filtered at search time)");

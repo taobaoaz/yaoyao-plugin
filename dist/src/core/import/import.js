@@ -41,8 +41,8 @@ export function batchImport(db, entries) {
         throw new TypeError("batchImport: db is required");
     if (!Array.isArray(entries))
         throw new TypeError("batchImport: entries must be an array");
-    const insertedMeta = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
-    const insertedFts = db.prepare("INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
+    const insertedMeta = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+    const insertedFts = db.prepare("INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)");
     let successCount = 0;
     db.exec("BEGIN TRANSACTION");
     try {
@@ -69,6 +69,6 @@ export function batchImport(db, entries) {
 export function getTotalCount(db) {
     if (!db)
         throw new TypeError("getTotalCount: db is required");
-    const row = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get();
+    const row = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta").get();
     return Number(row?.c ?? 0);
 }

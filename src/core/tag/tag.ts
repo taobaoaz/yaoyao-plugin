@@ -20,15 +20,15 @@ export interface PopularTag {
 export function ensureTagTable(db: UnifiedDB): void {
   if (!db) throw new TypeError("ensureTagTable: db is required");
   db.exec(
-    "CREATE TABLE IF NOT EXISTS memory_tags (" +
+    "CREATE TABLE IF NOT EXISTS yaoyao_tags (" +
       "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
       "memory_id INTEGER NOT NULL, " +
       "tag TEXT NOT NULL COLLATE NOCASE, " +
       "created_at TEXT DEFAULT (datetime('now'))" +
     ")"
   );
-  db.exec("CREATE INDEX IF NOT EXISTS idx_tags_tag ON memory_tags(tag)");
-  db.exec("CREATE INDEX IF NOT EXISTS idx_tags_memory ON memory_tags(memory_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_tags_tag ON yaoyao_tags(tag)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_tags_memory ON yaoyao_tags(memory_id)");
 }
 
 export function addTag(db: UnifiedDB, memoryId: number, tag: string): void {
@@ -36,7 +36,7 @@ export function addTag(db: UnifiedDB, memoryId: number, tag: string): void {
   if (!Number.isFinite(memoryId)) throw new TypeError("addTag: memoryId must be a number");
   if (typeof tag !== "string" || !tag.trim()) throw new TypeError("addTag: tag must be a non-empty string");
 
-  const stmt = db.prepare("INSERT INTO memory_tags (memory_id, tag) VALUES (?, ?)");
+  const stmt = db.prepare("INSERT INTO yaoyao_tags (memory_id, tag) VALUES (?, ?)");
   stmt.run(memoryId, tag.trim().toLowerCase());
 }
 
@@ -45,7 +45,7 @@ export function removeTag(db: UnifiedDB, memoryId: number, tag: string): number 
   if (!Number.isFinite(memoryId)) throw new TypeError("removeTag: memoryId must be a number");
   if (typeof tag !== "string" || !tag.trim()) throw new TypeError("removeTag: tag must be a non-empty string");
 
-  const stmt = db.prepare("DELETE FROM memory_tags WHERE memory_id = ? AND tag = ? COLLATE NOCASE");
+  const stmt = db.prepare("DELETE FROM yaoyao_tags WHERE memory_id = ? AND tag = ? COLLATE NOCASE");
   const result = stmt.run(memoryId, tag.trim().toLowerCase());
   return Number(result.changes ?? 0);
 }
@@ -57,8 +57,8 @@ export function searchByTag(db: UnifiedDB, tag: string, limit: number): TagSearc
 
   const stmt = db.prepare(
     "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date " +
-    "FROM memory_tags t " +
-    "JOIN memory_meta m ON t.memory_id = m.rowid " +
+    "FROM yaoyao_tags t " +
+    "JOIN yaoyao_meta m ON t.memory_id = m.rowid " +
     "WHERE t.tag = ? COLLATE NOCASE " +
     "ORDER BY m.date DESC LIMIT ?"
   );
@@ -78,7 +78,7 @@ export function getPopularTags(db: UnifiedDB, limit: number): PopularTag[] {
   if (!Number.isFinite(limit) || limit < 1) limit = 20;
 
   const stmt = db.prepare(
-    "SELECT tag, COUNT(*) as count FROM memory_tags GROUP BY tag ORDER BY count DESC LIMIT ?"
+    "SELECT tag, COUNT(*) as count FROM yaoyao_tags GROUP BY tag ORDER BY count DESC LIMIT ?"
   );
   const rows = stmt.all(limit);
 
@@ -92,7 +92,7 @@ export function getTagsForMemory(db: UnifiedDB, memoryId: number): string[] {
   if (!db) throw new TypeError("getTagsForMemory: db is required");
   if (!Number.isFinite(memoryId)) throw new TypeError("getTagsForMemory: memoryId must be a number");
 
-  const stmt = db.prepare("SELECT tag FROM memory_tags WHERE memory_id = ?");
+  const stmt = db.prepare("SELECT tag FROM yaoyao_tags WHERE memory_id = ?");
   const rows = stmt.all(memoryId);
   return rows.map((r: SQLiteRow) => String(r.tag));
 }
@@ -101,14 +101,14 @@ export function deleteTagsForMemory(db: UnifiedDB, memoryId: number): number {
   if (!db) throw new TypeError("deleteTagsForMemory: db is required");
   if (!Number.isFinite(memoryId)) throw new TypeError("deleteTagsForMemory: memoryId must be a number");
 
-  const stmt = db.prepare("DELETE FROM memory_tags WHERE memory_id = ?");
+  const stmt = db.prepare("DELETE FROM yaoyao_tags WHERE memory_id = ?");
   const result = stmt.run(memoryId);
   return Number(result.changes ?? 0);
 }
 
 export function getTotalTagCount(db: UnifiedDB): number {
   if (!db) throw new TypeError("getTotalTagCount: db is required");
-  const row = db.prepare("SELECT COUNT(*) as c FROM memory_tags").get() as SQLiteRow | undefined;
+  const row = db.prepare("SELECT COUNT(*) as c FROM yaoyao_tags").get() as SQLiteRow | undefined;
   return Number(row?.c ?? 0);
 }
 
@@ -119,8 +119,8 @@ export function addTagsToQuery(db: UnifiedDB, query: string, tags: string[], lim
   if (!Array.isArray(tags)) throw new TypeError("addTagsToQuery: tags must be an array");
 
   const searchSql = query.trim()
-    ? "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' LIMIT ?"
-    : "SELECT rowid as memory_id, user_text, asst_text, date FROM memory_meta LIMIT ?";
+    ? "SELECT rowid as memory_id, user_text, asst_text, date FROM yaoyao_meta WHERE user_text LIKE ? ESCAPE '\\' OR asst_text LIKE ? ESCAPE '\\' LIMIT ?"
+    : "SELECT rowid as memory_id, user_text, asst_text, date FROM yaoyao_meta LIMIT ?";
   const searchStmt = db.prepare(searchSql);
   const safeQuery = query.trim().replace(/\//g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = query.trim()
@@ -146,7 +146,7 @@ export function removeTags(db: UnifiedDB, tags: string[]): number {
   if (!db) throw new TypeError("removeTags: db is required");
   if (!Array.isArray(tags)) throw new TypeError("removeTags: tags must be an array");
   let total = 0;
-  const stmt = db.prepare("DELETE FROM memory_tags WHERE tag = ? COLLATE NOCASE");
+  const stmt = db.prepare("DELETE FROM yaoyao_tags WHERE tag = ? COLLATE NOCASE");
   for (const tag of tags) {
     const result = stmt.run(tag.trim().toLowerCase());
     total += Number(result.changes ?? 0);
@@ -156,14 +156,14 @@ export function removeTags(db: UnifiedDB, tags: string[]): number {
 
 export function removeAllTags(db: UnifiedDB): number {
   if (!db) throw new TypeError("removeAllTags: db is required");
-  const result = db.prepare("DELETE FROM memory_tags").run();
+  const result = db.prepare("DELETE FROM yaoyao_tags").run();
   return Number(result.changes ?? 0);
 }
 
 export function cleanOrphanTags(db: UnifiedDB): number {
   if (!db) throw new TypeError("cleanOrphanTags: db is required");
   const result = db.prepare(
-    "DELETE FROM memory_tags WHERE memory_id NOT IN (SELECT rowid FROM memory_meta)"
+    "DELETE FROM yaoyao_tags WHERE memory_id NOT IN (SELECT rowid FROM yaoyao_meta)"
   ).run();
   return Number(result.changes ?? 0);
 }
@@ -177,8 +177,8 @@ export function searchByTagWithQuery(db: UnifiedDB, tag: string, query: string, 
   const trimmedQuery = query.trim();
 
   const sql = trimmedQuery
-    ? "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE AND (m.user_text LIKE ? ESCAPE '\\' OR m.asst_text LIKE ? ESCAPE '\\') ORDER BY m.date DESC LIMIT ?"
-    : "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM memory_tags t JOIN memory_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE ORDER BY m.date DESC LIMIT ?";
+    ? "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM yaoyao_tags t JOIN yaoyao_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE AND (m.user_text LIKE ? ESCAPE '\\' OR m.asst_text LIKE ? ESCAPE '\\') ORDER BY m.date DESC LIMIT ?"
+    : "SELECT m.rowid as memory_id, t.tag, m.user_text, m.asst_text, m.date FROM yaoyao_tags t JOIN yaoyao_meta m ON t.memory_id = m.rowid WHERE t.tag = ? COLLATE NOCASE ORDER BY m.date DESC LIMIT ?";
   const stmt = db.prepare(sql);
   const safeQuery = trimmedQuery.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
   const rows = trimmedQuery

@@ -28,9 +28,9 @@ describe("FileDB", () => {
     cleanUp(dir);
   });
 
-  it("stores and retrieves via insert into memory_meta", () => {
+  it("stores and retrieves via insert into yaoyao_meta", () => {
     const { db, dir } = freshDB();
-    const stmt = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+    const stmt = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
     const result = stmt.run("2026-05-18", "Hello", "World");
     assert.ok(result.lastInsertRowid !== undefined);
     assert.strictEqual(result.changes, 1);
@@ -40,10 +40,10 @@ describe("FileDB", () => {
 
   it("counts records via count(*)", () => {
     const { db, dir } = freshDB();
-    const insert = db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
+    const insert = db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)");
     insert.run("2026-05-18", "A", "B");
     insert.run("2026-05-19", "C", "D");
-    const row = db.prepare("SELECT count(*) FROM memory_meta").get() as Record<string, unknown>;
+    const row = db.prepare("SELECT count(*) FROM yaoyao_meta").get() as Record<string, unknown>;
     assert.strictEqual(Number(row.c), 2);
     db.close();
     cleanUp(dir);
@@ -51,27 +51,27 @@ describe("FileDB", () => {
 
   it("searches via FTS match syntax (basic substring)", () => {
     const { db, dir } = freshDB();
-    db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)")
+    db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)")
       .run("2026-05-17", "Hello World", "Test search content");
-    const stmt = db.prepare("SELECT * FROM memory_fts WHERE memory_fts MATCH ? ORDER BY rank LIMIT ?");
+    const stmt = db.prepare("SELECT * FROM yaoyao_fts WHERE yaoyao_fts MATCH ? ORDER BY rank LIMIT ?");
     const results = stmt.all("search", 10) as Array<Record<string, unknown>>;
     assert.ok(results.length > 0, "Should find result via substring search");
     db.close();
     cleanUp(dir);
   });
 
-  it("deletes via delete from memory_meta", () => {
+  it("deletes via delete from yaoyao_meta", () => {
     const { db, dir } = freshDB();
-    db.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)")
+    db.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)")
       .run("2026-01-01", "delete me", "bye");
     assert.strictEqual(
-      Number((db.prepare("SELECT count(*) FROM memory_meta").get() as Record<string, unknown>).c), 1
+      Number((db.prepare("SELECT count(*) FROM yaoyao_meta").get() as Record<string, unknown>).c), 1
     );
 
-    const result = db.prepare("DELETE FROM memory_meta WHERE date = ?").run("2026-01-01");
+    const result = db.prepare("DELETE FROM yaoyao_meta WHERE date = ?").run("2026-01-01");
     assert.strictEqual(result.changes, 1);
     assert.strictEqual(
-      Number((db.prepare("SELECT count(*) FROM memory_meta").get() as Record<string, unknown>).c), 0
+      Number((db.prepare("SELECT count(*) FROM yaoyao_meta").get() as Record<string, unknown>).c), 0
     );
     db.close();
     cleanUp(dir);
@@ -95,12 +95,12 @@ describe("FileDB", () => {
   it("close persists the index", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "filedb-persist-"));
     const db1 = new FileDB(dir);
-    db1.prepare("INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)")
+    db1.prepare("INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)")
       .run("2026-02-02", "persist", "test");
     db1.close();
 
     const db2 = new FileDB(dir);
-    const row = db2.prepare("SELECT count(*) FROM memory_meta").get() as Record<string, unknown>;
+    const row = db2.prepare("SELECT count(*) FROM yaoyao_meta").get() as Record<string, unknown>;
     assert.strictEqual(Number(row.c), 1);
     db2.close();
     cleanUp(dir);
@@ -110,7 +110,7 @@ describe("FileDB", () => {
     const corruptDir = fs.mkdtempSync(path.join(os.tmpdir(), "filedb-corrupt-"));
     fs.writeFileSync(path.join(corruptDir, ".yaoyao-index.json"), "{invalid json", "utf-8");
     const db = new FileDB(corruptDir);
-    const row = db.prepare("SELECT count(*) FROM memory_meta").get() as Record<string, unknown>;
+    const row = db.prepare("SELECT count(*) FROM yaoyao_meta").get() as Record<string, unknown>;
     assert.strictEqual(Number(row.c), 0);
     db.close();
     cleanUp(corruptDir);

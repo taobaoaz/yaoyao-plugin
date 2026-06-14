@@ -54,10 +54,10 @@ export function batchImport(db: UnifiedDB, entries: ImportEntry[]): number {
   if (!db) throw new TypeError("batchImport: db is required");
   if (!Array.isArray(entries)) throw new TypeError("batchImport: entries must be an array");
   const insertedMeta = db.prepare(
-    "INSERT INTO memory_meta (date, user_text, asst_text) VALUES (?, ?, ?)"
+    "INSERT INTO yaoyao_meta (date, user_text, asst_text) VALUES (?, ?, ?)"
   );
   const insertedFts = db.prepare(
-    "INSERT INTO memory_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)"
+    "INSERT INTO yaoyao_fts (rowid, date, user_text, asst_text) VALUES (?, ?, ?, ?)"
   );
 
   let successCount = 0;
@@ -82,6 +82,6 @@ export function batchImport(db: UnifiedDB, entries: ImportEntry[]): number {
 
 export function getTotalCount(db: UnifiedDB): number {
   if (!db) throw new TypeError("getTotalCount: db is required");
-  const row = db.prepare("SELECT COUNT(*) as c FROM memory_meta").get() as SQLiteRow | undefined;
+  const row = db.prepare("SELECT COUNT(*) as c FROM yaoyao_meta").get() as SQLiteRow | undefined;
   return Number(row?.c ?? 0);
 }

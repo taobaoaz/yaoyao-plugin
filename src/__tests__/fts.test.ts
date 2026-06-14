@@ -19,9 +19,9 @@ function createMemDB() {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA busy_timeout = 5000");
-  db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5(" +
+  db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS yaoyao_fts USING fts5(" +
     "date, user_text, asst_text, tokenize='unicode61')");
-  db.exec("CREATE TABLE IF NOT EXISTS memory_meta (" +
+  db.exec("CREATE TABLE IF NOT EXISTS yaoyao_meta (" +
     "id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, " +
     "user_text TEXT, asst_text TEXT, meta TEXT, " +
     "created_at TEXT DEFAULT (datetime('now')))");
@@ -68,7 +68,7 @@ describe("FtsEngine", () => {
     assert.ok(results.length > 0 && results.length <= 5);
   });
 
-  it("deleteByDate removes from memory_meta", () => {
+  it("deleteByDate removes from yaoyao_meta", () => {
     engine.indexTurn(db, "delbydate test", "gone", "2025-04-01");
     const beforeDel = engine.search(db, "delbydate", 10);
     assert.ok(beforeDel.length > 0, "Should find entry before delete");
@@ -76,7 +76,7 @@ describe("FtsEngine", () => {
     assert.ok(deleted > 0, "Meta delete count should be > 0");
   });
 
-  it("deleteByKeyword removes from memory_meta", () => {
+  it("deleteByKeyword removes from yaoyao_meta", () => {
     engine.indexTurn(db, "kwtest abc", "def", "2025-05-01");
     const deleted = engine.deleteByKeyword(db, "kwtest");
     assert.ok(deleted > 0, "Meta delete count should be > 0");

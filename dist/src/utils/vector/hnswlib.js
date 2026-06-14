@@ -116,7 +116,7 @@ export class HnswlibBackend {
             if (!result.neighbors.length)
                 return [];
             const placeholders = result.neighbors.map(() => "?").join(",");
-            const stmt = this.db.prepare(`SELECT id, date, user_text, asst_text FROM memory_meta WHERE id IN (${placeholders})`);
+            const stmt = this.db.prepare(`SELECT id, date, user_text, asst_text FROM yaoyao_meta WHERE id IN (${placeholders})`);
             const rows = stmt.all(...result.neighbors);
             const rowMap = new Map(rows.map(r => [r.id, r]));
             const results = [];
@@ -157,7 +157,7 @@ export class HnswlibBackend {
         if (!this.isAvailable || !this.index || !this.db)
             return;
         try {
-            const rows = this.db.prepare("SELECT id FROM memory_meta").all();
+            const rows = this.db.prepare("SELECT id FROM yaoyao_meta").all();
             const validIds = new Set(rows.map(r => r.id));
             const count = this.index.getCurrentCount?.() ?? 0;
             this.logger?.debug?.("[yaoyao-memory:vec] HNSW deleteOrphans: no-op (filtered at search time)");

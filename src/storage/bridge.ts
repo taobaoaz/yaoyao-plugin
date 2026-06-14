@@ -7,6 +7,14 @@
  *   - hybrid.ts       (RRF / weighted fusion)
  *   - schema.ts       (table definitions)
  *
+ * v1.9.0 — DB unification: `dbPath` is now configurable. The default
+ * is `~/.openclaw/memory/main.sqlite` (the OpenClaw native DB file),
+ * so yaoyao shares a single SQLite file with the platform's `files` /
+ * `chunks` / `chunks_fts` tables. Table names carry a `yaoyao_` prefix
+ * to keep namespaces clean. Migration of an existing standalone
+ * `.yaoyao.db` (from v1.8.x and earlier) happens in
+ * `storage/migration-v190.ts`.
+ *
  * Previously utils/db-bridge.ts was a 629-line monolith.
  * Now each engine lives in its own <200-line file.
  */
@@ -30,6 +38,25 @@ export type { UnifiedDB, SQLiteRow } from "../platform/db/types.ts";
 export { createCompatDB } from "../platform/db/compat.ts";
 
 
+/**
+ * Resolve the yaoyao DB file path, with the following precedence:
+ *   1. `config.yaoyao.dbPath` (explicit override)
+ *   2. `YAOYAO_DB_PATH` env var (CI / dev override)
+ *   3. `~/.openclaw/memory/main.sqlite` (default, shared with OpenClaw)
+ *
+ * All filesystem operations on `.md`, `.backups`, `.pipeline`, `scenes/`
+ * etc. continue to live under `baseDir` (= `memoryDir`) so the on-disk
+ * layout users already have is preserved.
+ */
+export function resolveDbPath(config: YaoyaoMemoryConfig): string {
+  const cfg = config as unknown as Record<string, unknown>;
+  const yao = (cfg.yaoyao && typeof cfg.yaoyao === "object" ? cfg.yaoyao : {}) as Record<string, unknown>;
+  if (typeof yao.dbPath === "string" && yao.dbPath.length > 0) return path.resolve(yao.dbPath);
+  const envOverride = process.env.YAOYAO_DB_PATH;
+  if (typeof envOverride === "string" && envOverride.length > 0) return path.resolve(envOverride);
+  return path.join(os.homedir(), ".openclaw", "memory", "main.sqlite");
+}
+
 export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger) {
   const baseDir = path.resolve(
     config.memoryDir || path.join(os.homedir(), ".openclaw", "workspace", "memory")
@@ -37,7 +64,7 @@ export function createStorage(config: YaoyaoMemoryConfig, logger?: PluginLogger)
   if (/[\x00-\x1f]/.test(baseDir)) throw new TypeError("memoryDir contains invalid control characters");
 
   setLoggerRef(logger);
-  const dbPath = path.join(baseDir, ".yaoyao.db");
+  const dbPath = resolveDbPath(config);
   const log = (msg: string) => logger?.debug?.(`[yaoyao:storage] ${msg}`);
 
   // Config

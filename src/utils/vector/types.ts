@@ -27,7 +27,7 @@ export interface VectorBackend {
   /** Initialize the backend. Return false if it cannot be used (graceful fallback). */
   init(db: UnifiedDB, config: YaoyaoMemoryConfig, logger?: PluginLogger): boolean;
 
-  /** Store a vector for a memory record (metaId = rowid in memory_meta). */
+  /** Store a vector for a memory record (metaId = rowid in yaoyao_meta). */
   storeVector(metaId: number, embedding: Float32Array): boolean;
 
   /** Search nearest vectors. Returns empty array on any error. */
@@ -36,7 +36,7 @@ export interface VectorBackend {
   /** Release resources (memory, file handles, timers). */
   close(): void;
 
-  /** Delete vectors whose rowid no longer exists in memory_meta. Optional. */
+  /** Delete vectors whose rowid no longer exists in yaoyao_meta. Optional. */
   deleteOrphans?(): void;
 
   /** Return the current number of stored vectors. Optional. */

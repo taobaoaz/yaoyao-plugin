@@ -52,7 +52,7 @@ export class FileDB {
     }
     prepare(sql) {
         const lowered = sql.toLowerCase().trim();
-        if (lowered.startsWith("insert into memory_meta")) {
+        if (lowered.startsWith("insert into yaoyao_meta")) {
             return {
                 run: (...args) => {
                     const date = args[0];
@@ -73,7 +73,7 @@ export class FileDB {
                 get: () => undefined,
             };
         }
-        if (lowered.includes("from memory_fts") && lowered.includes("match")) {
+        if (lowered.includes("from yaoyao_fts") && lowered.includes("match")) {
             return {
                 run: () => ({ changes: 0 }),
                 all: (...args) => this._search(args[0], args[1]),
@@ -88,7 +88,7 @@ export class FileDB {
                 get: () => ({ c: count }),
             };
         }
-        if (lowered.startsWith("delete from memory_meta")) {
+        if (lowered.startsWith("delete from yaoyao_meta")) {
             return {
                 run: (...args) => {
                     const date = args[0];

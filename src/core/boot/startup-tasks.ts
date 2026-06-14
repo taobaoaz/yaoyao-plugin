@@ -8,7 +8,7 @@ import type { YaoyaoMemoryConfig } from "../../utils/memory-store.ts";
 import type { Storage } from "../../storage/bridge.ts";
 import type { MemoryTier } from "../../utils/tier-manager.ts";
 import { runTextCompaction } from "../../core/compactor/index.ts";
-import { evaluateAllTiers, DEFAULT_TIER_CONFIG } from "../../utils/tier-manager.ts";
+import { evaluateAllTiers, DEFAULT_TIER_CONFIG, getTtlDaysByType } from "../../utils/tier-manager.ts";
 import type { TierableMemory } from "../../utils/tier-manager.ts";
 import { syncMarkdownToFTS } from "./md-sync.ts";
 
@@ -57,17 +57,27 @@ export function runStartupTasks(
   try {
     const rawDb = storage.getRawDb();
     const rows = rawDb.prepare(
-      "SELECT id, metadata, access_count, created_at FROM memory_meta WHERE metadata IS NOT NULL"
-    ).all() as Array<{ id: number; metadata: string | null; access_count: number | null; created_at: number | null }>;
+      "SELECT id, meta, access_count, created_at FROM yaoyao_meta WHERE meta IS NOT NULL"
+    ).all() as Array<{ id: number; meta: string | null; access_count: number | null; created_at: number | null }>;
     const tierable: TierableMemory[] = rows.map(r => {
       let tier = "working" as MemoryTier, importance = 0.5, accessCount = r.access_count ?? 0, createdAt = r.created_at ?? Date.now(), decayScore = 0.5;
+      let memoryType: string | null = null;
       try {
-        const meta = JSON.parse(r.metadata || "{}") as Record<string, unknown>;
+        const meta = JSON.parse(r.meta || "{}") as Record<string, unknown>;
         tier = (meta.tier as MemoryTier) || "working";
         importance = typeof meta.importance === "number" ? meta.importance : 0.5;
         accessCount = typeof meta.accessCount === "number" ? meta.accessCount : (r.access_count ?? 0);
         decayScore = typeof meta.decayScore === "number" ? meta.decayScore : 0.5;
+        memoryType = typeof meta.memory_type === "string" ? meta.memory_type : null;
       } catch { /* ignore */ }
+      // v1.9.0: re-derive decayScore with type-aware TTL so fact vs event
+      // memories age on different curves. Older `decayScore` (if present)
+      // is preserved as a baseline so we do not regress in a single tick.
+      const ttlDays = getTtlDaysByType(memoryType);
+      const ageMs = Date.now() - createdAt;
+      const ageDays = ageMs / 86_400_000;
+      const typeDecay = Math.max(0, 1 - ageDays / ttlDays);
+      decayScore = Math.max(decayScore, typeDecay);
       return { id: String(r.id), tier, importance, accessCount, createdAt, decayScore };
     });
     const transitions = evaluateAllTiers(tierable, DEFAULT_TIER_CONFIG);

@@ -18,6 +18,20 @@ import type { YaoyaoMemoryConfig, MemoryEntry } from "./memory-store-types.ts";
 
 export type { YaoyaoMemoryConfig, MemoryEntry } from "./memory-store-types.ts";
 
+/**
+ * v1.9.0: Resolves the unified DB path with the same precedence as
+ * `storage/bridge.ts`. Kept local (not imported from there) to avoid
+ * a circular import between memory-store and storage/bridge.
+ */
+function resolveStoreDbPath(config: YaoyaoMemoryConfig): string {
+  const cfg = config as unknown as Record<string, unknown>;
+  const yao = (cfg.yaoyao && typeof cfg.yaoyao === "object" ? cfg.yaoyao : {}) as Record<string, unknown>;
+  if (typeof yao.dbPath === "string" && yao.dbPath.length > 0) return path.resolve(yao.dbPath);
+  const envOverride = process.env.YAOYAO_DB_PATH;
+  if (typeof envOverride === "string" && envOverride.length > 0) return path.resolve(envOverride);
+  return path.join(os.homedir(), ".openclaw", "memory", "main.sqlite");
+}
+
 /** Validate memoryDir config to prevent path traversal */
 function validateMemoryDir(rawDir: string | undefined): string {
   if (!rawDir) {
@@ -178,6 +192,14 @@ export function createMemoryStore(config: YaoyaoMemoryConfig, logger?: PluginLog
   return {
     baseDir,
     workspaceDir,
+    /**
+     * v1.9.0: Absolute path to the unified SQLite DB file. Resolved
+     * with the same precedence as `storage/bridge.ts` so backup tools,
+     * health checks, and external integrations all see the same target.
+     */
+    get dbPath(): string {
+      return resolveStoreDbPath(config);
+    },
     ensureDir,
     getDailyFile,
     appendToDaily,

@@ -57,7 +57,7 @@ export class FileDB implements UnifiedDB {
     // Minimal SQL parsing for FileDB
     const lower = sql.toLowerCase().trim();
 
-    // ── SELECT ... FROM memory_meta ──
+    // ── SELECT ... FROM yaoyao_meta ──
     if (lower.startsWith("select")) {
       const isCount = /count\(\*\)/.test(lower);
       const limitMatch = lower.match(/limit\s+(\d+)/);
@@ -106,7 +106,7 @@ export class FileDB implements UnifiedDB {
       };
     }
 
-    // ── DELETE FROM memory_meta ──
+    // ── DELETE FROM yaoyao_meta ──
     if (lower.startsWith("delete")) {
       const dateMatch = lower.match(/date\s*=\s*\?/);
       return {
