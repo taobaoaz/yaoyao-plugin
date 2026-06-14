@@ -36,3 +36,7 @@ Thumbs.db
 
 # Test output capture (temp)
 .test-output*
+
+# 备份文件（临时）
+*.bak
+*.orig
