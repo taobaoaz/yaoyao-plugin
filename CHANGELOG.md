@@ -1,4 +1,48 @@
 # Changelog
+## v1.9.0 (DB 接管 · 自适应 TTL · 2026-06-14)
+
+### L2 接管：DB 统一到 main.sqlite
+- 5 张表加 `yaoyao_` 前缀（meta / fts / tags / config / vec / vec_meta）
+- 3 个公开视图（yaoyao_memories / yaoyao_tags_view / yaoyao_overview）
+- 默认路径 `~/.openclaw/memory/main.sqlite`，可经 `config.yaoyao.dbPath` 或 `YAOYAO_DB_PATH` 覆盖
+- 一次性幂等迁移（ATTACH + 列交集 INSERT），从 `yaoyao_memory` / `yaoyao_fts` 等旧表无损迁入
+
+### A 记忆冲突自动消解
+- `src/utils/auto-resolver.ts` + `src/features/auto-resolve/tool.ts`
+- 评分公式：`0.45·recency + 0.30·source + 0.15·access + 0.10·importance`
+- 败者写入 `meta.superseded_by`，胜者累积 `meta.supersedes`（双向追踪）
+- 新增 `memory_auto_resolve` 工具，可手动触发批量化解
+
+### B 自适应 TTL（按记忆类型）
+- `TTL_DAYS_BY_MEMORY_TYPE` 表（fact=180 / preference=60 / event=30 / entity=180 / goal=90 / relationship=90 / behavior=90 / general=90）
+- `getTtlDaysByType()` 由 `tier-manager.ts` 导出
+- `startup-tasks.ts` 在 tier 评估时按类型读取 TTL
+
+### 修复与质量
+- `tier-manager.ts` 历史 bug：原本读 `metadata` 列，改为读 `meta` 列
+- 迁移 `runMigrationV190` 列交集计算：避免 v1.9.0 新增列在 legacy 中不存在时静默迁 0 行
+- `createBackup()` 补 `dbPath` 形参（v1.9.0 备份走 main.sqlite）
+- 已注册工具：**39 个**（新增 `memory_auto_resolve`）+ 1 hidden
+- 全功能测试套：**761 个测试全部通过**
+
+## v1.8.4 (本地 OpenClaw SDK Stub · 2026-06-14)
+
+### 修复外部依赖丢失
+- 插件 entry 与 42 个内部模块原本从 `openclaw/plugin-sdk/plugin-entry` 导入，host 之外环境（git clone / 干净机器 / CI）无法解析，OpenClaw 静默丢掉插件
+- 新增 `src/openclaw-sdk/plugin-entry.ts` 身份函数 stub，复刻真实 SDK 类型表面
+- 42 个文件 import 路径改写为相对路径指向本地 stub
+- `src/types/openclaw.d.ts` 删除（不再需要 ambient 声明）
+- `healthcheck.ts` / `install-check.ts` 改为从本地 stub 读版本号
+- 全功能测试套：**732 个测试全部通过**
+
+## v1.8.3 (多模态记忆 · 2026-06-14)
+
+### 多模态记忆（hidden · 测试中）
+- `src/features/multimodal/`：types / storage / processor / tool 四件套
+- 支持 image / audio / video 三种模态，按 `config.multimodal.enabled` 注册
+- 文件系统落盘（`index.json` + `meta/<id>.json` + `content/<id>.<ext>`），原子写
+- 6 个动作：save / get / list / search / link / delete
+- 60 个多模态单元测试，全功能测试套升至 **670 个**
 
 ## v1.8.2 (XiaoYi 架构适配 · 2026-06-14)
 
