@@ -307,14 +307,14 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 ## 🧪 测试
 
 ```bash
-npm test                  # 全部 732 单元测试
+npm test                  # 全部 761 单元测试
 npm run test:ci           # CI 子集（排除 parallel）
 npm run test:db           # 仅 DB 层
 npm run test:store        # 仅 memory-store
 npm run benchmark         # 性能基准
 ```
 
-**当前状态：732 测试全部通过**，覆盖 176 个测试模块，覆盖率重点模块包括：
+**当前状态：761 测试全部通过**，覆盖 186 个测试模块，覆盖率重点模块包括：
 
 - SmartVector 多信号融合（BM25 + 向量 + 时间衰减 + 重要性）
 - 七因子价值函数（7 个独立因子 + 加权综合）
@@ -387,7 +387,7 @@ npm run benchmark         # 性能基准
 
 ### 🔮 v2.0（远期）
 
-- [ ] 多模态记忆（图片 / 音频 / 视频嵌入）
+- [x] 多模态记忆（图片 / 音频 / 视频嵌入，v1.8.3 hidden）
 - [ ] 端到端加密的云同步
 - [ ] 联邦记忆（多 agent 共享部分记忆）
 - [ ] 主动遗忘（基于遗忘曲线理论的智能清理）
@@ -416,7 +416,7 @@ npm run benchmark         # 性能基准
 
 欢迎 PR。所有改动请附带：
 
-1. `npm test` 全通过（732 测试）
+1. `npm test` 全通过（761 测试）
 2. `npm run build` 零错误
 3. 新功能对应单元测试
 4. CHANGELOG.md 更新
