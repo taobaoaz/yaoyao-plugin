@@ -24,7 +24,12 @@ export function createGetTool(store, _db) {
             const resolved = rawPath.startsWith("/")
                 ? path.resolve(rawPath)
                 : path.resolve(store.baseDir, rawPath);
-            const realBase = fs.realpathSync(store.baseDir);
+            // realpathSync throws ENOENT when baseDir does not yet exist (fresh install,
+            // no memories written). Fall back to the resolved path so the user's
+            // path-under-base check still works for any future writes.
+            const realBase = fs.existsSync(store.baseDir)
+                ? fs.realpathSync(store.baseDir)
+                : store.baseDir;
             const realResolved = fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
             if (!realResolved.startsWith(realBase)) {
                 return { content: [{ type: "text", text: `⛔ 拒绝读取记忆目录之外的文件: ${rawPath}` }] };

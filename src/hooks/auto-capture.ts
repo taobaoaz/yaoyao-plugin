@@ -270,16 +270,17 @@ export function registerCaptureHook(
     } catch (e2: unknown) {
       const errMsg = e2 instanceof Error ? e2.message : String(e2);
       api.logger.error?.(`[yaoyao-memory:capture] Error: ${errMsg}`);
-      try {
-        appendSelfImprovementEntry({
-          baseDir: config.memoryDir || ".",
-          type: "error",
-          summary: `Capture failed: ${errMsg.slice(0, 100)}`,
-          details: e2 instanceof Error ? e2.stack || errMsg : errMsg,
-          area: "capture",
-          source: "yaoyao-memory/auto-capture",
-        }).catch(() => {});
-      } catch { /* ignore */ }
+      // appendSelfImprovementEntry is async; .catch silences its rejection.
+      // The outer try/catch wrapping it was dead — appendSelfImprovementEntry
+      // never throws synchronously, so we drop it.
+      appendSelfImprovementEntry({
+        baseDir: config.memoryDir || ".",
+        type: "error",
+        summary: `Capture failed: ${errMsg.slice(0, 100)}`,
+        details: e2 instanceof Error ? e2.stack || errMsg : errMsg,
+        area: "capture",
+        source: "yaoyao-memory/auto-capture",
+      }).catch(() => { /* self-improvement is best-effort, never block capture */ });
     }
   });
 

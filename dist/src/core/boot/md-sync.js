@@ -63,13 +63,25 @@ export function syncMarkdownToFTS(memoryDir, db, logger) {
             return stats;
         // Decide strategy based on existing SQLite record count
         let dbRecordCount = 0;
+        let dbReadFailed = false;
         try {
             const rawDb = db.getRawDb();
             const countRow = rawDb.prepare("SELECT COUNT(*) as c FROM yaoyao_meta").get();
             dbRecordCount = countRow?.c ?? 0;
         }
-        catch {
-            // If we can't read the db, proceed cautiously
+        catch (err) {
+            // If we can't read the db, DON'T silently fall through to bulk-import.
+            // That path would re-import every .md file we have, which is a silent
+            // data hazard if the DB is locked or corrupt. Abort and let the user
+            // investigate instead.
+            dbReadFailed = true;
+            logger?.warn?.(`[yaoyao-memory:md-sync] Could not read DB row count: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        if (dbReadFailed) {
+            logger?.warn?.("[yaoyao-memory:md-sync] DB read failed — aborting sync to avoid silent bulk-import. " +
+                ".md files remain source of truth; SQLite may be locked or corrupt.");
+            stats.errors++;
+            return stats;
         }
         const isBulkImport = dbRecordCount === 0;
         if (isBulkImport) {

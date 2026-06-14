@@ -88,12 +88,11 @@ export function createForgetTool(store, db) {
                     }
                     catch (writeErr) {
                         console.error(`[yaoyao-memory:forget] Failed to write ${f.path}: ${writeErr.message}`);
-                        // 回滚已修改的文件
-                        for (const modified of modifiedFiles.slice(0, -1)) {
-                            // 注意：这里没有原始内容备份，无法真正回滚
-                            // 但至少不继续删 DB
-                        }
-                        return { content: [{ type: "text", text: `⚠️ 文件修改失败 ${f.path}: ${writeErr.message}，已中止，未删除索引。` }] };
+                        // N-1 个已成功写入的文件无法回滚（无原始内容备份）。改为：
+                        // 在写失败时立即停止并报错，不继续删 DB。
+                        // 已修改的文件路径记在 modifiedFiles，便于用户从 .backups/ 手动恢复。
+                        const modifiedList = modifiedFiles.length > 0 ? modifiedFiles.join(", ") : "(无)";
+                        return { content: [{ type: "text", text: `⚠️ 文件修改失败 ${f.path}: ${writeErr.message}，已中止，未删除索引。已修改: ${modifiedList}` }] };
                     }
                 }
             }
