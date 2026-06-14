@@ -25,6 +25,9 @@ export function registerRecallHook(api, db, config, embedding, scopeManager, aud
     });
     const stats = globalRetrievalStats;
     // v1.8.x fix: persistent across-call state for repeat-query detection.
+    // checkRepeatQuery/recordRecentQuery need to mutate a shared array so they
+    // can spot a query that has been tried before. (Previously this was a
+    // local array inside doPostProcess and the check was effectively dead.)
     const recentQueries = [];
     const handler = async (event, ctx) => {
         const recallAsync = async () => {

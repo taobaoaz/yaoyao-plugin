@@ -2,9 +2,7 @@ import { scoreConfidenceSupport } from "../utils/confidence-scorer.js";
 import { INTENT_WEIGHTS } from "../core/search/intent.js";
 import { applyTimeDecay, applyScoring, applyDiversitySampling, applyMmrDiversity, filterByScope, accumulateKeywords, runRecallFilter, checkRepeatQuery, recordRecentQuery, } from "./recall-utils.js";
 import { buildRecallContext, buildHookResult, makeSimpleTrace } from "./recall-formatter.js";
-export async function doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, logger, db) {
-    // Optional trailing arg: persistent recent-queries array owned by caller.
-    // Older callers omit it; we fall back to a throwaway local array.
+export async function doPostProcess(results, mode, userText, cfg, scopeManager, agentId, intent, resultCache, stats, startMs, audit, sessionKey, logger, db, recentQueries) {
     let processed = filterByScope(results, scopeManager, agentId);
     processed = applyTimeDecay(processed, cfg.halfLife, cfg.decayMode, cfg.fadeMemAccessFactor);
     processed = applyScoring(processed, userText, cfg.enableFourSignal, cfg.fourSignalWeights);
@@ -46,7 +44,10 @@ export async function doPostProcess(results, mode, userText, cfg, scopeManager, 
         return;
     }
     const filtered = await runRecallFilter(limited, userText, cfg);
-    const recentQueriesRef = arguments[14] ?? [];
+    // Caller owns the recent-queries array so repeat detection persists across
+    // hook invocations. Creating a fresh array here (the old behavior) made the
+    // repeat-query check dead code.
+    const recentQueriesRef = recentQueries ?? [];
     const repeatNote = checkRepeatQuery(userText, cfg.maxResults, cfg.scoreThreshold, recentQueriesRef);
     if (repeatNote) {
         logger.debug?.(`[yaoyao-memory:recall] ${repeatNote}`);
