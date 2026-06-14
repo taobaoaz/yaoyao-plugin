@@ -4,7 +4,7 @@
 > v1.8.x：全面适配小艺 Claw 架构（环境/通道/技能/设备/安全），论文驱动的记忆增强，SmartVector 四信号融合 + Dual Process 情景缓存 + 多模态记忆（hidden，测试中）。
 
 [![Version](https://img.shields.io/badge/version-1.9.0-blue)](#)
-[![Tools](https://img.shields.io/badge/tools-39%20%2B%201%20hidden-orange)](#-registered-tools)
+[![Tools](https://img.shields.io/badge/tools-38%20%2B%201%20hidden-orange)](#-registered-tools)
 [![Tests](https://img.shields.io/badge/tests-761%20passing-brightgreen)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518.0.0-339933)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
