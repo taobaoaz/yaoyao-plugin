@@ -376,6 +376,8 @@ npm run benchmark         # 性能基准
 - [x] v1.8.1 — 论文驱动增强（FadeMem / MemX / RecMem）
 - [x] v1.8.2 — SmartVector 四信号融合 + 七因子价值函数 + Dual Process 情景缓存
 - [x] v1.8.2-hotfix — TypeScript 严格模式零错误 + 4 项功能 bug 修复
+- [x] v1.8.3 — 多模态记忆（hidden，image / audio / video）
+- [x] v1.8.4 — 本地 OpenClaw SDK stub，42 模块脱离外部包依赖
 - [x] 39 个工具 + 4 个 hook + 761 单元测试
 
 ### 📋 v1.9（计划）
