@@ -57,6 +57,11 @@ import { createWorkspaceTool } from "../features/workspace/tool.js";
 /* ── Multimodal memory (v1.8.x hidden feature, gated by config) ── */
 import { createMultimodalTool } from "../features/multimodal/tool.js";
 import { recordAndClassify, resolveCurrentModel, isMultimodalCapable, } from "../utils/model-capabilities.js";
+/* ── v1.9.1: memory-celia coexistence delegation ── */
+import { isCeliaActive } from "../utils/coexistence.js";
+import { getCeliaClient, resolveCeliaBinaryPath } from "../celia/client.js";
+import { applyCeliaDelegation } from "../celia/delegate.js";
+import { createCeliaProxyTools } from "../celia/proxy-tools.js";
 export function registerMemoryTools(api, store, db, storage, embedding, registry, config) {
     const tools = [];
     // Create SearchPipeline once, share across all search tools
@@ -164,6 +169,35 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
         }
     }
     api.logger.info(`[yaoyao-memory] ${tools.length} tools prepared for registration`);
+    // ── v1.9.1: celia coexistence delegation ──
+    // Active only when: celia owns the slot AND user opted in via celiaBridge.enabled.
+    // Wraps overlapping tools (save/search/forget/list) to delegate to celia;
+    // adds celia-unique proxy tools (dream/scene/global summary).
+    // In a standalone environment this whole block is skipped — zero impact.
+    const bridgeCfg = config.celiaBridge;
+    const celiaActive = isCeliaActive();
+    let delegateCtx = { client: null, logger: api.logger };
+    if (celiaActive && bridgeCfg?.enabled === true) {
+        const binPath = resolveCeliaBinaryPath(bridgeCfg.serverBinaryPath);
+        if (binPath) {
+            const client = getCeliaClient({ serverBinaryPath: binPath, logger: api.logger });
+            delegateCtx = { client, logger: api.logger };
+            // Wrap overlapping tools with delegation (fallback-safe).
+            applyCeliaDelegation(tools, delegateCtx).forEach((t, i) => { tools[i] = t; });
+            // Append celia-unique proxy tools (only available through celia).
+            try {
+                const proxyTools = createCeliaProxyTools(client, api.logger);
+                tools.push(...proxyTools);
+                api.logger.info?.(`[yaoyao-memory] celia bridge ACTIVE — ${proxyTools.length} proxy tools added, overlapping tools delegate to celia`);
+            }
+            catch (e) {
+                api.logger.warn?.(`[yaoyao-memory] celia proxy tools skipped: ${e.message}`);
+            }
+        }
+        else {
+            api.logger.warn?.(`[yaoyao-memory] celia bridge enabled but server binary not found; running in standalone tool mode`);
+        }
+    }
     let registeredCount = 0;
     for (const tool of tools) {
         try {

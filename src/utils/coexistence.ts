@@ -13,6 +13,9 @@
  *            plugin presence, core_skills/ directory with claw-core
  *            skills). These happen to fire on XiaoYi environments but
  *            are not XiaoYi-specific — they detect any claw-core.
+ *   v1.9.1: Added memory-celia (华为小艺 Claw 官方记忆插件) recognition.
+ *            slotOwner is now propagated so callers can tell *which*
+ *            system owns the memory slot and adapt (e.g. celia bridge).
  *
  * Active generic signals:
  *   1. openclaw.json slots.memory ownership
@@ -32,6 +35,13 @@ export interface CoexistState {
   timestamp: number;
   gatewayVersion: string;
   gatewayAlive: boolean;
+  /**
+   * v1.9.1: The concrete plugin id that owns the memory slot
+   * (e.g. "memory-celia", "claw-core"), if known. Empty when the slot
+   * is free or the owner cannot be determined. Used by the celia bridge
+   * to decide whether to activate delegation.
+   */
+  slotOwner?: string;
 }
 
 /** Startup grace period before coexistence detection activates (ms). */
@@ -59,16 +69,20 @@ function _isInStartupGrace(): boolean {
   return Date.now() - _startedAt < STARTUP_GRACE_MS;
 }
 
-/** Read openclaw.json to check if memory slot is owned by another system. */
-function _checkConfigSlotOwner(): boolean {
+/**
+ * Read openclaw.json to check if memory slot is owned by another system.
+ * v1.9.1: Returns the owner id (e.g. "memory-celia") instead of a boolean,
+ * so callers can adapt to the *specific* owner. Empty string = unowned / free.
+ */
+function _checkConfigSlotOwner(): string {
   try {
     const configPath = join(homedir(), ".openclaw", "openclaw.json");
-    if (!existsSync(configPath)) return false;
+    if (!existsSync(configPath)) return "";
     const raw = readFileSync(configPath, "utf-8");
     const config = JSON.parse(raw) as Record<string, unknown>;
     const slots = config.slots as Record<string, string> | undefined;
     if (slots?.memory && slots.memory !== "yaoyao-memory") {
-      return true;
+      return slots.memory;
     }
     // Check extensions/plugins for claw-core or gspd_memory (v1.8.0)
     const plugins = config.plugins as Record<string, unknown> | undefined;
@@ -77,13 +91,14 @@ function _checkConfigSlotOwner(): boolean {
       for (const val of Object.values(entries)) {
         const name = (val?.name as string || '').toLowerCase();
         if (name.includes("claw-core") || name.includes("memory-core") || name.includes("gspd_memory") || name.includes("gspd-memory")) {
-          return true;
+          // Surface the raw entry name as the owner
+          return (val?.name as string) || name;
         }
       }
     }
-    return false;
+    return "";
   } catch {
-    return false;
+    return "";
   }
 }
 
@@ -148,13 +163,15 @@ function _checkCoreSkills(): boolean {
 
 /** Actual detection: check if another claw core is running */
 function _doDetect(): CoexistState {
-  // Check config-based ownership
-  if (_checkConfigSlotOwner()) {
+  // Check config-based ownership (v1.9.1: returns owner id, "" = free)
+  const slotOwner = _checkConfigSlotOwner();
+  if (slotOwner) {
     return {
       mode: 'coexist',
       timestamp: Date.now(),
       gatewayVersion: '',
       gatewayAlive: true,
+      slotOwner,
     };
   }
 
@@ -165,6 +182,7 @@ function _doDetect(): CoexistState {
       timestamp: Date.now(),
       gatewayVersion: '',
       gatewayAlive: true,
+      slotOwner: 'claw-core',
     };
   }
 
@@ -175,6 +193,7 @@ function _doDetect(): CoexistState {
       timestamp: Date.now(),
       gatewayVersion: '',
       gatewayAlive: true,
+      slotOwner: 'claw-core',
     };
   }
 
@@ -184,6 +203,7 @@ function _doDetect(): CoexistState {
     timestamp: Date.now(),
     gatewayVersion: '',
     gatewayAlive: false,
+    slotOwner: '',
   };
 }
 
@@ -202,9 +222,26 @@ export function setCoexistMode(mode: CoexistMode): void {
     timestamp: Date.now(),
     gatewayVersion: _currentState.gatewayVersion,
     gatewayAlive: _currentState.gatewayAlive,
+    slotOwner: _currentState.slotOwner,
   };
 
   if (!_isInStartupGrace()) {
+    for (const handler of _changeHandlers) {
+      handler(prev, _currentState);
+    }
+  }
+}
+
+/**
+ * v1.9.1: Apply a full CoexistState (mode + slotOwner) detected at runtime.
+ * Triggers change handlers if either mode or slotOwner differs from current.
+ */
+export function applyCoexistState(next: CoexistState): void {
+  const prev = { ..._currentState };
+  const changed = prev.mode !== next.mode || (prev.slotOwner ?? '') !== (next.slotOwner ?? '');
+  _currentMode = next.mode;
+  _currentState = { ...next };
+  if (changed && !_isInStartupGrace()) {
     for (const handler of _changeHandlers) {
       handler(prev, _currentState);
     }
@@ -219,12 +256,30 @@ export function getCoexistState(): CoexistState {
   return { ..._currentState };
 }
 
+/**
+ * v1.9.1: The plugin id currently owning the memory slot, if any.
+ * Empty string when the slot is free (standalone mode) or unknown.
+ */
+export function getSlotOwner(): string {
+  return _currentState.slotOwner ?? '';
+}
+
+/**
+ * v1.9.1: True when the memory slot is owned by memory-celia
+ * (华为小艺 Claw 官方记忆插件). Enables the celia delegation bridge.
+ */
+export function isCeliaActive(): boolean {
+  const owner = getSlotOwner().toLowerCase();
+  return owner.includes('celia');
+}
+
 export function startCoexistenceMonitor(intervalMs: number): () => void {
   const timer = setInterval(() => {
     if (_isInStartupGrace()) return;
     const current = detectCoexistence();
-    if (current.mode !== _currentMode) {
-      setCoexistMode(current.mode);
+    // v1.9.1: also react to slotOwner changes (e.g. celia appeared/disappeared)
+    if (current.mode !== _currentMode || (current.slotOwner ?? '') !== (getSlotOwner())) {
+      applyCoexistState(current);
     }
   }, intervalMs);
   return () => clearInterval(timer);

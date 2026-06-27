@@ -15,7 +15,7 @@ import { detectCoexistence, startCoexistenceMonitor, onCoexistChange, getCoexist
 export default definePluginEntry({
     id: 'yaoyao-memory',
     name: 'Yaoyao Memory',
-    version: '1.9.0',
+    version: '1.9.1',
     description: '自适应记忆引擎: FTS5 + 向量搜索 + 时间线 + 云备份',
     register(api) {
         try {

@@ -1,4 +1,40 @@
 # Changelog
+## v1.9.1 (memory-celia 共存 · 双环境自适应 · 2026-06-27)
+
+### 背景
+华为小艺 Claw 环境的官方记忆插件 `memory-celia` 会独占 `memory` 槽位（`openclaw.json`
+的 `slots.memory = "memory-celia"`）。此前 yaoyao 因声明 `kind: "memory"` 与之竞争，
+在该环境被强制关闭——coexist 检测虽能识别，但 bootstrap 未消费该信号，仅打日志。
+
+### A coexist 检测真正生效
+- `coexistence.ts`：`CoexistState` 增 `slotOwner` 字段；`_checkConfigSlotOwner`
+  返回具体占用者 id（如 `memory-celia`）；新增 `getSlotOwner()` / `isCeliaActive()`
+- `app.ts` bootstrap 接入降级：coexist 时自动关闭 `capture` / `recall` /
+  `heartbeat`（避免与官方双写 L0、双注入 prompt），保留 40 工具作按需增强层
+- monitor 增 `applyCoexistState`，slotOwner 变化也触发回调
+
+### B celia 委托 + 强取层（可选，配置开关）
+- `celia/client.ts`：stdio JSON-RPC 2.0 MCP 客户端，spawn `celia_memory_mcp_server`
+  二进制，指数退避重启（1s→30s，10 次，30s 稳定窗口），懒启动单例
+- `celia/tool-map.ts`：重叠工具（save/search/forget/list）的 yaoyao→celia
+  参数映射；atomic_fact 等 action 型工具不委托
+- `celia/delegate.ts`：`wrapWithCeliaDelegate` 高阶函数，委托失败自动
+  fallback 回 yaoyao 自实现（绝不因 celia 故障中断）
+- `celia/proxy-tools.ts`：把 celia 独有能力暴露为 yaoyao 工具——
+  `memory_dream_status/trigger/summary`、`memory_scene_load/list`、
+  `memory_global_summary`、`memory_flush_celia`（标注 `[via celia]`）
+- `celia/db-reader.ts`：read-only 模式只读 celia 库（`mem_atomic` /
+  `mem_conversation` / `mem_global` / `mem_l1_index`），供独有分析工具增强
+
+### C 配置
+- `openclaw.plugin.json` configSchema 新增 `celiaBridge`（enabled / mode /
+  serverBinaryPath / dbPath），默认 `enabled:false`——空环境/不关心 celia 的用户零影响
+
+### 测试
+- 新增 `celia-tool-map.test.ts`（12 例）+ `coexistence-celia.test.ts`（4 例，
+  隔离 HOME 子进程验证端到端检测）
+- 空环境回归全绿（降级/委托逻辑被 coexist + celiaBridge.enabled 双重门控）
+
 ## v1.9.0 (DB 接管 · 自适应 TTL · 2026-06-14)
 
 ### L2 接管：DB 统一到 main.sqlite

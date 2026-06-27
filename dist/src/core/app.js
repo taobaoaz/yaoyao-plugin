@@ -11,12 +11,43 @@ import { runStartupTasks } from "./boot/startup-tasks.js";
 import { stepConfigValidation, stepCoreInit, stepManifest, stepScopeManager, stepCrossSessionRecovery, stepMigration, stepCleanupScheduler, } from "./boot/steps.js";
 import { runHealthcheck, runInstallCheck, formatInstallCheck, detectScheduledResetRisks } from "../utils/check-barrel.js";
 import { showBanner } from "../entry/banner.js";
+// v1.9.1: memory-celia coexistence detection
+import { getCoexistMode, getCoexistState, isCeliaActive } from "../utils/coexistence.js";
 export function bootstrapYaoyao(api, config) {
     const pluginVersion = readPluginVersion();
     const audit = createAuditLog(config.memoryDir || ".", api.logger, { bufferSize: 50, flushIntervalMs: 5000 });
     const cap = runInstallCheck();
     // ── 1. Platform detection & config ──
     api.logger.info?.(`[yaoyao-memory] ${formatInstallCheck(cap)}`);
+    // ── 1.1 Coexistence-aware hook disabling (v1.9.1) ──
+    // When another memory system owns the slot (e.g. memory-celia), we must NOT
+    // run auto-capture (double-write L0) or auto-recall/heartbeat (double-inject
+    // prompt). The 40 tools stay registered as an on-demand enhancement layer;
+    // only the lifecycle hooks that would conflict are gated off here. In an
+    // empty environment (standalone) this block is a no-op — zero behavior change.
+    const coexistMode = getCoexistMode();
+    const coexistState = getCoexistState();
+    const celiaActive = isCeliaActive();
+    if (coexistMode === 'coexist') {
+        const owner = coexistState.slotOwner || 'unknown';
+        if (config.capture?.enabled !== false) {
+            config.capture = { ...config.capture, enabled: false };
+        }
+        if (config.recall?.enabled !== false) {
+            config.recall = { ...config.recall, enabled: false };
+        }
+        if (config.hooks?.heartbeat?.enabled !== false) {
+            config.hooks = {
+                ...config.hooks,
+                heartbeat: { ...config.hooks?.heartbeat, enabled: false },
+            };
+        }
+        // command-new hook is kept: it only does session-boundary cleanup, no data write.
+        api.logger.warn?.(`[yaoyao-memory] COEXIST mode — memory slot owned by "${owner}". ` +
+            `auto-capture / auto-recall / heartbeat hooks DISABLED to avoid conflict. ` +
+            `40 tools remain active as on-demand layer.` +
+            (celiaActive ? ` celia bridge available (set celiaBridge.enabled=true to delegate).` : ''));
+    }
     // ── 1.5. Detect scheduled reset risks ──
     const resetRisks = detectScheduledResetRisks(config.memoryDir || ".", config);
     if (resetRisks.length > 0) {
