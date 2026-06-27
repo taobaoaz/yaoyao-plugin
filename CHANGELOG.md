@@ -22,17 +22,27 @@
   fallback 回 yaoyao 自实现（绝不因 celia 故障中断）
 - `celia/proxy-tools.ts`：把 celia 独有能力暴露为 yaoyao 工具——
   `memory_dream_status/trigger/summary`、`memory_scene_load/list`、
-  `memory_global_summary`、`memory_flush_celia`（标注 `[via celia]`）
+  `memory_global_summary`、`memory_flush_celia`（delegate 模式，7 个，标注 `[via celia]`）；
+  另 `createCeliaReadOnlyTool` 注册 `memory_celia_browse`（read-only 模式，1 个）
 - `celia/db-reader.ts`：read-only 模式只读 celia 库（`mem_atomic` /
-  `mem_conversation` / `mem_global` / `mem_l1_index`），供独有分析工具增强
+  `mem_conversation` / `mem_global` / `mem_l1_index`），供 `memory_celia_browse` 查询
+- `tools/index.ts` 消费 `celiaBridge.mode` 字段三路分发：
+  `delegate`（spawn+委托+proxy）/ `read-only`（不 spawn，只读 browse）/
+  `enabled:false`（跳过）；delegate 下二进制缺失自动降级 read-only
 
 ### C 配置
 - `openclaw.plugin.json` configSchema 新增 `celiaBridge`（enabled / mode /
   serverBinaryPath / dbPath），默认 `enabled:false`——空环境/不关心 celia 的用户零影响
 
+### D bug 修复（潜伏）
+- `celia/db-reader.ts` / `celia/client.ts` 移除 TypeScript parameter property
+  （`constructor(private x)`）——`--experimental-strip-types` 运行时不支持，会导致
+  目标环境模块加载即崩溃。改显式字段赋值。
+
 ### 测试
 - 新增 `celia-tool-map.test.ts`（12 例）+ `coexistence-celia.test.ts`（4 例，
-  隔离 HOME 子进程验证端到端检测）
+  隔离 HOME 子进程验证端到端检测）+ `celia-readonly.test.ts`（9 例，临时 celia 库
+  验证 db-reader 与 browse 工具）
 - 空环境回归全绿（降级/委托逻辑被 coexist + celiaBridge.enabled 双重门控）
 
 ## v1.9.0 (DB 接管 · 自适应 TTL · 2026-06-14)

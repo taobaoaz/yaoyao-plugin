@@ -62,11 +62,13 @@ export interface CeliaGlobalSummary {
 export class CeliaDbReader {
   private db: ReadonlyDb | null = null;
   private warnedMissing = false;
+  private dbPath: string;
+  private logger: Logger;
 
-  constructor(
-    private dbPath: string,
-    private logger: Logger = {},
-  ) {}
+  constructor(dbPath: string, logger: Logger = {}) {
+    this.dbPath = dbPath;
+    this.logger = logger;
+  }
 
   /** Resolve the default celia db path if none given. */
   static resolvePath(explicit?: string): string {

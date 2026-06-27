@@ -93,3 +93,85 @@ export function createCeliaProxyTools(client, logger) {
         }, "memory_flush", client, logger),
     ];
 }
+/**
+ * v1.9.1: read-only bridge tool. Used ONLY in celiaBridge.mode="read-only".
+ * Opens celia's database read-only (no spawn, no writes) and lets the user
+ * browse celia's atomic facts / conversations / global summary / scene index
+ * directly. Complements yaoyao's own analysis tools (graph/trends) by exposing
+ * celia-side data without running the MCP server.
+ */
+export function createCeliaReadOnlyTool(dbReader, logger) {
+    return {
+        id: "memory_celia_browse",
+        name: "memory_celia_browse",
+        label: "Browse Celia (read-only) [celia]",
+        description: "Read-only browse of the memory-celia database (no server spawn, no writes). " +
+            "Query celia's atomic facts (L2), raw conversations (L0), global user summary, " +
+            "or scene index. [via celia · read-only]",
+        parameters: {
+            type: "object",
+            properties: {
+                source: {
+                    type: "string",
+                    enum: ["atomic", "conversation", "global", "scene"],
+                    description: "Which celia table to read: atomic=L2 facts, conversation=L0 logs, global=user overview, scene=L1 index",
+                },
+                query: {
+                    type: "string",
+                    description: "Search query (ignored for 'global' and 'scene')",
+                    default: "",
+                },
+                topK: { type: "number", description: "Max results (default 5)", default: 5 },
+                tier: {
+                    type: "string",
+                    enum: ["edge", "cloud_s", "cloud_l"],
+                    description: "Summary tier, only for source=global (default: edge)",
+                    default: "edge",
+                },
+            },
+            required: ["source"],
+        },
+        async execute(_id, params) {
+            const source = params.source;
+            const query = params.query ?? "";
+            const topK = params.topK ?? 5;
+            try {
+                let text;
+                if (source === "atomic") {
+                    const rows = dbReader.readAtomicFacts(query, topK);
+                    text = rows.length === 0
+                        ? "（celia L2 原子事实无匹配 / 库不可读）"
+                        : rows.map((r) => `[${r.id}] ${r.content}${r.category ? ` (${r.category})` : ""}`).join("\n");
+                }
+                else if (source === "conversation") {
+                    const rows = dbReader.readConversations(query, topK);
+                    text = rows.length === 0
+                        ? "（celia L0 原始会话无匹配 / 库不可读）"
+                        : rows.map((r) => `[${r.id}] ${r.conversation_id}\n${r.content.slice(0, 300)}…`).join("\n---\n");
+                }
+                else if (source === "global") {
+                    const tier = params.tier ?? "edge";
+                    const rows = dbReader.readGlobalSummary(tier);
+                    text = rows.length === 0
+                        ? "（celia L0 全局画像为空 / 库不可读）"
+                        : rows.map((r) => `[${r.type}] ${r.content}`).join("\n");
+                }
+                else if (source === "scene") {
+                    const rows = dbReader.readSceneIndex();
+                    text = rows.length === 0
+                        ? "（celia L1 场景索引为空 / 库不可读）"
+                        : rows.map((r) => `${r.path}${r.summary ? ` — ${r.summary}` : ""}`).join("\n");
+                }
+                else {
+                    text = `未知 source: ${source}`;
+                }
+                return { content: [{ type: "text", text }] };
+            }
+            catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                logger.warn?.(`[yaoyao:celia:ro] browse failed: ${msg}`);
+                return { content: [{ type: "text", text: `❌ [via celia · read-only] 读取失败: ${msg}` }] };
+            }
+        },
+    };
+}

@@ -25,10 +25,10 @@ import { join } from "node:path";
  * call open() before use (no-op if already open or unavailable).
  */
 export class CeliaDbReader {
-    dbPath;
-    logger;
     db = null;
     warnedMissing = false;
+    dbPath;
+    logger;
     constructor(dbPath, logger = {}) {
         this.dbPath = dbPath;
         this.logger = logger;

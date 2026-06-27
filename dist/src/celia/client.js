@@ -58,7 +58,6 @@ export function resolveCeliaBinaryPath(explicit) {
     return "";
 }
 export class CeliaMcpClient {
-    opts;
     proc = null;
     nextId = 1;
     pending = new Map();
@@ -67,6 +66,7 @@ export class CeliaMcpClient {
     restartCount = 0;
     connected = false;
     initializing = null;
+    opts;
     constructor(opts) {
         this.opts = opts;
     }

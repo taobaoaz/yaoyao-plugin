@@ -105,7 +105,10 @@ export class CeliaMcpClient {
   private connected = false;
   private initializing: Promise<boolean> | null = null;
 
-  constructor(private opts: CeliaClientOptions) {}
+  private opts: CeliaClientOptions;
+  constructor(opts: CeliaClientOptions) {
+    this.opts = opts;
+  }
 
   /** Spawn the server (if not already) and perform MCP initialize handshake. */
   async start(): Promise<boolean> {
