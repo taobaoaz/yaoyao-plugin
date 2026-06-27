@@ -63,6 +63,7 @@ import { getCeliaClient, resolveCeliaBinaryPath } from "../celia/client.js";
 import { applyCeliaDelegation } from "../celia/delegate.js";
 import { createCeliaProxyTools, createCeliaReadOnlyTool } from "../celia/proxy-tools.js";
 import { CeliaDbReader } from "../celia/db-reader.js";
+import { normalizeBridgeMode } from "../celia/mode.js";
 export function registerMemoryTools(api, store, db, storage, embedding, registry, config) {
     const tools = [];
     // Create SearchPipeline once, share across all search tools
@@ -180,8 +181,10 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     const bridgeCfg = config.celiaBridge;
     const celiaActive = isCeliaActive();
     if (celiaActive && bridgeCfg?.enabled === true) {
-        const mode = (bridgeCfg.mode ?? "delegate");
-        if (mode === "read-only") {
+        // Normalize mode: "read-only" and "readonly" both map to the read-only path
+        // (config guides spell it inconsistently). See celia/mode.ts.
+        const mode = normalizeBridgeMode(bridgeCfg.mode);
+        if (mode === "readonly") {
             // ── read-only: no spawn, just open the db read-only ──
             try {
                 const dbPath = CeliaDbReader.resolvePath(bridgeCfg.dbPath);

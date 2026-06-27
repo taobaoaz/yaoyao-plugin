@@ -33,6 +33,10 @@
 ### C 配置
 - `openclaw.plugin.json` configSchema 新增 `celiaBridge`（enabled / mode /
   serverBinaryPath / dbPath），默认 `enabled:false`——空环境/不关心 celia 的用户零影响
+- `celia/mode.ts`：mode 归一化，`read-only` / `readonly` / `read_only`（大小写、
+  连字符/下划线/空格无关）统一识别为只读模式。修复生产环境配置指南拼写不一致
+  （`readonly`）导致误走 delegate 分支的问题。configSchema 的 mode enum 同步增加
+  `readonly` 别名
 
 ### D bug 修复（潜伏）
 - `celia/db-reader.ts` / `celia/client.ts` 移除 TypeScript parameter property

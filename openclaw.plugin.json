@@ -446,9 +446,10 @@
             "default": "delegate",
             "enum": [
               "delegate",
-              "read-only"
+              "read-only",
+              "readonly"
             ],
-            "description": "delegate=重叠工具委托 celia 执行 + 暴露 celia 独有工具；read-only=仅只读 celia 库做增强分析，不 spawn 服务"
+            "description": "delegate=重叠工具委托 celia 执行 + 暴露 celia 独有工具；read-only=仅只读 celia 库做增强分析，不 spawn 服务（readonly 为别名，等价于 read-only）"
           },
           "serverBinaryPath": {
             "type": "string",

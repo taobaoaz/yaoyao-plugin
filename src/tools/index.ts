@@ -101,6 +101,7 @@ import { getCeliaClient, resolveCeliaBinaryPath } from "../celia/client.ts";
 import { applyCeliaDelegation, type DelegateContext } from "../celia/delegate.ts";
 import { createCeliaProxyTools, createCeliaReadOnlyTool } from "../celia/proxy-tools.ts";
 import { CeliaDbReader } from "../celia/db-reader.ts";
+import { normalizeBridgeMode } from "../celia/mode.ts";
 
 export function registerMemoryTools(
   api: OpenClawPluginApi,
@@ -259,9 +260,11 @@ export function registerMemoryTools(
     | undefined;
   const celiaActive = isCeliaActive();
   if (celiaActive && bridgeCfg?.enabled === true) {
-    const mode = (bridgeCfg.mode ?? "delegate") as "delegate" | "read-only";
+    // Normalize mode: "read-only" and "readonly" both map to the read-only path
+    // (config guides spell it inconsistently). See celia/mode.ts.
+    const mode = normalizeBridgeMode(bridgeCfg.mode);
 
-    if (mode === "read-only") {
+    if (mode === "readonly") {
       // ── read-only: no spawn, just open the db read-only ──
       try {
         const dbPath = CeliaDbReader.resolvePath(bridgeCfg.dbPath);

@@ -294,12 +294,14 @@ OPENAI_RERANK_MODEL=accounts/fireworks/models/qwen3-reranker-8b
 {
   "celiaBridge": {
     "enabled": false,           // 默认关闭；仅在 coexist 模式下生效
-    "mode": "delegate",         // delegate | read-only
+    "mode": "delegate",         // delegate | read-only（"readonly" 为别名，等价）
     "serverBinaryPath": "",     // delegate 模式用；留空自动探测
     "dbPath": "~/.openclaw/workspace/memory/celia_memory/celia_memory.db"
   }
 }
 ```
+
+> **mode 容错**：代码会自动归一化 `read-only` / `readonly` / `read_only`（大小写、连字符/下划线/空格无关），统一识别为只读模式。照任何一份配置文档填写都能正确触发。
 
 ### 4.2 模式说明（已实现，真实可用）
 
