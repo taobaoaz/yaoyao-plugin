@@ -1,9 +1,9 @@
-# Yaoyao Memory Plugin v1.9.1
+# Yaoyao Memory Plugin v1.9.2
 
 > 摇摇 · 4 层 AI 记忆引擎 — FTS5 + sqlite-vec 混合检索、自动捕获、时间线、云备份、主题趋势。
-> v1.9.1：与官方 memory-celia 双环境共存（自动降级 + 可选委托桥）；v1.8.x：全面适配小艺 Claw 架构、论文驱动增强、SmartVector 四信号融合 + Dual Process 情景缓存。
+> v1.9.2：memory-celia 共存稳定版（自动降级 + 委托/只读桥 + agent 首次引导）；v1.8.x：全面适配小艺 Claw 架构、论文驱动增强、SmartVector 四信号融合 + Dual Process 情景缓存。
 
-[![Version](https://img.shields.io/badge/version-1.9.1-blue)](#)
+[![Version](https://img.shields.io/badge/version-1.9.2-blue)](#)
 [![Tools](https://img.shields.io/badge/tools-40%20%2B%201%20hidden-orange)](#-registered-tools)
 [![Tests](https://img.shields.io/badge/tests-826%20passing-brightgreen)](#-testing)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518.0.0-339933)](package.json)
@@ -130,7 +130,7 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git#beta
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.9.1  ·  40 Tools  ·  4 Hooks
+🎲    v1.9.2  ·  40 Tools  ·  4 Hooks
 🎲    FTS5 + sqlite-vec + 时间线 + 云备份
 🎲    记忆目录: ~/.openclaw/workspace/memory/
 🎲    环境检测: 全部通过
@@ -527,6 +527,16 @@ npm run benchmark         # 性能基准
 - [x] 修复潜伏 bug：db-reader/client 的 parameter property（`--experimental-strip-types` 运行时不支持）
 - [x] 新增 `celiaBridge` 配置项（默认关闭，空环境零影响）
 - [x] 测试 768 → **826**（+58：celia 映射 + 共存检测 + read-only + mode + 首次引导 等）
+
+### ✅ v1.9.2（稳定发布 · 2026-06-28）
+- [x] memory-celia 共存能力稳定版：经生产环境（小艺 Claw）验证后合并发布的 1.9.1 beta 全部能力
+  - 自动降级（coexist 检测 + hook 关闭）
+  - 委托桥 delegate / 只读桥 read-only 两模式
+  - mode 容错（`read-only`/`readonly`/`read_only`）
+  - agent 首次对话自动引导 + `memory_setup` 工具
+  - strip-types 运行时 bug 修复
+- [x] 完整安装向导 `docs/install-guide.md`
+- [x] 已注册工具：**39 个** + 1 hidden（v1.9.1 新增 `memory_setup`）
 
 ### 📋 v1.9.x（计划）
 - [ ] 跨设备记忆同步（P0）

@@ -1,8 +1,8 @@
 # 小艺 Claw 记忆系统完整配置方案
 
 > 生成时间: 2026-06-28  
-> 版本: yaoyao-memory v1.9.1 + memory-celia v2026-06-25-rc8  
-> 本文档与 yaoyao-plugin beta 分支 v1.9.1 实际实现逐项核对，描述真实可用行为。
+> 版本: yaoyao-memory v1.9.2 + memory-celia v2026-06-25-rc8  
+> 本文档与 yaoyao-plugin beta 分支 v1.9.2 实际实现逐项核对，描述真实可用行为。
 
 ---
 
@@ -16,7 +16,7 @@
 │                                                                 │
 │  ┌───────────────────────┐      ┌───────────────────────┐      │
 │  │   yaoyao-memory       │      │   memory-celia        │      │
-│  │   v1.9.1              │      │   v2026-06-25-rc8     │      │
+│  │   v1.9.2              │      │   v2026-06-25-rc8     │      │
 │  │   (supplement 模式)   │      │   (slot 占用者)       │      │
 │  │                       │      │                       │      │
 │  │   40 个工具           │      │   16 个工具           │      │
@@ -49,7 +49,7 @@
 {
   "id": "yaoyao-memory",
   "name": "Yaoyao Memory",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "kind": "memory",
   "extensions": {
     "register": "./dist/index.js",
@@ -571,10 +571,11 @@ openclaw status
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
-| **yaoyao-memory v1.9.1** | 2026-06-28 | 双环境共存 (celiaBridge delegate + read-only 两模式) |
+| **yaoyao-memory v1.9.2** | 2026-06-28 | 共存稳定版（1.9.1 经生产验证后合并发布） |
+| **yaoyao-memory v1.9.1** | 2026-06-27 | 双环境共存 (celiaBridge delegate + read-only 两模式) |
 | **yaoyao-memory v1.9.0** | 2026-06-14 | 稳定版 |
 | **memory-celia v2026-06-25-rc8** | 2026-06-25 | 候选版本 |
 
 ---
 
-*文档生成时间: 2026-06-28 · 与 beta 分支 v1.9.1 实现核对一致*
+*文档生成时间: 2026-06-28 · 与 beta 分支 v1.9.2 实现核对一致*

@@ -152,7 +152,7 @@ export class CeliaMcpClient {
       await this._rpc("initialize", {
         protocolVersion: "2024-11-05",
         capabilities: {},
-        clientInfo: { name: "yaoyao-memory", version: "1.9.1" },
+        clientInfo: { name: "yaoyao-memory", version: "1.9.2" },
       }, INIT_TIMEOUT_MS);
       // Acknowledge initialized notification (fire-and-forget)
       this._notify("notifications/initialized", {});

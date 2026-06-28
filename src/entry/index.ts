@@ -24,7 +24,7 @@ import {
 export default definePluginEntry({
   id: 'yaoyao-memory',
   name: 'Yaoyao Memory',
-  version: '1.9.1',
+  version: '1.9.2',
   description: '自适应记忆引擎: FTS5 + 向量搜索 + 时间线 + 云备份',
   register(api: OpenClawPluginApi) {
     try {

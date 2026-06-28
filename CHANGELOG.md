@@ -1,4 +1,22 @@
 # Changelog
+## v1.9.2 (memory-celia 共存稳定版 · 2026-06-28)
+
+1.9.1 beta 经生产环境（小艺 Claw）验证后合并发布的稳定版，包含 1.9.1 的全部能力
+（共存降级、委托/只读桥、mode 容错、首次引导）+ 完整安装向导。
+
+### 验证确认
+- 生产环境日志显示 `yaoyao 模式: supplement (hooks 自动禁用)` —— coexist 自动检测
+  在真实环境生效
+- 生产配置指南拼写不一致（`readonly` vs `read-only`）已通过 mode 容错修复
+
+### 文档
+- 新增 `docs/install-guide.md`：从零部署到排错的完整安装向导（三种场景 + 决策树）
+- README / docs 全面同步至 v1.9.2
+
+### 版本号
+- 1.9.1 → 1.9.2（package.json / openclaw.plugin.json / entry/index.ts / celia client 握手身份）
+- 1.9.1 的功能引入记录保留在下方历史段（功能确实是 1.9.1 引入的）
+
 ## v1.9.1 (memory-celia 共存 · 双环境自适应 · 2026-06-27)
 
 ### 背景

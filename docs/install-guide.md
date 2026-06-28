@@ -1,8 +1,8 @@
 # yaoyao-memory 安装向导
 
-> 版本: v1.9.1  
+> 版本: v1.9.2  
 > 适用: OpenClaw 标准环境 / 小艺 Claw（含 memory-celia 共存）  
-> 本文与 beta 分支 `6714333` 实际代码逐项核对，每一步均可执行。
+> 本文与 beta 分支实际代码逐项核对，每一步均可执行。
 
 ---
 
@@ -52,9 +52,9 @@
 openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 ```
 
-> ⚠️ 当前 v1.9.1 在 `beta` 分支。若官方 registry 还在 1.9.0，用方式 B 指定 beta。
+> ⚠️ 当前 v1.9.2 在 `beta` 分支。若官方 registry 还在 1.9.0，用方式 B 指定 beta。
 
-**方式 B：从 beta 分支安装（获取 v1.9.1 共存能力）**
+**方式 B：从 beta 分支安装（获取 v1.9.2 共存能力）**
 
 ```bash
 openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git#beta
@@ -75,7 +75,7 @@ npm run dist-check     # 确认 dist/ 与 src/ 同步（应输出全部 ✅）
 
 ```bash
 openclaw plugin list | grep yaoyao
-# 应输出：yaoyao-memory  1.9.1  enabled
+# 应输出：yaoyao-memory  1.9.2  enabled
 ```
 
 ### 步骤 3：重启 Gateway
@@ -93,7 +93,7 @@ openclaw restart
 ```
 🎲 ══════════════════════════════════════════
 🎲    摇摇 · 记忆引擎已启动
-🎲    v1.9.1  ·  40 Tools  ·  4 Hooks
+🎲    v1.9.2  ·  40 Tools  ·  4 Hooks
 🎲    FTS5 + sqlite-vec + 时间线 + 云备份
 🎲    记忆目录: ~/.openclaw/workspace/memory/
 🎲    环境检测: 全部通过
@@ -401,7 +401,7 @@ yaoyao 启动时读取 `~/.openclaw/openclaw.json` 的 `slots.memory`：
 
 ## 七、升级
 
-### 7.1 从 1.9.0 升级到 1.9.1
+### 7.1 从 1.9.0 升级到 1.9.2
 
 ```bash
 # 1. 备份现有数据（保险）
@@ -414,7 +414,7 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git#beta
 python3 -m supervisor.supervisorctl restart openclaw-gateway
 ```
 
-**1.9.1 向后兼容**：升级后空环境行为零变化。若你之前在 celia 环境被关闭，现在会自动 coexist 降级（不需要改配置）。
+**1.9.2 向后兼容**：升级后空环境行为零变化。若你之前在 celia 环境被关闭，现在会自动 coexist 降级（不需要改配置）。首次对话会收到一条配置引导提示（仅一次）。
 
 ### 7.2 从源码升级（开发）
 
@@ -559,4 +559,4 @@ openclaw tool call memory_backup
 
 ---
 
-*文档版本: v1.9.1 · 与 beta 分支 `6714333` 实现核对一致 · 2026-06-28*
+*文档版本: v1.9.2 · 与 beta 分支实现核对一致 · 2026-06-28*
