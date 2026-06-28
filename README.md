@@ -114,11 +114,15 @@ emotionalIntensity · goalRelevance · valueAlignment · userRelevance
 
 ## 📦 安装
 
+> 📖 完整安装向导（含三种部署场景、验证步骤、排错）：见 [docs/install-guide.md](./docs/install-guide.md)
+
 ```bash
 # 标准 OpenClaw 环境
 openclaw plugin install yaoyao-memory-plugin
 # 或 git 安装
 openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
+# v1.9.1 共存版本（beta 分支）
+openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git#beta
 ```
 
 启动后你会看到：
