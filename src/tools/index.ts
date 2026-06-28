@@ -57,6 +57,7 @@ import { createImportWorkspaceTool } from "../features/import-workspace/tool.ts"
 import { createRecommendTool } from "../features/recommend/tool.ts";
 import { createRemindTool } from "../features/remind/tool.ts";
 import { createHealthcheckTool } from "../features/healthcheck/tool.ts";
+import { createSetupTool } from "../features/setup/tool.ts";
 
 /* ── Conflict detection ─────────────────────────── */
 import { createJudgeTool, createConflictsTool } from "../features/conflict/tool.ts";
@@ -162,6 +163,9 @@ export function registerMemoryTools(
     createWorkspaceTool(store),
     /* ── v1.8.3: memory_analyze placeholder (redirects to yaoyao-soul plugin) ── */
     createAnalyzeTool(),
+
+    /* ── v1.9.1: First-run self-check & guidance (memory_setup) ── */
+    createSetupTool({ config: config as YaoyaoMemoryConfig, store }),
   );
 
   /* ── Optional tools (gated by FeatureRegistry) ── */

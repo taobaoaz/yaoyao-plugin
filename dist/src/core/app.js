@@ -5,6 +5,7 @@ import { registerCaptureHook } from "../hooks/auto-capture.js";
 import { registerRecallHook } from "../hooks/auto-recall.js";
 import { registerCommandNewHook } from "../hooks/command-new.js";
 import { registerHeartbeatRecallHook } from "../hooks/heartbeat-recall.js";
+import { registerSetupGuideHook } from "../hooks/setup-guide.js";
 import { readPluginVersion } from "../entry/version.js";
 import { createAuditLog } from "../utils/audit-log.js";
 import { runStartupTasks } from "./boot/startup-tasks.js";
@@ -118,6 +119,10 @@ export function bootstrapYaoyao(api, config) {
             maxContextChars: config.hooks?.heartbeat?.maxContextChars ?? 800,
         });
     }
+    // ── v1.9.1: First-run setup guidance (always registered, not gated by coexist) ──
+    // Surfaces the install guide once per config-signature so the agent can guide
+    // the user on first use. Independent of capture/recall/heartbeat disablement.
+    registerSetupGuideHook(api, config, store);
     // ── 8. Cleanup scheduler ──
     const { cleanupStop } = stepCleanupScheduler(api, config, storage);
     // ── 9. Shutdown ──

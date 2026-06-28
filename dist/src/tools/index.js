@@ -35,6 +35,7 @@ import { createImportWorkspaceTool } from "../features/import-workspace/tool.js"
 import { createRecommendTool } from "../features/recommend/tool.js";
 import { createRemindTool } from "../features/remind/tool.js";
 import { createHealthcheckTool } from "../features/healthcheck/tool.js";
+import { createSetupTool } from "../features/setup/tool.js";
 /* ── Conflict detection ─────────────────────────── */
 import { createJudgeTool, createConflictsTool } from "../features/conflict/tool.js";
 import { createAutoResolveTool } from "../features/auto-resolve/tool.js";
@@ -81,7 +82,9 @@ export function registerMemoryTools(api, store, db, storage, embedding, registry
     /* ── v1.8.0: Workspace file access ── */
     createWorkspaceTool(store), 
     /* ── v1.8.3: memory_analyze placeholder (redirects to yaoyao-soul plugin) ── */
-    createAnalyzeTool());
+    createAnalyzeTool(), 
+    /* ── v1.9.1: First-run self-check & guidance (memory_setup) ── */
+    createSetupTool({ config: config, store }));
     /* ── Optional tools (gated by FeatureRegistry) ── */
     // Enhanced search — uses SearchPipeline, no longer needs raw embedding
     tools.push(createEnhancedSearchTool(pipeline));

@@ -43,6 +43,17 @@
   （`constructor(private x)`）——`--experimental-strip-types` 运行时不支持，会导致
   目标环境模块加载即崩溃。改显式字段赋值。
 
+### E 首次对话自动引导（agent 自主发现）
+- `features/setup/detector.ts`：自检运行模式 / 共存桥未开 / 数据空 / 向量未启用 /
+  能力警告，返回结构化 findings
+- `features/setup/guide.ts`：渲染为「首次对话提示」（精简，注入 prompt）和
+  「完整报告」（memory_setup 工具返回）两种形态
+- `features/setup/state.ts`：签名去重——按配置状态签名记录"已引导"，配置实质变化
+  才再提示一次；FS 错误静默降级为"未引导"（绝不阻塞启动）
+- `hooks/setup-guide.ts`：`before_prompt_build` 首次注入引导，**独立于 coexist 的
+  capture/recall/heartbeat 降级**（首次引导优先级更高，始终注册）
+- `memory_setup` 工具（#39）：agent 可随时复查配置状态，返回优化建议 + install-guide 路径
+
 ### 测试
 - 新增 `celia-tool-map.test.ts`（12 例）+ `coexistence-celia.test.ts`（4 例，
   隔离 HOME 子进程验证端到端检测）+ `celia-readonly.test.ts`（9 例，临时 celia 库
