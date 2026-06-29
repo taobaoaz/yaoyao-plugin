@@ -1,4 +1,15 @@
 # Changelog
+## Unreleased
+
+### 📦 多平台同步基础设施（2026-06-29）
+- 仓库镜像到 CNB（云原生构建）：`https://cnb.cool/TIAMO.xianyao/yaoyao-plugin`
+- 确立**多平台同步规则**：所有优化和更改必须同时推送到 GitHub 和 CNB
+- 新增 `docs/SYNC_POLICY.md`：详细同步策略文档
+- 新增 `scripts/sync-to-cnb.sh`：一键同步脚本（支持 `--reverse` 反向同步和 `--dry-run` 预览）
+- README 添加 CNB 安装说明和多平台链接
+
+> **本规则自 2026-06-29 起生效**。任何未来的代码、文档、配置优化和更改，必须在提交 GitHub 后**立即**通过 `./scripts/sync-to-cnb.sh` 同步到 CNB。
+
 ## v1.9.2 (memory-celia 共存稳定版 · 2026-06-28)
 
 1.9.1 beta 经生产环境（小艺 Claw）验证后合并发布的稳定版，包含 1.9.1 的全部能力

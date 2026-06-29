@@ -125,6 +125,22 @@ openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git
 openclaw plugin install git+https://github.com/taobaoaz/yaoyao-plugin.git#beta
 ```
 
+### 🇨🇳 国内镜像（CNB）
+
+为加速国内访问，项目同时镜像到 [CNB（云原生构建）](https://cnb.cool)：
+
+```bash
+# 从 CNB 安装（速度更快）
+openclaw plugin install git+https://cnb.cool/TIAMO.xianyao/yaoyao-plugin.git
+```
+
+**⚠️ 多平台同步规则**：本项目的优化和更改**必须**同时推送到 GitHub 和 CNB。详见 [docs/SYNC_POLICY.md](./docs/SYNC_POLICY.md)。贡献者请使用：
+
+```bash
+# 修改后一键同步到 CNB
+./scripts/sync-to-cnb.sh
+```
+
 启动后你会看到：
 
 ```
@@ -585,6 +601,9 @@ npm run benchmark         # 性能基准
 
 [MIT](LICENSE) — 摇摇 (Yaoyao)
 
-仓库：[github.com/taobaoaz/yaoyao-plugin](https://github.com/taobaoaz/yaoyao-plugin)
+仓库：
+- GitHub: [github.com/taobaoaz/yaoyao-plugin](https://github.com/taobaoaz/yaoyao-plugin)
+- CNB（国内镜像）: [cnb.cool/TIAMO.xianyao/yaoyao-plugin](https://cnb.cool/TIAMO.xianyao/yaoyao-plugin)
+
 问题反馈：[Issues](https://github.com/taobaoaz/yaoyao-plugin/issues)
 安全披露：[SECURITY.md](SECURITY.md)
