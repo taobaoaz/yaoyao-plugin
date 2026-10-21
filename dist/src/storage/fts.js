@@ -1,4 +1,4 @@
-import { rankToScore, sanitizeFTSQuery } from "./fts-utils.js";
+import { rankToScore, tokenizeFTSQuery } from "./fts-utils.js";
 import { extractCjkBigrams } from "./fts-cjk.js";
 const DEFAULT_FTS_CONFIG = {
     snippetMaxLen: 500,
@@ -35,25 +35,32 @@ export function createFtsEngine(config) {
         },
         /** FTS5 full-text search with LIKE fallback for CJK. */
         search(db, query, limit = 10) {
-            const safeQuery = sanitizeFTSQuery(query);
-            if (!safeQuery) {
+            const tokens = tokenizeFTSQuery(query);
+            if (tokens.length === 0) {
                 return this.searchAll(db, limit);
             }
-            // Try FTS5 first
-            const stmt = db.prepare(`SELECT rowid, date, user_text, asst_text,
-                snippet(yaoyao_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank
-         FROM yaoyao_fts WHERE yaoyao_fts MATCH ?
-         ORDER BY rank LIMIT ?`);
-            const rows = stmt.all(safeQuery, Math.min(Math.max(limit, 1), cfg.searchMaxLimit));
-            if (rows.length > 0) {
-                return rows.map(row => ({
-                    id: row.rowid,
-                    filename: row.date ? `${row.date}.md` : "memory.db",
-                    snippet: (row.snippet || "").slice(0, cfg.snippetMaxLen),
-                    score: rankToScore(row.rank),
-                    date: row.date || "",
-                    asst_text: (row.asst_text || "").slice(0, cfg.snippetMaxLen),
-                }));
+            const capped = Math.min(Math.max(limit, 1), cfg.searchMaxLimit);
+            // FTS5 first: AND terms, then OR terms for natural-language queries
+            // whose words rarely all appear in one turn.
+            const candidates = [tokens.join(" ")];
+            if (tokens.length > 1)
+                candidates.push(tokens.join(" OR "));
+            for (const matchQuery of candidates) {
+                const stmt = db.prepare(`SELECT rowid, date, user_text, asst_text,
+                  snippet(yaoyao_fts, 2, '<b>', '</b>', '…', 32) as snippet, rank
+           FROM yaoyao_fts WHERE yaoyao_fts MATCH ?
+           ORDER BY rank LIMIT ?`);
+                const rows = stmt.all(matchQuery, capped);
+                if (rows.length > 0) {
+                    return rows.map(row => ({
+                        id: row.rowid,
+                        filename: row.date ? `${row.date}.md` : "memory.db",
+                        snippet: (row.snippet || "").slice(0, cfg.snippetMaxLen),
+                        score: rankToScore(row.rank),
+                        date: row.date || "",
+                        asst_text: (row.asst_text || "").slice(0, cfg.snippetMaxLen),
+                    }));
+                }
             }
             // FTS5 miss → LIKE fallback for CJK
             const safeLikeQuery = query.slice(0, 200)
